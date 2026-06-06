@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+{% block title %}Split Expenses - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Split Expenses</h1>
+    <p>Track and split expenses with your groups</p>
+</div>
+
+{% if groups %}
+<!-- Group List -->
+<div class="group-grid">
+    {% for group in groups %}
+    <div class="group-box" data-group-id="{{ group.id }}" onclick="selectGroup({{ group.id }})">
+        <h3>{{ group.name }}</h3>
+        <p>{{ group.members|length }} members</p>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="groupContent" style="display:none;">
+    <div class="split-primary-layout">
+        <div class="card split-add-card">
+            <div class="card-header">
+                <h2>Add Expense</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('split.add_expense') }}" id="expenseForm" enctype="multipart/form-data">
+                    <input type="hidden" name="group_id" id="expenseGroupId" />
+
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" name="description" required placeholder="e.g., Dinner, Rent">
+                    </div>
+
+                    <div class="form-row-inline">
+                        <div class="form-group">
+                            <label>Amount (&#8377;)</label>
+                            <input type="number" name="amount" step="0.01" min="0.01" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Split Type</label>
+                            <select name="split_type" id="split_type" class="form-select">
+                                <option value="equal">Equal Split</option>
+                                <option value="exact">Exact Amount</option>
+                                <option value="percentage">By Percentage</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Receipt (optional)</label>
+                        <input type="file" name="receipt" accept="image/*,.pdf">
+                    </div>
+
+                    <div id="splitOptions"></div>
+                    <button type="submit" class="btn btn-primary btn-full">Add Expense</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card split-recent-card">
+            <div class="card-header">
+                <h2>Recent Expenses</h2>
+                <form method="POST" id="clearForm">
+                    <button type="submit" class="btn btn-sm btn-outline">Clear Recent History</button>
+                </form>
+            </div>
+            <div class="card-body">
+                <div id="expensesList" class="expenses-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="split-secondary-layout">
+        <div class="card">
+            <div class="card-header">
+                <h2>Balance Overview</h2>
+            </div>
+            <div class="card-body">
+                <div id="balancesContainer" class="balances-grid"></div>
+            </div>
+        </div>
+
+        <div class="card">
+        <div class="card-header"><h2>Pay</h2></div>
+        <div class="card-body">
+            <div class="payment-setup-panel">
+                {% if stripe_enabled %}
+                    {% if current_user.stripe_charges_enabled and current_user.stripe_payouts_enabled %}
+                    <span class="badge badge-success">Online payouts ready</span>
+                    {% else %}
+                    <p class="text-subtle">Set up Stripe payouts so group members can pay you online.</p>
+                    <form method="POST" action="{{ url_for('split.stripe_connect_onboard') }}" class="inline-form">
+                        <button type="submit" class="btn btn-outline btn-sm">Set Up Payouts</button>
+                    </form>
+                    {% endif %}
+                {% else %}
+                    <p class="text-subtle">Online payments are disabled until Stripe keys are added to .env.</p>
+                {% endif %}
+            </div>
+
+            <form method="POST" action="{{ url_for('split.create_stripe_payment') }}" id="onlinePaymentForm">
+                <input type="hidden" name="group_id" id="onlinePaymentGroupId">
+                <input type="hidden" name="receiver_id" id="onlinePaymentReceiverId">
+                <input type="hidden" name="amount" id="onlinePaymentAmount">
+            </form>
+
+            <form method="POST" action="{{ url_for('split.record_payment') }}" id="manualPaymentForm">
+                <input type="hidden" name="group_id" id="paymentGroupId">
+                <div class="form-group">
+                    <label>Receiver</label>
+                    <select name="receiver_id" id="receiverSelect" class="form-select"
+                            onchange="updatePaymentAmount()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Amount (&#8377;)</label>
+                    <input type="number" step="0.01" min="0.01" name="amount"
+                           id="paymentAmount" required>
+                </div>
+                <div class="payment-actions">
+                    <button type="submit" class="btn btn-primary btn-full" form="onlinePaymentForm" id="onlinePayButton">
+                        Pay Online
+                    </button>
+                    <button type="submit" class="btn btn-outline btn-full" id="recordPayButton">Record Payment</button>
+                </div>
+                <p class="text-subtle payment-help" id="onlinePaymentHelp"></p>
+            </form>
+        </div>
+        </div>
+    </div>
+
+    <div class="split-secondary-layout">
+        <div class="card">
+            <div class="card-header"><h2>Expense Breakdown</h2></div>
+            <div class="card-body">
+                <div id="summaryList" class="summary-list"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h2>Transaction History</h2></div>
+            <div class="card-body">
+                <div id="historyList" class="expenses-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<p class="empty-state-full">No groups yet.</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const groups = {{ groups_json|tojson|safe }};
+    const stripeEnabled = {{ stripe_enabled|tojson }};
+    let currentGroupId = null;
+    let paymentOptions = [];
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatRupees(amount) {
+        const value = Number(amount || 0);
+        const sign = value < 0 ? '-' : '';
+        return `${sign}\u20b9${Math.abs(value).toFixed(2)}`;
+    }
+
+    function selectedGroup() {
+        return groups.find(group => Number(group.id) === Number(currentGroupId));
+    }
+
+    async function fetchJson(url) {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Request failed: ${response.status}`);
+        }
+        return response.json();
+    }
+
+    function selectGroup(id) {
+        currentGroupId = id;
+        document.getElementById('groupContent').style.display = 'block';
+        document.querySelectorAll('.group-box').forEach(groupBox => {
+            groupBox.classList.toggle('selected', Number(groupBox.dataset.groupId) === Number(id));
+        });
+        document.getElementById('expenseGroupId').value = id;
+        document.getElementById('paymentGroupId').value = id;
+        document.getElementById('onlinePaymentGroupId').value = id;
+        document.getElementById('clearForm').action = `/split/clear_recent/${id}`;
+        renderSplitOptions();
+        loadBalances();
+        loadExpenses();
+        loadSummaries();
+        loadHistory();
+        loadPaymentOptions();
+    }
+
+    async function loadBalances() {
+        const data = await fetchJson(`/split/api/balances/${currentGroupId}`);
+        const container = document.getElementById('balancesContainer');
+        container.innerHTML = data.map(b => {
+            const amount = `${b.net > 0 ? '+' : ''}${formatRupees(b.net)}`;
+            const tone = b.net > 0 ? 'positive' : b.net < 0 ? 'negative' : '';
+            return `
+                <div class="balance-card ${tone}">
+                    <div class="balance-name">${escapeHtml(b.name)}</div>
+                    <div class="balance-amount">${amount}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function loadExpenses() {
+        const data = await fetchJson(`/split/api/group/${currentGroupId}/expenses`);
+        const container = document.getElementById('expensesList');
+        if (!data.length) {
+            container.innerHTML = '<p class="empty-state">No expenses yet</p>';
+            return;
+        }
+        container.innerHTML = data.map(e => `
+            <div class="expense-item">
+                <div class="expense-info">
+                    <span class="expense-description">${escapeHtml(e.description)}</span>
+                    <span class="expense-meta">${formatRupees(e.amount)} by ${escapeHtml(e.paid_by)}</span>
+                    ${e.receipt_url ? `<a class="receipt-link" href="${escapeHtml(e.receipt_url)}" target="_blank" rel="noopener">View Receipt</a>` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function loadSummaries() {
+        const data = await fetchJson(`/split/api/group/${currentGroupId}/summaries`);
+        const container = document.getElementById('summaryList');
+        if (!data.length) {
+            container.innerHTML = '<p class="empty-state">No outstanding splits</p>';
+            return;
+        }
+        container.innerHTML = data.map(i => `<div class="summary-item">${escapeHtml(i.text)}</div>`).join('');
+    }
+
+    async function loadHistory() {
+        const data = await fetchJson(`/split/api/group/${currentGroupId}/history`);
+        const container = document.getElementById('historyList');
+        if (!data.length) {
+            container.innerHTML = '<p class="empty-state">No transaction history</p>';
+            return;
+        }
+        container.innerHTML = data.map(h => {
+            const date = (h.date || '').split('T')[0];
+            if (h.type === 'payment') {
+                const method = h.method === 'stripe' ? 'online' : 'manual';
+                return `
+                    <div class="expense-item">
+                        <span>${date} &mdash; ${escapeHtml(h.payer)} paid ${escapeHtml(h.receiver)} ${formatRupees(h.amount)} (${method})</span>
+                    </div>
+                `;
+            }
+            return `
+                <div class="expense-item">
+                    <span>${date} &mdash; ${escapeHtml(h.paid_by)} paid ${formatRupees(h.amount)} for ${escapeHtml(h.description)}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function loadPaymentOptions() {
+        const select = document.getElementById('receiverSelect');
+        const amount = document.getElementById('paymentAmount');
+        const onlineButton = document.getElementById('onlinePayButton');
+        const recordButton = document.getElementById('recordPayButton');
+
+        paymentOptions = await fetchJson(`/split/api/group/${currentGroupId}/payment-options`);
+        if (!paymentOptions.length) {
+            select.innerHTML = '<option value="">No payments due</option>';
+            select.disabled = true;
+            amount.value = '';
+            amount.removeAttribute('max');
+            amount.disabled = true;
+            onlineButton.disabled = true;
+            recordButton.disabled = true;
+            document.getElementById('onlinePaymentHelp').textContent = '';
+            return;
+        }
+
+        select.disabled = false;
+        amount.disabled = false;
+        recordButton.disabled = false;
+        select.innerHTML = paymentOptions.map(option => `
+            <option value="${option.id}" data-amount="${option.amount_owed}" data-online="${option.can_receive_online ? '1' : '0'}">
+                ${escapeHtml(option.name)} - ${formatRupees(option.amount_owed)}
+            </option>
+        `).join('');
+        updatePaymentAmount();
+    }
+
+    function updatePaymentAmount() {
+        const select = document.getElementById('receiverSelect');
+        const amount = document.getElementById('paymentAmount');
+        const selected = select.options[select.selectedIndex];
+        const owed = selected ? Number(selected.dataset.amount || 0) : 0;
+        const canReceiveOnline = selected ? selected.dataset.online === '1' : false;
+        const onlineButton = document.getElementById('onlinePayButton');
+        const help = document.getElementById('onlinePaymentHelp');
+
+        amount.max = owed.toFixed(2);
+        amount.value = owed ? owed.toFixed(2) : '';
+        document.getElementById('onlinePaymentReceiverId').value = selected ? selected.value : '';
+        document.getElementById('onlinePaymentAmount').value = amount.value;
+
+        onlineButton.disabled = !stripeEnabled || !canReceiveOnline || !owed;
+        if (!stripeEnabled) {
+            help.textContent = 'Add Stripe test keys to .env to enable online payments.';
+        } else if (selected && !canReceiveOnline) {
+            help.textContent = 'This receiver needs to finish Stripe payout setup before online payments can be sent.';
+        } else {
+            help.textContent = '';
+        }
+    }
+
+    document.getElementById('paymentAmount').addEventListener('input', () => {
+        document.getElementById('onlinePaymentAmount').value = document.getElementById('paymentAmount').value;
+    });
+
+    function renderSplitOptions() {
+        const splitType = document.getElementById('split_type').value;
+        const container = document.getElementById('splitOptions');
+        const group = selectedGroup();
+
+        if (!group || splitType === 'equal') {
+            container.innerHTML = '';
+            return;
+        }
+
+        const fieldPrefix = splitType === 'percentage' ? 'percent' : 'amount';
+        const suffix = splitType === 'percentage' ? '%' : '\u20b9';
+        container.innerHTML = `
+            <div class="split-inputs">
+                ${group.members.map(member => `
+                    <div class="split-input-row">
+                        <label for="${fieldPrefix}_${member.id}">${escapeHtml(member.name)}</label>
+                        <input type="number" step="0.01" min="0"
+                               id="${fieldPrefix}_${member.id}"
+                               name="${fieldPrefix}_${member.id}"
+                               placeholder="${suffix}">
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    document.getElementById('split_type').addEventListener('change', renderSplitOptions);
+</script>
+
+{% endblock %}

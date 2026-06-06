@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks Calendar - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Tasks & Calendar</h1>
+    <p>Schedule and track group tasks with reminders</p>
+</div>
+
+{% if groups %}
+<div class="group-grid">
+    {% for group in groups %}
+    <div class="group-box" data-group-id="{{ group.id }}" onclick="selectGroup({{ group.id }})">
+        <h3>{{ group.name }}</h3>
+        <p>{{ group.members|length }} members</p>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="tasksContent" style="display: none;">
+    <div class="content-grid">
+        <!-- Add Task Form -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Add Task</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('tasks.add_task') }}">
+                    <input type="hidden" name="group_id" id="taskGroupId">
+
+                    <div class="form-group">
+                        <label for="title">Task Title</label>
+                        <input type="text" id="title" name="title" required
+                               placeholder="e.g., Pay rent, Buy groceries">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="task_description">Description (optional)</label>
+                        <textarea id="task_description" name="description" rows="2"
+                                  placeholder="Add details..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="due_date">Due Date & Time</label>
+                        <input type="datetime-local" id="due_date" name="due_date" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reminder_time">Reminder (optional)</label>
+                        <input type="datetime-local" id="reminder_time" name="reminder_time">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assigned_to_id">Assign To (optional)</label>
+                        <select id="assigned_to_id" name="assigned_to_id" class="form-select">
+                            <option value="">Anyone</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-full">Add Task</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Calendar View -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Calendar</h2>
+                <div class="calendar-nav">
+                    <button class="btn btn-sm btn-outline" onclick="changeMonth(-1)" aria-label="Previous month">&larr;</button>
+                    <span id="currentMonth"></span>
+                    <button class="btn btn-sm btn-outline" onclick="changeMonth(1)" aria-label="Next month">&rarr;</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="calendar" class="calendar-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tasks List -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Upcoming Tasks</h2>
+        </div>
+        <div class="card-body">
+            <div id="tasksList" class="tasks-list"></div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="empty-state-full">
+    <p>You need to join or create a group first.</p>
+    <a href="{{ url_for('main.home') }}" class="btn btn-primary">Go to Home</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const groups = {{ groups_json|tojson|safe }};
+    let currentGroupId = null;
+    let currentTasks = [];
+    let currentDate = new Date();
+    let groupMembers = [];
+
+    function selectGroup(id) {
+        currentGroupId = id;
+        const group = groups.find(g => Number(g.id) === Number(id));
+        groupMembers = group ? group.members : [];
+
+        document.querySelectorAll('.group-box').forEach(box => {
+            box.classList.toggle('selected', Number(box.dataset.groupId) === Number(id));
+        });
+
+        document.getElementById('taskGroupId').value = currentGroupId;
+        document.getElementById('tasksContent').style.display = 'block';
+
+        // Populate assigned_to select
+        const assignSelect = document.getElementById('assigned_to_id');
+        assignSelect.innerHTML = '<option value="">Anyone</option>' +
+            groupMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+
+        fetchTasks();
+    }
+
+    async function fetchTasks() {
+        const response = await fetch(`/tasks/api/group/${currentGroupId}`);
+        currentTasks = await response.json();
+
+        renderCalendar();
+        renderTasksList();
+    }
+
+    function renderCalendar() {
+        const calendar = document.getElementById('calendar');
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+
+        document.getElementById('currentMonth').textContent =
+            currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        let html = dayNames.map(d => `<div class="calendar-header">${d}</div>`).join('');
+
+        // Empty cells before first day
+        for (let i = 0; i < firstDay; i++) {
+            html += '<div class="calendar-day empty"></div>';
+        }
+
+        // Days of month
+        const today = new Date();
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const tasksOnDay = currentTasks.filter(t => t.due_date.startsWith(dateStr));
+
+            const isToday = today.getFullYear() === year &&
+                today.getMonth() === month &&
+                today.getDate() === day;
+
+            html += `
+            <div class="calendar-day ${isToday ? 'today' : ''} ${tasksOnDay.length ? 'has-tasks' : ''}">
+                <span class="day-number">${day}</span>
+                ${tasksOnDay.length ? `<span class="task-dot">${tasksOnDay.length}</span>` : ''}
+            </div>
+        `;
+        }
+
+        calendar.innerHTML = html;
+    }
+
+    function changeMonth(delta) {
+        currentDate.setMonth(currentDate.getMonth() + delta);
+        renderCalendar();
+    }
+
+    function renderTasksList() {
+        const container = document.getElementById('tasksList');
+
+        const sortedTasks = [...currentTasks].sort((a, b) =>
+            new Date(a.due_date) - new Date(b.due_date)
+        );
+
+        if (sortedTasks.length === 0) {
+            container.innerHTML = '<p class="empty-state">No tasks scheduled</p>';
+            return;
+        }
+
+        container.innerHTML = sortedTasks.map(t => `
+        <div class="task-item ${t.is_completed ? 'completed' : ''}">
+            <div class="task-checkbox" onclick="toggleTask(${t.id})">
+                ${t.is_completed ? '&check;' : ''}
+            </div>
+            <div class="task-content">
+                <span class="task-title">${t.title}</span>
+                ${t.description ? `<span class="task-description">${t.description}</span>` : ''}
+                <span class="task-meta">
+                    Due ${new Date(t.due_date).toLocaleString()}
+                    ${t.assigned_to ? ` &bull; Assigned to ${t.assigned_to}` : ''}
+                    ${t.reminder_time ? ` &bull; Reminder ${new Date(t.reminder_time).toLocaleString()}` : ''}
+                </span>
+            </div>
+            <form method="POST" action="/tasks/delete/${t.id}">
+                <button type="submit" class="btn btn-xs btn-ghost" aria-label="Delete task">&times;</button>
+            </form>
+        </div>
+    `).join('');
+    }
+
+    async function toggleTask(taskId) {
+        await fetch(`/tasks/complete/${taskId}`, { method: 'POST' });
+        fetchTasks();
+    }
+
+    // Check for reminders periodically
+    setInterval(async () => {
+        const response = await fetch('/tasks/api/upcoming');
+        const upcoming = await response.json();
+
+        const now = new Date();
+        upcoming.forEach(task => {
+            const reminderTime = new Date(task.reminder_time);
+            const diff = Math.abs(reminderTime - now);
+
+            // If within 1 minute of reminder time, show notification
+            if (diff < 60000 && Notification.permission === 'granted') {
+                new Notification(`Reminder: ${task.title}`, {
+                    body: `Due: ${new Date(task.due_date).toLocaleString()}\nGroup: ${task.group_name}`
+                });
+            }
+        });
+    }, 60000); // Check every minute
+
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+</script>
+{% endblock %}

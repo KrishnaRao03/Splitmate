@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block auth_content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo"><span>S</span> Splitmate</div>
+            <h1>Verify your email</h1>
+            <p>Enter the 6-digit OTP sent to {{ email }}</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" class="auth-form">
+            <div class="form-group">
+                <label for="otp">OTP Code</label>
+                <input type="text" id="otp" name="otp" class="otp-input" required
+                       inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                       placeholder="000000" autocomplete="one-time-code">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full">Verify Email</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('auth.resend_otp') }}" class="auth-secondary-form">
+            <button type="submit" class="btn btn-outline btn-full">Resend OTP</button>
+        </form>
+
+        <div class="auth-footer">
+            <p><a href="{{ url_for('auth.login') }}">Back to login</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

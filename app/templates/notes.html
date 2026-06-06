@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Shared Notes - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Shared Notes</h1>
+    <p>Keep track of shared to-dos with your group</p>
+</div>
+
+{% if groups %}
+<div class="group-grid">
+    {% for group in groups %}
+    <div class="group-box" data-group-id="{{ group.id }}" onclick="selectGroup({{ group.id }})">
+        <h3>{{ group.name }}</h3>
+        <p>{{ group.members|length }} members</p>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="notesContent" style="display: none;">
+    <div class="card">
+        <div class="card-header">
+            <h2>Add Note</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('notes.add_note') }}" class="add-note-form">
+                <input type="hidden" name="group_id" id="noteGroupId">
+                <div class="form-group">
+                    <label for="noteTitle">Title</label>
+                    <input type="text" id="noteTitle" name="title" required
+                           placeholder="e.g., Groceries, Rent reminder">
+                </div>
+                <div class="form-group">
+                    <label for="noteDescription">Description</label>
+                    <textarea id="noteDescription" name="description" rows="3"
+                              placeholder="Add details..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Add Note</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Notes</h2>
+        </div>
+        <div class="card-body">
+            <div id="notesList" class="notes-list"></div>
+        </div>
+    </div>
+</div>
+
+<div id="editNoteModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Edit Note</h2>
+            <button class="modal-close" onclick="closeModal('editNoteModal')">&times;</button>
+        </div>
+        <form method="POST" id="editNoteForm">
+            <div class="form-group">
+                <label for="editNoteTitle">Title</label>
+                <input type="text" id="editNoteTitle" name="title" required>
+            </div>
+            <div class="form-group">
+                <label for="editNoteDescription">Description</label>
+                <textarea id="editNoteDescription" name="description" rows="4"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline"
+                        onclick="closeModal('editNoteModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% else %}
+<div class="empty-state-full">
+    <p>You need to join or create a group first.</p>
+    <a href="{{ url_for('main.home') }}" class="btn btn-primary">Go to Home</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentGroupId = null;
+    let currentNotes = [];
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function selectGroup(id) {
+        currentGroupId = id;
+        document.querySelectorAll('.group-box').forEach(box => {
+            box.classList.toggle('selected', Number(box.dataset.groupId) === Number(id));
+        });
+
+        document.getElementById('noteGroupId').value = currentGroupId;
+        document.getElementById('notesContent').style.display = 'block';
+
+        fetchNotes();
+    }
+
+    async function fetchNotes() {
+        const response = await fetch(`/notes/api/group/${currentGroupId}`);
+        currentNotes = await response.json();
+
+        const container = document.getElementById('notesList');
+
+        if (currentNotes.length === 0) {
+            container.innerHTML = '<p class="empty-state">No notes yet. Add one above!</p>';
+            return;
+        }
+
+        container.innerHTML = currentNotes.map(n => `
+        <div class="note-item ${n.is_completed ? 'completed' : ''}">
+            <div class="note-checkbox" onclick="toggleNote(${n.id})">
+                ${n.is_completed ? '&check;' : ''}
+            </div>
+            <div class="note-content">
+                <span class="note-text">${escapeHtml(n.title)}</span>
+                ${n.description ? `<span class="note-description">${escapeHtml(n.description)}</span>` : ''}
+                <span class="note-meta">Added by ${escapeHtml(n.created_by)}</span>
+            </div>
+            <div class="note-actions">
+                <button type="button" class="btn btn-xs btn-outline"
+                        onclick="openEditNoteModal(${n.id})">Edit</button>
+            <form method="POST" action="/notes/delete/${n.id}">
+                <button type="submit" class="btn btn-xs btn-ghost" aria-label="Delete note">&times;</button>
+            </form>
+            </div>
+        </div>
+    `).join('');
+    }
+
+    function openEditNoteModal(noteId) {
+        const note = currentNotes.find(item => Number(item.id) === Number(noteId));
+        if (!note) return;
+
+        document.getElementById('editNoteForm').action = `/notes/edit/${note.id}`;
+        document.getElementById('editNoteTitle').value = note.title || '';
+        document.getElementById('editNoteDescription').value = note.description || '';
+        openModal('editNoteModal');
+    }
+
+    async function toggleNote(noteId) {
+        await fetch(`/notes/toggle/${noteId}`, { method: 'POST' });
+        fetchNotes();
+    }
+</script>
+{% endblock %}

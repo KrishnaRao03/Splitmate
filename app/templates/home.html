@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <p>Welcome back, {{ current_user.name }}!</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card stat-positive">
+        <div class="stat-icon">IN</div>
+        <div class="stat-content">
+            <span class="stat-label">You're Owed</span>
+            <span class="stat-value">&#8377;{{ "%.2f"|format(total_owed_to_user) }}</span>
+        </div>
+    </div>
+    <div class="stat-card stat-negative">
+        <div class="stat-icon">OUT</div>
+        <div class="stat-content">
+            <span class="stat-label">You Owe</span>
+            <span class="stat-value">&#8377;{{ "%.2f"|format(total_user_owes) }}</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">GR</div>
+        <div class="stat-content">
+            <span class="stat-label">Groups</span>
+            <span class="stat-value">{{ groups|length }}</span>
+        </div>
+    </div>
+</div>
+
+<div class="content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2>Monthly Spending</h2>
+            <span class="badge">This Month</span>
+        </div>
+        <div class="card-body">
+            {% if monthly_spending %}
+            <div class="spending-list">
+                {% for group_name, amount in monthly_spending.items() %}
+                <div class="spending-item">
+                    <span class="spending-group">{{ group_name }}</span>
+                    <span class="spending-amount">&#8377;{{ "%.2f"|format(amount) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">No spending this month</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Recent Activity</h2>
+        </div>
+        <div class="card-body">
+            {% if recent_expenses %}
+            <div class="activity-list">
+                {% for expense in recent_expenses %}
+                <div class="activity-item">
+                    <div class="activity-icon">$</div>
+                    <div class="activity-content">
+                        <span class="activity-title">{{ expense.description }}</span>
+                        <span class="activity-meta">
+                                {{ expense.added_by.name }} &bull; {{ expense.group.name }}
+                            </span>
+                    </div>
+                    <span class="activity-amount">&#8377;{{ "%.2f"|format(expense.amount) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">No recent activity</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Expenses by Month</h2>
+    </div>
+    <div class="card-body">
+        {% if chart_data and chart_data|length > 0 %}
+        <div class="chart-grid">
+            {% for series in chart_data %}
+            <div class="chart-panel">
+                <div class="chart-panel-header">
+                    <h3>{{ series.group }}</h3>
+                </div>
+                {% set max_total = series.data | map(attribute='total') | list | max %}
+                <div class="bar-chart" aria-label="{{ series.group }} expenses by month">
+                    {% for point in series.data %}
+                    {% set bar_height = (point.total / max_total * 100) if max_total else 0 %}
+                    <div class="bar-chart-item">
+                        <div class="bar-chart-track">
+                            <div class="bar-chart-fill" style="height: {{ bar_height }}%"></div>
+                        </div>
+                        <span class="bar-chart-value">&#8377;{{ "%.0f"|format(point.total) }}</span>
+                        <span class="bar-chart-label">{{ point.label[5:] }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state">No data yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Your Groups</h2>
+        <button class="btn btn-primary btn-sm" onclick="openModal('createGroupModal')">
+            + Create Group
+        </button>
+    </div>
+    <div class="card-body">
+        {% if groups %}
+        <div class="groups-grid">
+            {% for group in groups %}
+            <div class="group-card">
+                <div class="group-header">
+                    <h3>{{ group.name }}</h3>
+                    {% if group.admin_id == current_user.id %}
+                    <span class="badge badge-admin">Admin</span>
+                    {% endif %}
+                </div>
+                <div class="group-members">
+                    <span class="members-count">{{ group.members|length }} members</span>
+                    <div class="members-avatars">
+                        {% for member in group.members[:4] %}
+                        <div class="mini-avatar" title="{{ member.name }}">
+                            {{ member.name[0].upper() }}
+                        </div>
+                        {% endfor %}
+                        {% if group.members|length > 4 %}
+                        <div class="mini-avatar more">+{{ group.members|length - 4 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if group.admin_id == current_user.id %}
+                <div class="group-actions">
+                    <button class="btn btn-sm btn-outline"
+                            onclick="openAddMemberModal({{ group.id }}, '{{ group.name }}')">
+                        Add Member
+                    </button>
+                    {% set g_json = groups_json | selectattr('id', 'equalto', group.id) | first %}
+                    <button class="btn btn-sm btn-outline"
+                            onclick="openManageMembersModal({{ g_json.id }}, '{{ g_json.name }}', {{ g_json.members|tojson|safe }}, {{ g_json.admin_id }})">
+                        Manage
+                    </button>
+
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>You're not part of any groups yet.</p>
+            <button class="btn btn-primary" onclick="openModal('createGroupModal')">
+                Create Your First Group
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Group Modal -->
+<div id="createGroupModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Create New Group</h2>
+            <button class="modal-close" onclick="closeModal('createGroupModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('main.create_group') }}">
+            <div class="form-group">
+                <label for="groupName">Group Name</label>
+                <input type="text" id="groupName" name="name" required
+                       placeholder="e.g., Apartment 4B, Trip to Paris">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline"
+                        onclick="closeModal('createGroupModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Group</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Member Modal -->
+<div id="addMemberModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add Member to <span id="addMemberGroupName"></span></h2>
+            <button class="modal-close" onclick="closeModal('addMemberModal')">&times;</button>
+        </div>
+        <form method="POST" id="addMemberForm">
+            <div class="form-group">
+                <label for="memberEmail">Member Email</label>
+                <input type="email" id="memberEmail" name="email" required
+                       placeholder="member@example.com">
+                <small>The user must already have a Splitmate account</small>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline"
+                        onclick="closeModal('addMemberModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Member</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Manage Members Modal -->
+<div id="manageMembersModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Manage <span id="manageMembersGroupName"></span></h2>
+            <button class="modal-close" onclick="closeModal('manageMembersModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="membersList" class="members-list"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}{% endblock %}

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Splitmate{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+{% if current_user.is_authenticated %}
+<div class="app-container">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">S</span>
+                <span class="logo-text">Splitmate</span>
+            </div>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item {% if request.endpoint == 'main.home' %}active{% endif %}">
+                <a href="{{ url_for('main.home') }}">
+                    <span class="nav-icon">H</span>
+                    <span>Home</span>
+                </a>
+            </li>
+            <li class="nav-item {% if request.endpoint and 'split' in request.endpoint %}active{% endif %}">
+                <a href="{{ url_for('split.index') }}">
+                    <span class="nav-icon">$</span>
+                    <span>Split</span>
+                </a>
+            </li>
+            <li class="nav-item {% if request.endpoint and 'tasks' in request.endpoint %}active{% endif %}">
+                <a href="{{ url_for('tasks.index') }}">
+                    <span class="nav-icon">T</span>
+                    <span>Tasks</span>
+                </a>
+            </li>
+            <li class="nav-item {% if request.endpoint and 'notes' in request.endpoint %}active{% endif %}">
+                <a href="{{ url_for('notes.index') }}">
+                    <span class="nav-icon">N</span>
+                    <span>Notes</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-avatar">{{ current_user.name[0].upper() }}</div>
+                <div class="user-details">
+                    <span class="user-name">{{ current_user.name }}</span>
+                    <span class="user-email">{{ current_user.email }}</span>
+                </div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" class="logout-btn">Logout</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}">
+                {{ message }}
+                <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+</div>
+{% else %}
+{% block auth_content %}{% endblock %}
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

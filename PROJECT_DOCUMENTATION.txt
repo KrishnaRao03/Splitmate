@@ -1,0 +1,148 @@
+SPLITMATE PROJECT DOCUMENTATION
+===============================
+
+Project Name
+------------
+Splitmate
+
+Description
+-----------
+Splitmate is a Flask-based web application for handling shared group expenses.
+Users can create or join groups, add expenses, split costs between group
+members, view balances, record payments, manage notes, manage tasks, and keep
+transaction history.
+
+Main Features
+-------------
+1. User accounts
+   - Register new users
+   - Login and logout
+   - Email verification using OTP
+   - Forgot password and password reset flow
+
+2. Groups
+   - Organize expenses by group
+   - Each group has members
+   - Expenses, notes, tasks, histories, and payments belong to a group
+
+3. Split expenses
+   - Add expenses with description and amount
+   - Split expenses equally
+   - Split expenses by exact amount
+   - Split expenses by percentage
+   - View recent expenses
+   - Clear recent expenses while keeping transaction history
+
+4. Balances and payments
+   - View member balance overview
+   - Record manual payments
+   - Optional Stripe payment support when Stripe keys are configured
+
+5. Notes and tasks
+   - Create notes for a group
+   - Create tasks with due dates and reminders
+   - Mark notes and tasks as completed
+
+Technology Used
+---------------
+- Python
+- Flask
+- Flask-SQLAlchemy
+- Flask-Login
+- SQLite
+- Jinja templates
+- HTML
+- CSS
+- JavaScript
+- Stripe SDK
+
+Important Files and Folders
+---------------------------
+app/
+  Main Flask application package.
+
+app/routes/
+  Route files for authentication, home, split expenses, notes, and tasks.
+
+app/templates/
+  HTML templates used by Flask.
+
+app/static/
+  CSS and JavaScript files.
+
+app/models.py
+  Database models for users, groups, expenses, splits, payments, notes, and tasks.
+
+app/email_utils.py
+  Email sending helpers for OTP and password reset emails.
+
+config.py
+  Application configuration and environment variable loading.
+
+run.py
+  Starts the Flask development server.
+
+requirements.txt
+  Python dependencies required by the project.
+
+.env.example
+  Example environment variable file. Copy this to .env for local setup.
+
+Local Setup Instructions
+------------------------
+1. Open a terminal in the Splitmate folder.
+
+2. Create a virtual environment:
+   python -m venv venv
+
+3. Activate the virtual environment:
+   venv\Scripts\activate
+
+4. Install dependencies:
+   pip install -r requirements.txt
+
+5. Create a .env file using .env.example as a guide.
+
+6. Start the application:
+   python run.py
+
+7. Open this address in a browser:
+   http://127.0.0.1:5000
+
+Environment Setup
+-----------------
+The project uses a .env file for secrets and local configuration.
+
+Important environment variables:
+- SECRET_KEY
+- MAIL_SERVER
+- MAIL_PORT
+- MAIL_USE_TLS
+- MAIL_USERNAME
+- MAIL_PASSWORD
+- MAIL_DEFAULT_SENDER
+- OTP_EXPIRY_MINUTES
+- OTP_RESEND_COOLDOWN_SECONDS
+- PASSWORD_RESET_EXPIRY_MINUTES
+- STRIPE_SECRET_KEY
+- STRIPE_CURRENCY
+- STRIPE_ACCOUNT_COUNTRY
+
+Security Notes
+--------------
+Do not upload these to GitHub:
+- .env
+- Real passwords
+- Gmail app passwords
+- Stripe secret keys
+- instance database files
+- venv folder
+- __pycache__ folders
+
+The existing Git ignore file is configured to keep these private files out of
+the GitHub repository.
+
+Recommended GitHub Repository Name
+----------------------------------
+splitmate
+

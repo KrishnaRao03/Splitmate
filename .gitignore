@@ -1,0 +1,29 @@
+# Secrets and local-only notes
+.env
+*.env
+Notes
+
+# Python/runtime output
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+
+# Local database and app instance files
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# User uploaded files
+app/static/uploads/
