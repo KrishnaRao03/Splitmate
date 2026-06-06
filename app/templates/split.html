@@ -84,66 +84,57 @@
         </div>
 
         <div class="card">
-        <div class="card-header"><h2>Pay</h2></div>
-        <div class="card-body">
-            <div class="payment-setup-panel">
-                {% if stripe_enabled %}
-                    {% if current_user.stripe_charges_enabled and current_user.stripe_payouts_enabled %}
-                    <span class="badge badge-success">Online payouts ready</span>
+            <div class="card-header"><h2>Pay</h2></div>
+            <div class="card-body">
+                <div class="payment-setup-panel">
+                    {% if stripe_enabled %}
+                        {% if current_user.stripe_charges_enabled and current_user.stripe_payouts_enabled %}
+                        <span class="badge badge-success">Online payouts ready</span>
+                        {% else %}
+                        <p class="text-subtle">Set up Stripe payouts so group members can pay you online.</p>
+                        <form method="POST" action="{{ url_for('split.stripe_connect_onboard') }}" class="inline-form">
+                            <button type="submit" class="btn btn-outline btn-sm">Set Up Payouts</button>
+                        </form>
+                        {% endif %}
                     {% else %}
-                    <p class="text-subtle">Set up Stripe payouts so group members can pay you online.</p>
-                    <form method="POST" action="{{ url_for('split.stripe_connect_onboard') }}" class="inline-form">
-                        <button type="submit" class="btn btn-outline btn-sm">Set Up Payouts</button>
-                    </form>
+                        <p class="text-subtle">Online payments are disabled until Stripe keys are added to .env.</p>
                     {% endif %}
-                {% else %}
-                    <p class="text-subtle">Online payments are disabled until Stripe keys are added to .env.</p>
-                {% endif %}
+                </div>
+
+                <form method="POST" action="{{ url_for('split.create_stripe_payment') }}" id="onlinePaymentForm">
+                    <input type="hidden" name="group_id" id="onlinePaymentGroupId">
+                    <input type="hidden" name="receiver_id" id="onlinePaymentReceiverId">
+                    <input type="hidden" name="amount" id="onlinePaymentAmount">
+                </form>
+
+                <form method="POST" action="{{ url_for('split.record_payment') }}" id="manualPaymentForm">
+                    <input type="hidden" name="group_id" id="paymentGroupId">
+                    <div class="form-group">
+                        <label>Receiver</label>
+                        <select name="receiver_id" id="receiverSelect" class="form-select"
+                                onchange="updatePaymentAmount()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount (&#8377;)</label>
+                        <input type="number" step="0.01" min="0.01" name="amount"
+                               id="paymentAmount" required>
+                    </div>
+                    <div class="payment-actions">
+                        <button type="submit" class="btn btn-primary btn-full" form="onlinePaymentForm" id="onlinePayButton">
+                            Pay Online
+                        </button>
+                        <button type="submit" class="btn btn-outline btn-full" id="recordPayButton">Record Payment</button>
+                    </div>
+                    <p class="text-subtle payment-help" id="onlinePaymentHelp"></p>
+                </form>
             </div>
-
-            <form method="POST" action="{{ url_for('split.create_stripe_payment') }}" id="onlinePaymentForm">
-                <input type="hidden" name="group_id" id="onlinePaymentGroupId">
-                <input type="hidden" name="receiver_id" id="onlinePaymentReceiverId">
-                <input type="hidden" name="amount" id="onlinePaymentAmount">
-            </form>
-
-            <form method="POST" action="{{ url_for('split.record_payment') }}" id="manualPaymentForm">
-                <input type="hidden" name="group_id" id="paymentGroupId">
-                <div class="form-group">
-                    <label>Receiver</label>
-                    <select name="receiver_id" id="receiverSelect" class="form-select"
-                            onchange="updatePaymentAmount()"></select>
-                </div>
-                <div class="form-group">
-                    <label>Amount (&#8377;)</label>
-                    <input type="number" step="0.01" min="0.01" name="amount"
-                           id="paymentAmount" required>
-                </div>
-                <div class="payment-actions">
-                    <button type="submit" class="btn btn-primary btn-full" form="onlinePaymentForm" id="onlinePayButton">
-                        Pay Online
-                    </button>
-                    <button type="submit" class="btn btn-outline btn-full" id="recordPayButton">Record Payment</button>
-                </div>
-                <p class="text-subtle payment-help" id="onlinePaymentHelp"></p>
-            </form>
-        </div>
         </div>
     </div>
 
-    <div class="split-secondary-layout">
-        <div class="card">
-            <div class="card-header"><h2>Expense Breakdown</h2></div>
-            <div class="card-body">
-                <div id="summaryList" class="summary-list"></div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header"><h2>Transaction History</h2></div>
-            <div class="card-body">
-                <div id="historyList" class="expenses-list"></div>
-            </div>
+    <div class="card">
+        <div class="card-header"><h2>Expense Breakdown</h2></div>
+        <div class="card-body">
+            <div id="summaryList" class="summary-list"></div>
         </div>
     </div>
 </div>
@@ -200,7 +191,6 @@
         loadBalances();
         loadExpenses();
         loadSummaries();
-        loadHistory();
         loadPaymentOptions();
     }
 
@@ -245,31 +235,6 @@
             return;
         }
         container.innerHTML = data.map(i => `<div class="summary-item">${escapeHtml(i.text)}</div>`).join('');
-    }
-
-    async function loadHistory() {
-        const data = await fetchJson(`/split/api/group/${currentGroupId}/history`);
-        const container = document.getElementById('historyList');
-        if (!data.length) {
-            container.innerHTML = '<p class="empty-state">No transaction history</p>';
-            return;
-        }
-        container.innerHTML = data.map(h => {
-            const date = (h.date || '').split('T')[0];
-            if (h.type === 'payment') {
-                const method = h.method === 'stripe' ? 'online' : 'manual';
-                return `
-                    <div class="expense-item">
-                        <span>${date} &mdash; ${escapeHtml(h.payer)} paid ${escapeHtml(h.receiver)} ${formatRupees(h.amount)} (${method})</span>
-                    </div>
-                `;
-            }
-            return `
-                <div class="expense-item">
-                    <span>${date} &mdash; ${escapeHtml(h.paid_by)} paid ${formatRupees(h.amount)} for ${escapeHtml(h.description)}</span>
-                </div>
-            `;
-        }).join('');
     }
 
     async function loadPaymentOptions() {
