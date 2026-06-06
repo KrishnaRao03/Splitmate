@@ -97,15 +97,17 @@
                         </form>
                         {% endif %}
                     {% else %}
-                        <p class="text-subtle">Online payments are disabled until Stripe keys are added to .env.</p>
+                        <span class="badge">Manual payments</span>
                     {% endif %}
                 </div>
 
+                {% if stripe_enabled %}
                 <form method="POST" action="{{ url_for('split.create_stripe_payment') }}" id="onlinePaymentForm">
                     <input type="hidden" name="group_id" id="onlinePaymentGroupId">
                     <input type="hidden" name="receiver_id" id="onlinePaymentReceiverId">
                     <input type="hidden" name="amount" id="onlinePaymentAmount">
                 </form>
+                {% endif %}
 
                 <form method="POST" action="{{ url_for('split.record_payment') }}" id="manualPaymentForm">
                     <input type="hidden" name="group_id" id="paymentGroupId">
@@ -120,9 +122,11 @@
                                id="paymentAmount" required>
                     </div>
                     <div class="payment-actions">
+                        {% if stripe_enabled %}
                         <button type="submit" class="btn btn-primary btn-full" form="onlinePaymentForm" id="onlinePayButton">
                             Pay Online
                         </button>
+                        {% endif %}
                         <button type="submit" class="btn btn-outline btn-full" id="recordPayButton">Record Payment</button>
                     </div>
                     <p class="text-subtle payment-help" id="onlinePaymentHelp"></p>
@@ -185,7 +189,10 @@
         });
         document.getElementById('expenseGroupId').value = id;
         document.getElementById('paymentGroupId').value = id;
-        document.getElementById('onlinePaymentGroupId').value = id;
+        const onlinePaymentGroupId = document.getElementById('onlinePaymentGroupId');
+        if (onlinePaymentGroupId) {
+            onlinePaymentGroupId.value = id;
+        }
         document.getElementById('clearForm').action = `/split/clear_recent/${id}`;
         renderSplitOptions();
         loadBalances();
@@ -250,7 +257,9 @@
             amount.value = '';
             amount.removeAttribute('max');
             amount.disabled = true;
-            onlineButton.disabled = true;
+            if (onlineButton) {
+                onlineButton.disabled = true;
+            }
             recordButton.disabled = true;
             document.getElementById('onlinePaymentHelp').textContent = '';
             return;
@@ -278,21 +287,32 @@
 
         amount.max = owed.toFixed(2);
         amount.value = owed ? owed.toFixed(2) : '';
-        document.getElementById('onlinePaymentReceiverId').value = selected ? selected.value : '';
-        document.getElementById('onlinePaymentAmount').value = amount.value;
+        const onlineReceiver = document.getElementById('onlinePaymentReceiverId');
+        const onlineAmount = document.getElementById('onlinePaymentAmount');
+        if (onlineReceiver) {
+            onlineReceiver.value = selected ? selected.value : '';
+        }
+        if (onlineAmount) {
+            onlineAmount.value = amount.value;
+        }
 
-        onlineButton.disabled = !stripeEnabled || !canReceiveOnline || !owed;
-        if (!stripeEnabled) {
-            help.textContent = 'Add Stripe test keys to .env to enable online payments.';
-        } else if (selected && !canReceiveOnline) {
-            help.textContent = 'This receiver needs to finish Stripe payout setup before online payments can be sent.';
+        if (onlineButton) {
+            onlineButton.disabled = !canReceiveOnline || !owed;
+            if (selected && !canReceiveOnline) {
+                help.textContent = 'This receiver needs to finish Stripe payout setup before online payments can be sent.';
+            } else {
+                help.textContent = '';
+            }
         } else {
             help.textContent = '';
         }
     }
 
     document.getElementById('paymentAmount').addEventListener('input', () => {
-        document.getElementById('onlinePaymentAmount').value = document.getElementById('paymentAmount').value;
+        const onlineAmount = document.getElementById('onlinePaymentAmount');
+        if (onlineAmount) {
+            onlineAmount.value = document.getElementById('paymentAmount').value;
+        }
     });
 
     function renderSplitOptions() {
