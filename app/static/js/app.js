@@ -93,6 +93,29 @@ function formatDateTime(dateString) {
 // Initialize
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
+    const passwordIcons = {
+        eye: `
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+        `,
+        eyeOff: `
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 3l18 18"></path>
+                <path d="M10.6 10.6A2 2 0 0 0 13.4 13.4"></path>
+                <path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c6.5 0 10 8 10 8a17.8 17.8 0 0 1-3.2 4.3"></path>
+                <path d="M6.6 6.6C3.6 8.7 2 12 2 12s3.5 8 10 8a10.5 10.5 0 0 0 5.4-1.5"></path>
+            </svg>
+        `
+    };
+
+    function setPasswordToggleIcon(toggle, isVisible) {
+        toggle.innerHTML = isVisible ? passwordIcons.eyeOff : passwordIcons.eye;
+        toggle.setAttribute('aria-label', isVisible ? 'Hide password' : 'Show password');
+        toggle.setAttribute('title', isVisible ? 'Hide password' : 'Show password');
+    }
+
     document.querySelectorAll('input[type="password"]').forEach(input => {
         if (input.closest('.password-field')) {
             return;
@@ -106,14 +129,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const toggle = document.createElement('button');
         toggle.type = 'button';
         toggle.className = 'password-toggle';
-        toggle.textContent = 'Show';
-        toggle.setAttribute('aria-label', 'Show password');
+        setPasswordToggleIcon(toggle, false);
 
         toggle.addEventListener('click', () => {
             const shouldShow = input.type === 'password';
             input.type = shouldShow ? 'text' : 'password';
-            toggle.textContent = shouldShow ? 'Hide' : 'Show';
-            toggle.setAttribute('aria-label', shouldShow ? 'Hide password' : 'Show password');
+            setPasswordToggleIcon(toggle, shouldShow);
         });
 
         wrapper.appendChild(toggle);
