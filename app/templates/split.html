@@ -48,6 +48,7 @@
                             <label>Split Type</label>
                             <select name="split_type" id="split_type" class="form-select">
                                 <option value="equal">Equal Split</option>
+                                <option value="selected">Split With Selected People</option>
                                 <option value="exact">Exact Amount</option>
                                 <option value="percentage">By Percentage</option>
                             </select>
@@ -381,14 +382,27 @@
             return;
         }
 
-        const fieldPrefix = splitType === 'percentage' ? 'percent' : 'amount';
-        const suffix = splitType === 'percentage' ? '%' : currencyCode;
+        const isSelectedSplit = splitType === 'selected';
+        const effectiveSplitType = isSelectedSplit ? 'equal' : splitType;
+        const fieldPrefix = effectiveSplitType === 'percentage' ? 'percent' : 'amount';
+        const suffix = effectiveSplitType === 'percentage' ? '%' : currencyCode;
         const selectedMembers = group.members.filter(member => selectedSplitMemberIds.has(String(member.id)));
-        const splitInputRows = splitType === 'equal'
+        const splitInputMembers = isSelectedSplit ? selectedMembers : group.members;
+
+        if (effectiveSplitType === 'equal' && !isSelectedSplit) {
+            container.innerHTML = `
+                <p class="split-helper-text split-type-note">
+                    The amount will be divided equally between all ${group.members.length} group ${group.members.length === 1 ? 'member' : 'members'}.
+                </p>
+            `;
+            return;
+        }
+
+        const splitInputRows = effectiveSplitType === 'equal'
             ? `<p class="split-helper-text">The amount will be divided equally between ${selectedMembers.length} selected ${selectedMembers.length === 1 ? 'person' : 'people'}.</p>`
             : `
                 <div class="split-inputs">
-                    ${selectedMembers.map(member => {
+                    ${splitInputMembers.map(member => {
                         const inputName = `${fieldPrefix}_${member.id}`;
                         return `
                             <div class="split-input-row">
@@ -404,6 +418,11 @@
                     }).join('')}
                 </div>
             `;
+
+        if (!isSelectedSplit) {
+            container.innerHTML = splitInputRows;
+            return;
+        }
 
         container.innerHTML = `
             <div class="split-with-panel">
@@ -467,8 +486,9 @@
     }
 
     document.getElementById('expenseForm').addEventListener('submit', event => {
+        const splitType = document.getElementById('split_type').value;
         const checkedMembers = document.querySelectorAll('input[name="split_user_ids"]:checked');
-        if (!checkedMembers.length) {
+        if (splitType === 'selected' && !checkedMembers.length) {
             event.preventDefault();
             alert('Choose at least one person in Split with.');
         }

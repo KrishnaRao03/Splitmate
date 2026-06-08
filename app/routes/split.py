@@ -155,7 +155,9 @@ def add_expense():
     amount = request.form.get('amount', type=float)
     receipt_url = request.form.get('receipt_url', '').strip() or None
     receipt_file = request.files.get('receipt')
-    split_type = request.form.get('split_type', 'equal')
+    raw_split_type = request.form.get('split_type', 'equal')
+    use_selected_members = raw_split_type == 'selected'
+    split_type = 'equal' if use_selected_members else raw_split_type
 
     group = Group.query.get_or_404(group_id)
     if current_user not in group.members:
@@ -167,16 +169,22 @@ def add_expense():
         return redirect(url_for('split.index'))
 
     all_members = list(group.members)
-    selected_member_ids = request.form.getlist('split_user_ids', type=int)
-    selected_member_id_set = set(selected_member_ids)
-    selected_members = [member for member in all_members if member.id in selected_member_id_set]
+    if split_type not in {'equal', 'exact', 'percentage'}:
+        flash('Choose a valid split type.', 'error')
+        return redirect(url_for('split.index'))
+
+    selected_members = all_members
+    if use_selected_members:
+        selected_member_ids = request.form.getlist('split_user_ids', type=int)
+        selected_member_id_set = set(selected_member_ids)
+        selected_members = [member for member in all_members if member.id in selected_member_id_set]
+
+        if len(selected_members) != len(selected_member_id_set):
+            flash('Choose valid members from this group.', 'error')
+            return redirect(url_for('split.index'))
 
     if not selected_members:
         flash('Choose at least one person in Split with.', 'error')
-        return redirect(url_for('split.index'))
-
-    if len(selected_members) != len(selected_member_id_set):
-        flash('Choose valid members from this group.', 'error')
         return redirect(url_for('split.index'))
 
     expense_amount = money_decimal(amount)
@@ -209,7 +217,7 @@ def add_expense():
             for member in selected_members:
                 member_amount = form_money(f'amount_{member.id}', f'amount for {member.name}')
                 if member_amount <= 0:
-                    raise ValueError(f'Enter an amount greater than 0 for {member.name}, or remove them from Split with.')
+                    raise ValueError(f'Enter an amount greater than 0 for {member.name}.')
 
                 split_rows.append((member, member_amount))
                 assigned_total += member_amount
@@ -223,7 +231,7 @@ def add_expense():
             for member in selected_members:
                 percentage = form_money(f'percent_{member.id}', f'percentage for {member.name}')
                 if percentage <= 0:
-                    raise ValueError(f'Enter a percentage greater than 0 for {member.name}, or remove them from Split with.')
+                    raise ValueError(f'Enter a percentage greater than 0 for {member.name}.')
 
                 percentages.append((member, percentage))
                 total_percentage += percentage
