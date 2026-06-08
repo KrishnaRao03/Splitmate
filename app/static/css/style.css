@@ -1016,6 +1016,38 @@ html[data-theme="dark"] .theme-toggle-dark {
     color: var(--danger);
 }
 
+.password-field {
+    position: relative;
+}
+
+.password-field input {
+    width: 100%;
+    padding-right: 72px;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    min-width: 52px;
+    min-height: 30px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    color: var(--primary);
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 900;
+    transform: translateY(-50%);
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.password-toggle:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-soft);
+    color: var(--primary-strong);
+}
+
 .spending-list,
 .activity-list,
 .expenses-list,
@@ -1553,6 +1585,113 @@ html[data-theme="dark"] .theme-toggle-dark {
     overflow: hidden;
 }
 
+.admin-datatable {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-secondary);
+}
+
+.admin-datatable-toolbar,
+.admin-datatable-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+}
+
+.admin-datatable-toolbar {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.admin-datatable-footer {
+    border-top: 1px solid var(--border-color);
+}
+
+.datatable-length-control,
+.datatable-search-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.datatable-length-control select,
+.datatable-search-control input {
+    min-height: 42px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 8px 12px;
+}
+
+.datatable-length-control select {
+    min-width: 96px;
+}
+
+.datatable-search-control input {
+    width: min(320px, 44vw);
+}
+
+.datatable-select-column {
+    width: 46px;
+    text-align: center;
+}
+
+.datatable-select-column input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+}
+
+.admin-datatable .admin-table th {
+    background: rgba(224, 242, 254, 0.62);
+}
+
+html[data-theme="dark"] .admin-datatable .admin-table th {
+    background: rgba(96, 165, 250, 0.1);
+}
+
+.datatable-info {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    font-weight: 800;
+}
+
+.datatable-pagination {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.datatable-page-button {
+    min-width: 38px;
+    min-height: 34px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 900;
+}
+
+.datatable-page-button:hover:not(:disabled),
+.datatable-page-button.active {
+    border-color: var(--primary-border);
+    background: var(--primary);
+    color: var(--on-primary);
+}
+
+.datatable-page-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 .admin-tabs {
     display: flex;
     gap: 8px;
@@ -1997,6 +2136,75 @@ input[type="file"]::file-selector-button:hover {
     border-radius: var(--radius);
     background: var(--bg-tertiary);
     padding: 12px;
+}
+
+.split-with-panel {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 18px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background: var(--bg-primary);
+    padding: 14px;
+}
+
+.split-with-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.split-with-header label {
+    display: block;
+    color: var(--ink);
+    font-weight: 900;
+}
+
+.split-with-header p,
+.split-helper-text {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.split-with-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.split-member-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.split-member-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    padding: 9px 10px;
+    cursor: pointer;
+    font-weight: 900;
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.split-member-check input {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--primary);
+}
+
+.split-member-check.selected {
+    border-color: var(--primary-border);
+    background: var(--primary-soft);
+    color: var(--primary-strong);
 }
 
 .payment-setup-panel {
@@ -2571,6 +2779,21 @@ input[type="file"]::file-selector-button:hover {
         padding: 22px 14px 36px;
     }
 
+    .admin-datatable-toolbar,
+    .admin-datatable-footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .datatable-search-control,
+    .datatable-search-control input {
+        width: 100%;
+    }
+
+    .datatable-pagination {
+        flex-wrap: wrap;
+    }
+
     .sidebar {
         position: sticky;
         top: 0;
@@ -2667,6 +2890,15 @@ input[type="file"]::file-selector-button:hover {
 
     .payment-actions {
         grid-template-columns: 1fr;
+    }
+
+    .split-with-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .split-with-actions .btn {
+        flex: 1;
     }
 
     .payment-ledger-item,

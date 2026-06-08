@@ -4,7 +4,7 @@ from uuid import uuid4
 from flask import Blueprint, current_app, render_template, request, flash, redirect, url_for, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from werkzeug.utils import secure_filename
 
 from app import db
@@ -166,6 +166,88 @@ def add_expense():
         flash('Valid description and amount are required.', 'error')
         return redirect(url_for('split.index'))
 
+    all_members = list(group.members)
+    selected_member_ids = request.form.getlist('split_user_ids', type=int)
+    selected_member_id_set = set(selected_member_ids)
+    selected_members = [member for member in all_members if member.id in selected_member_id_set]
+
+    if not selected_members:
+        flash('Choose at least one person in Split with.', 'error')
+        return redirect(url_for('split.index'))
+
+    if len(selected_members) != len(selected_member_id_set):
+        flash('Choose valid members from this group.', 'error')
+        return redirect(url_for('split.index'))
+
+    expense_amount = money_decimal(amount)
+    split_rows = []
+
+    def form_money(field_name, label):
+        raw_value = (request.form.get(field_name, '') or '').strip() or '0'
+        try:
+            value = money_decimal(raw_value)
+        except (InvalidOperation, ValueError):
+            raise ValueError(f'Enter a valid {label}.')
+
+        if value < 0:
+            raise ValueError(f'{label.capitalize()} cannot be negative.')
+
+        return value
+
+    try:
+        if split_type == 'equal':
+            member_count = Decimal(len(selected_members))
+            split_amount = (expense_amount / member_count).quantize(CENT, rounding=ROUND_HALF_UP)
+            remainder = expense_amount - (split_amount * member_count)
+
+            for i, member in enumerate(selected_members):
+                share = split_amount + (remainder if i == len(selected_members) - 1 else Decimal('0.00'))
+                split_rows.append((member, share))
+
+        elif split_type == 'exact':
+            assigned_total = Decimal('0.00')
+            for member in selected_members:
+                member_amount = form_money(f'amount_{member.id}', f'amount for {member.name}')
+                if member_amount <= 0:
+                    raise ValueError(f'Enter an amount greater than 0 for {member.name}, or remove them from Split with.')
+
+                split_rows.append((member, member_amount))
+                assigned_total += member_amount
+
+            if assigned_total != expense_amount:
+                raise ValueError(f'Exact split amounts must total {format_payment_amount(expense_amount)}.')
+
+        elif split_type == 'percentage':
+            percentages = []
+            total_percentage = Decimal('0.00')
+            for member in selected_members:
+                percentage = form_money(f'percent_{member.id}', f'percentage for {member.name}')
+                if percentage <= 0:
+                    raise ValueError(f'Enter a percentage greater than 0 for {member.name}, or remove them from Split with.')
+
+                percentages.append((member, percentage))
+                total_percentage += percentage
+
+            if total_percentage != Decimal('100.00'):
+                raise ValueError('Percentages for selected users must total 100%.')
+
+            for member, percentage in percentages:
+                member_amount = (expense_amount * percentage / Decimal('100')).quantize(CENT, rounding=ROUND_HALF_UP)
+                split_rows.append((member, member_amount))
+
+            assigned_total = sum((share for _, share in split_rows), Decimal('0.00'))
+            remainder = expense_amount - assigned_total
+            if split_rows and remainder:
+                member, share = split_rows[-1]
+                split_rows[-1] = (member, share + remainder)
+
+        else:
+            flash('Choose a valid split type.', 'error')
+            return redirect(url_for('split.index'))
+    except ValueError as exc:
+        flash(str(exc), 'error')
+        return redirect(url_for('split.index'))
+
     try:
         uploaded_receipt_url = save_receipt_file(receipt_file)
     except ValueError as exc:
@@ -178,7 +260,7 @@ def add_expense():
     # Create active expense
     expense = Expense(
         description=description,
-        amount=round(amount, 2),
+        amount=float(expense_amount),
         receipt_url=receipt_url,
         group_id=group_id,
         paid_by_id=current_user.id
@@ -196,42 +278,13 @@ def add_expense():
     )
     db.session.add(history_copy)
 
-    members = group.members
-
-    if split_type == 'equal':
-        amt = Decimal(str(amount))
-        member_count = Decimal(len(members))
-        split_amount = (amt / member_count).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        remainder = amt - (split_amount * member_count)
-
-        for i, member in enumerate(members):
-            share = split_amount + (remainder if i == len(members) - 1 else Decimal('0.00'))
+    for member, share in split_rows:
+        if share > 0:
             db.session.add(ExpenseSplit(
                 expense_id=expense.id,
                 user_id=member.id,
                 amount_owed=float(share)
             ))
-
-    elif split_type == 'exact':
-        for member in members:
-            member_amount = request.form.get(f'amount_{member.id}', type=float, default=0)
-            if member_amount and member_amount > 0:
-                db.session.add(ExpenseSplit(
-                    expense_id=expense.id,
-                    user_id=member.id,
-                    amount_owed=round(member_amount, 2)
-                ))
-
-    elif split_type == 'percentage':
-        for member in members:
-            percentage = request.form.get(f'percent_{member.id}', type=float, default=0)
-            member_amount = (percentage / 100.0) * amount
-            if member_amount and member_amount > 0:
-                db.session.add(ExpenseSplit(
-                    expense_id=expense.id,
-                    user_id=member.id,
-                    amount_owed=round(member_amount, 2)
-                ))
 
     db.session.commit()
     flash('Expense added and recorded in transaction history.', 'success')

@@ -159,6 +159,8 @@
     const currencyCode = {{ currency_code|tojson }};
     let currentGroupId = null;
     let paymentOptions = [];
+    let selectedSplitMemberIds = new Set();
+    let splitValueDrafts = {};
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -191,6 +193,9 @@
 
     function selectGroup(id) {
         currentGroupId = id;
+        const group = selectedGroup();
+        selectedSplitMemberIds = new Set((group ? group.members : []).map(member => String(member.id)));
+        splitValueDrafts = {};
         document.getElementById('groupContent').style.display = 'block';
         document.querySelectorAll('.group-box').forEach(groupBox => {
             groupBox.classList.toggle('selected', Number(groupBox.dataset.groupId) === Number(id));
@@ -202,7 +207,7 @@
             onlinePaymentGroupId.value = id;
         }
         document.getElementById('clearForm').action = `/split/clear_recent/${id}`;
-        renderSplitOptions();
+        renderSplitOptions(false);
         loadExpenses();
         loadSummaries();
         loadPaymentOptions();
@@ -363,32 +368,111 @@
         }
     });
 
-    function renderSplitOptions() {
+    function renderSplitOptions(captureExisting = true) {
+        if (captureExisting) {
+            captureSplitInputValues();
+        }
         const splitType = document.getElementById('split_type').value;
         const container = document.getElementById('splitOptions');
         const group = selectedGroup();
 
-        if (!group || splitType === 'equal') {
+        if (!group) {
             container.innerHTML = '';
             return;
         }
 
         const fieldPrefix = splitType === 'percentage' ? 'percent' : 'amount';
         const suffix = splitType === 'percentage' ? '%' : currencyCode;
+        const selectedMembers = group.members.filter(member => selectedSplitMemberIds.has(String(member.id)));
+        const splitInputRows = splitType === 'equal'
+            ? `<p class="split-helper-text">The amount will be divided equally between ${selectedMembers.length} selected ${selectedMembers.length === 1 ? 'person' : 'people'}.</p>`
+            : `
+                <div class="split-inputs">
+                    ${selectedMembers.map(member => {
+                        const inputName = `${fieldPrefix}_${member.id}`;
+                        return `
+                            <div class="split-input-row">
+                                <label for="${inputName}">${escapeHtml(member.name)}</label>
+                                <input type="number" step="0.01" min="0"
+                                       id="${inputName}"
+                                       name="${inputName}"
+                                       data-split-value="1"
+                                       value="${escapeHtml(splitValueDrafts[inputName] || '')}"
+                                       placeholder="${suffix}">
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
         container.innerHTML = `
-            <div class="split-inputs">
-                ${group.members.map(member => `
-                    <div class="split-input-row">
-                        <label for="${fieldPrefix}_${member.id}">${escapeHtml(member.name)}</label>
-                        <input type="number" step="0.01" min="0"
-                               id="${fieldPrefix}_${member.id}"
-                               name="${fieldPrefix}_${member.id}"
-                               placeholder="${suffix}">
+            <div class="split-with-panel">
+                <div class="split-with-header">
+                    <div>
+                        <label>Split with</label>
+                        <p>${selectedMembers.length} of ${group.members.length} selected</p>
                     </div>
-                `).join('')}
+                    <div class="split-with-actions">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="selectEverySplitMember()">Select All</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="clearSplitMembers()">Clear</button>
+                    </div>
+                </div>
+                <div class="split-member-grid">
+                    ${group.members.map(member => `
+                        <label class="split-member-check ${selectedSplitMemberIds.has(String(member.id)) ? 'selected' : ''}">
+                            <input type="checkbox"
+                                   name="split_user_ids"
+                                   value="${member.id}"
+                                   ${selectedSplitMemberIds.has(String(member.id)) ? 'checked' : ''}
+                                   onchange="toggleSplitMember('${member.id}', this.checked)">
+                            <span>${escapeHtml(member.name)}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                ${selectedMembers.length ? splitInputRows : '<p class="empty-state">Choose at least one person to split with.</p>'}
             </div>
         `;
     }
+
+    function captureSplitInputValues() {
+        document.querySelectorAll('#splitOptions input[data-split-value]').forEach(input => {
+            splitValueDrafts[input.name] = input.value;
+        });
+    }
+
+    function toggleSplitMember(memberId, checked) {
+        captureSplitInputValues();
+        if (checked) {
+            selectedSplitMemberIds.add(String(memberId));
+        } else {
+            selectedSplitMemberIds.delete(String(memberId));
+        }
+        renderSplitOptions();
+    }
+
+    function selectEverySplitMember() {
+        const group = selectedGroup();
+        if (!group) {
+            return;
+        }
+        captureSplitInputValues();
+        selectedSplitMemberIds = new Set(group.members.map(member => String(member.id)));
+        renderSplitOptions();
+    }
+
+    function clearSplitMembers() {
+        captureSplitInputValues();
+        selectedSplitMemberIds = new Set();
+        renderSplitOptions();
+    }
+
+    document.getElementById('expenseForm').addEventListener('submit', event => {
+        const checkedMembers = document.querySelectorAll('input[name="split_user_ids"]:checked');
+        if (!checkedMembers.length) {
+            event.preventDefault();
+            alert('Choose at least one person in Split with.');
+        }
+    });
 
     document.getElementById('split_type').addEventListener('change', renderSplitOptions);
 </script>

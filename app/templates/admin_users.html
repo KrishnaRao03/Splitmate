@@ -19,26 +19,49 @@
 
 {% macro users_table(table_id, tab_id, users, empty_text) %}
 {% if users %}
+<div class="admin-datatable" data-table-id="{{ table_id }}">
+<div class="admin-datatable-toolbar">
+    <label class="datatable-length-control">
+        <select class="datatable-page-size" aria-label="Entries per page">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="all">All</option>
+        </select>
+        <span>entries per page</span>
+    </label>
+    <label class="datatable-search-control">
+        <span>Search</span>
+        <input type="search" class="datatable-search-input" placeholder="Search users">
+    </label>
+</div>
 <div class="table-scroll">
     <table class="admin-table admin-user-table js-sort-table" id="{{ table_id }}">
         <thead>
             <tr>
-                <th><button type="button" class="sort-button" data-sort-index="0" data-sort-type="text">User</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="1" data-sort-type="text">Status</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="2" data-sort-type="number">Created</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="3" data-sort-type="number">Last Login</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="4" data-sort-type="number">Last Usage</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="5" data-sort-type="number">Idle</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="6" data-sort-type="number">Groups</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="7" data-sort-type="number">Expenses</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="8" data-sort-type="number">Payments</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="9" data-sort-type="number">Last Reminder</button></th>
+                <th class="datatable-select-column">
+                    <input type="checkbox" class="datatable-select-all" aria-label="Select visible users">
+                </th>
+                <th><button type="button" class="sort-button" data-sort-index="1" data-sort-type="text">User</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="2" data-sort-type="text">Status</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="3" data-sort-type="number">Created</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="4" data-sort-type="number">Last Login</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="5" data-sort-type="number">Last Usage</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="6" data-sort-type="number">Idle</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="7" data-sort-type="number">Groups</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="8" data-sort-type="number">Expenses</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="9" data-sort-type="number">Payments</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="10" data-sort-type="number">Last Reminder</button></th>
                 <th>Manage</th>
             </tr>
         </thead>
         <tbody>
             {% for user in users %}
-            <tr id="{{ tab_id }}-user-{{ user.id }}">
+            <tr id="{{ tab_id }}-user-{{ user.id }}"
+                data-search="{{ user.name }} {{ user.email }} {{ 'admin' if user.is_admin else '' }} {{ 'suspended' if user.is_suspended else '' }} {{ 'verified' if user.is_email_verified else 'unverified' }}">
+                <td class="datatable-select-column" data-sort-value="0">
+                    <input type="checkbox" class="datatable-row-select" aria-label="Select {{ user.name }}">
+                </td>
                 <td data-sort-value="{{ user.name|lower }}">
                     <span class="table-primary">{{ user.name }}</span>
                     <span class="table-secondary">{{ user.email }}</span>
@@ -123,6 +146,11 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
+<div class="admin-datatable-footer">
+    <span class="datatable-info"></span>
+    <div class="datatable-pagination" aria-label="Table pagination"></div>
+</div>
 </div>
 {% else %}
 <p class="empty-state">{{ empty_text }}</p>
@@ -249,47 +277,185 @@
             });
         });
 
-        document.querySelectorAll('.js-sort-table').forEach(function (table) {
-            table.querySelectorAll('.sort-button').forEach(function (button) {
-                button.addEventListener('click', function () {
-                    var tbody = table.querySelector('tbody');
-                    var index = Number(button.dataset.sortIndex);
-                    var type = button.dataset.sortType || 'text';
-                    var currentIndex = table.dataset.sortIndex;
-                    var currentDirection = table.dataset.sortDirection || 'asc';
-                    var nextDirection = currentIndex === String(index) && currentDirection === 'asc' ? 'desc' : 'asc';
-                    var rows = Array.from(tbody.querySelectorAll('tr'));
+        function setupDataTable(wrapper) {
+            var table = wrapper.querySelector('.js-sort-table');
+            var tbody = table.querySelector('tbody');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            var pageSizeSelect = wrapper.querySelector('.datatable-page-size');
+            var searchInput = wrapper.querySelector('.datatable-search-input');
+            var selectAll = wrapper.querySelector('.datatable-select-all');
+            var info = wrapper.querySelector('.datatable-info');
+            var pagination = wrapper.querySelector('.datatable-pagination');
+            var state = {
+                page: 1,
+                pageSize: pageSizeSelect.value,
+                search: '',
+                sortIndex: null,
+                sortType: 'text',
+                sortDirection: 'asc'
+            };
 
-                    rows.sort(function (left, right) {
-                        var leftCell = left.children[index];
-                        var rightCell = right.children[index];
-                        var leftValue = leftCell ? leftCell.dataset.sortValue || leftCell.textContent.trim() : '';
-                        var rightValue = rightCell ? rightCell.dataset.sortValue || rightCell.textContent.trim() : '';
+            function rowSearchText(row) {
+                return (row.dataset.search || row.textContent || '').toLowerCase();
+            }
 
-                        if (type === 'number') {
+            function cellSortValue(row, index) {
+                var cell = row.children[index];
+                return cell ? cell.dataset.sortValue || cell.textContent.trim() : '';
+            }
+
+            function filteredRows() {
+                var search = state.search.trim().toLowerCase();
+                var visibleRows = search
+                    ? rows.filter(function (row) { return rowSearchText(row).includes(search); })
+                    : rows.slice();
+
+                if (state.sortIndex !== null) {
+                    visibleRows.sort(function (left, right) {
+                        var leftValue = cellSortValue(left, state.sortIndex);
+                        var rightValue = cellSortValue(right, state.sortIndex);
+
+                        if (state.sortType === 'number') {
                             leftValue = Number(leftValue) || 0;
                             rightValue = Number(rightValue) || 0;
-                            return nextDirection === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+                            return state.sortDirection === 'asc'
+                                ? leftValue - rightValue
+                                : rightValue - leftValue;
                         }
 
-                        return nextDirection === 'asc'
+                        return state.sortDirection === 'asc'
                             ? leftValue.localeCompare(rightValue)
                             : rightValue.localeCompare(leftValue);
                     });
+                }
 
-                    rows.forEach(function (row) {
-                        tbody.appendChild(row);
-                    });
+                return visibleRows;
+            }
 
-                    table.dataset.sortIndex = String(index);
-                    table.dataset.sortDirection = nextDirection;
+            function updateSelectAll() {
+                var visibleCheckboxes = rows
+                    .filter(function (row) { return !row.hidden; })
+                    .map(function (row) { return row.querySelector('.datatable-row-select'); })
+                    .filter(Boolean);
+
+                if (!visibleCheckboxes.length) {
+                    selectAll.checked = false;
+                    selectAll.indeterminate = false;
+                    return;
+                }
+
+                var checkedCount = visibleCheckboxes.filter(function (checkbox) { return checkbox.checked; }).length;
+                selectAll.checked = checkedCount === visibleCheckboxes.length;
+                selectAll.indeterminate = checkedCount > 0 && checkedCount < visibleCheckboxes.length;
+            }
+
+            function pageButton(label, page, disabled, active) {
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'datatable-page-button' + (active ? ' active' : '');
+                button.textContent = label;
+                button.disabled = disabled;
+                button.addEventListener('click', function () {
+                    state.page = page;
+                    render();
+                });
+                pagination.appendChild(button);
+            }
+
+            function renderPagination(pageCount) {
+                pagination.innerHTML = '';
+                pageButton('Prev', Math.max(1, state.page - 1), state.page === 1, false);
+
+                var startPage = Math.max(1, state.page - 2);
+                var endPage = Math.min(pageCount, startPage + 4);
+                startPage = Math.max(1, endPage - 4);
+
+                for (var page = startPage; page <= endPage; page += 1) {
+                    pageButton(String(page), page, false, page === state.page);
+                }
+
+                pageButton('Next', Math.min(pageCount, state.page + 1), state.page === pageCount, false);
+            }
+
+            function render() {
+                var visibleRows = filteredRows();
+                var total = visibleRows.length;
+                var pageSize = state.pageSize === 'all' ? Math.max(total, 1) : Number(state.pageSize);
+                var pageCount = Math.max(1, Math.ceil(total / pageSize));
+                state.page = Math.min(state.page, pageCount);
+
+                var start = (state.page - 1) * pageSize;
+                var end = Math.min(start + pageSize, total);
+                var pageRows = visibleRows.slice(start, end);
+
+                rows.forEach(function (row) {
+                    row.hidden = true;
+                });
+                pageRows.forEach(function (row) {
+                    row.hidden = false;
+                    tbody.appendChild(row);
+                });
+
+                info.textContent = total
+                    ? 'Showing ' + (start + 1) + ' to ' + end + ' of ' + total + ' entries'
+                    : 'Showing 0 entries';
+                renderPagination(pageCount);
+                updateSelectAll();
+            }
+
+            pageSizeSelect.addEventListener('change', function () {
+                state.pageSize = pageSizeSelect.value;
+                state.page = 1;
+                render();
+            });
+
+            searchInput.addEventListener('input', function () {
+                state.search = searchInput.value;
+                state.page = 1;
+                render();
+            });
+
+            selectAll.addEventListener('change', function () {
+                rows.forEach(function (row) {
+                    if (!row.hidden) {
+                        var checkbox = row.querySelector('.datatable-row-select');
+                        if (checkbox) {
+                            checkbox.checked = selectAll.checked;
+                        }
+                    }
+                });
+                updateSelectAll();
+            });
+
+            rows.forEach(function (row) {
+                var checkbox = row.querySelector('.datatable-row-select');
+                if (checkbox) {
+                    checkbox.addEventListener('change', updateSelectAll);
+                }
+            });
+
+            table.querySelectorAll('.sort-button').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var index = Number(button.dataset.sortIndex);
+                    var nextDirection = state.sortIndex === index && state.sortDirection === 'asc' ? 'desc' : 'asc';
+
+                    state.sortIndex = index;
+                    state.sortType = button.dataset.sortType || 'text';
+                    state.sortDirection = nextDirection;
+                    state.page = 1;
+
                     table.querySelectorAll('.sort-button').forEach(function (item) {
                         item.classList.remove('sorted-asc', 'sorted-desc');
                     });
                     button.classList.add(nextDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+                    render();
                 });
             });
-        });
+
+            render();
+        }
+
+        document.querySelectorAll('.admin-datatable').forEach(setupDataTable);
     })();
 </script>
 {% endblock %}
