@@ -1,0 +1,169 @@
+{% extends "admin_base.html" %}
+{% block title %}Email Reminders - Splitmate Admin{% endblock %}
+
+{% macro date_label(value) -%}
+    {{ value.strftime('%b %d, %Y') if value else 'Never' }}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-header page-header-action">
+    <div>
+        <h1>Email Reminders</h1>
+        <p>Manage inactive-user outreach and review who is eligible for reminders.</p>
+    </div>
+    <form method="POST" action="{{ url_for('admin.send_inactivity_reminders_now') }}">
+        <input type="hidden" name="next" value="{{ url_for('admin.emails') }}">
+        <button type="submit" class="btn btn-primary btn-sm">Send Reminders Now</button>
+    </form>
+</div>
+
+<div class="stats-grid admin-stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">S</div>
+        <div class="stat-content">
+            <span class="stat-label">Status</span>
+            <span class="stat-value">{% if emails_enabled %}On{% else %}Off{% endif %}</span>
+            <span class="stat-subvalue">Automatic reminders</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">T</div>
+        <div class="stat-content">
+            <span class="stat-label">Send Time</span>
+            <span class="stat-value">{{ "%02d:00"|format(email_hour_utc) }}</span>
+            <span class="stat-subvalue">UTC daily</span>
+        </div>
+    </div>
+    <div class="stat-card stat-negative">
+        <div class="stat-icon">I</div>
+        <div class="stat-content">
+            <span class="stat-label">Long Inactive</span>
+            <span class="stat-value">{{ stats.long_inactive_users }}</span>
+            <span class="stat-subvalue">{{ inactivity_days }}+ idle days</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">R</div>
+        <div class="stat-content">
+            <span class="stat-label">Ready to Email</span>
+            <span class="stat-value">{{ stats.reminder_candidates }}</span>
+            <span class="stat-subvalue">Verified and off cooldown</span>
+        </div>
+    </div>
+</div>
+
+<div class="content-grid admin-content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2>Reminder Candidates</h2>
+            <span class="badge">{{ reminder_candidates|length }} ready</span>
+        </div>
+        <div class="card-body">
+            {% if reminder_candidates %}
+            <div class="table-scroll">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Last Usage</th>
+                            <th>Idle</th>
+                            <th>Last Reminder</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in reminder_candidates %}
+                        <tr>
+                            <td>
+                                <span class="table-primary">{{ user.name }}</span>
+                                <span class="table-secondary">{{ user.email }}</span>
+                            </td>
+                            <td>{{ date_label(user.last_usage_at) }}</td>
+                            <td>{{ user.days_idle if user.days_idle is not none else '-' }} days</td>
+                            <td>{{ date_label(user.last_inactivity_email_sent_at) if user.last_inactivity_email_sent_at else 'Not sent' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty-state">No verified inactive users are ready for a reminder right now.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Automation Rules</h2>
+            {% if emails_enabled %}
+            <span class="badge badge-success">Enabled</span>
+            {% else %}
+            <span class="badge">Disabled</span>
+            {% endif %}
+        </div>
+        <div class="card-body admin-automation-list">
+            <div class="automation-row">
+                <span>Idle threshold</span>
+                <strong>{{ inactivity_days }} days</strong>
+            </div>
+            <div class="automation-row">
+                <span>Daily send time</span>
+                <strong>{{ "%02d:00"|format(email_hour_utc) }} UTC</strong>
+            </div>
+            <div class="automation-row">
+                <span>Verified users</span>
+                <strong>{{ stats.verified_users }}</strong>
+            </div>
+            <div class="automation-row">
+                <span>Cooldown</span>
+                <strong>{{ email_cooldown_days }} days</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Long Inactive Users</h2>
+        <a href="{{ url_for('admin.users', tab='inactive') }}" class="btn btn-outline btn-sm">Open in Users Report</a>
+    </div>
+    <div class="card-body">
+        {% if long_inactive_users %}
+        <div class="table-scroll">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Status</th>
+                        <th>Last Usage</th>
+                        <th>Idle</th>
+                        <th>Reminder Ready</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in long_inactive_users[:12] %}
+                    <tr>
+                        <td>
+                            <span class="table-primary">{{ user.name }}</span>
+                            <span class="table-secondary">{{ user.email }}</span>
+                        </td>
+                        <td>
+                            {% if user.is_email_verified %}
+                            <span class="badge badge-success">Verified</span>
+                            {% else %}
+                            <span class="badge">Unverified</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ date_label(user.last_usage_at) }}</td>
+                        <td>{{ user.days_idle if user.days_idle is not none else '-' }} days</td>
+                        <td>{% if user.is_reminder_candidate %}Yes{% else %}No{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="empty-state">No users are past the inactivity threshold.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -42,22 +42,55 @@
         </div>
     </header>
 
-    <main class="admin-main">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="flash-messages">
-            {% for category, message in messages %}
-            <div class="flash-message flash-{{ category }}">
-                {{ message }}
-                <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+    <div class="{% if admin_user %}admin-layout{% else %}admin-layout-public{% endif %}">
+        {% if admin_user %}
+        <aside class="admin-sidebar" aria-label="Admin navigation">
+            <nav class="admin-nav">
+                <a class="admin-nav-link {% if active_admin_page == 'dashboard' %}active{% endif %}" href="{{ url_for('admin.dashboard') }}">
+                    <span class="admin-nav-icon">O</span>
+                    <span>
+                        <strong>Overview</strong>
+                        <small>Growth and totals</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'users' %}active{% endif %}" href="{{ url_for('admin.users') }}">
+                    <span class="admin-nav-icon">U</span>
+                    <span>
+                        <strong>Users</strong>
+                        <small>Tables and segments</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'emails' %}active{% endif %}" href="{{ url_for('admin.emails') }}">
+                    <span class="admin-nav-icon">E</span>
+                    <span>
+                        <strong>Email Reminders</strong>
+                        <small>Inactive user outreach</small>
+                    </span>
+                </a>
+            </nav>
+            <div class="admin-sidebar-footer">
+                <a href="{{ url_for('main.home') }}" class="btn btn-outline btn-sm btn-full">Open Splitmate</a>
             </div>
-            {% endfor %}
-        </div>
+        </aside>
         {% endif %}
-        {% endwith %}
 
-        {% block content %}{% endblock %}
-    </main>
+        <main class="admin-main">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash-message flash-{{ category }}">
+                    {{ message }}
+                    <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>

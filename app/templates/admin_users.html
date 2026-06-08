@@ -1,0 +1,219 @@
+{% extends "admin_base.html" %}
+{% block title %}Users Report - Splitmate Admin{% endblock %}
+
+{% macro date_label(value) -%}
+    {{ value.strftime('%b %d, %Y') if value else 'Never' }}
+{%- endmacro %}
+
+{% macro user_status(user) -%}
+    {% if user.is_admin %}
+    <span class="badge badge-admin">Admin</span>
+    {% elif user.is_email_verified %}
+    <span class="badge badge-success">Verified</span>
+    {% else %}
+    <span class="badge">Unverified</span>
+    {% endif %}
+{%- endmacro %}
+
+{% macro users_table(table_id, users, empty_text) %}
+{% if users %}
+<div class="table-scroll">
+    <table class="admin-table admin-user-table js-sort-table" id="{{ table_id }}">
+        <thead>
+            <tr>
+                <th><button type="button" class="sort-button" data-sort-index="0" data-sort-type="text">User</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="1" data-sort-type="text">Status</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="2" data-sort-type="number">Created</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="3" data-sort-type="number">Last Login</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="4" data-sort-type="number">Last Usage</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="5" data-sort-type="number">Idle</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="6" data-sort-type="number">Groups</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="7" data-sort-type="number">Expenses</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="8" data-sort-type="number">Payments</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="9" data-sort-type="number">Last Reminder</button></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td data-sort-value="{{ user.name|lower }}">
+                    <span class="table-primary">{{ user.name }}</span>
+                    <span class="table-secondary">{{ user.email }}</span>
+                </td>
+                <td data-sort-value="{% if user.is_admin %}0-admin{% elif user.is_email_verified %}1-verified{% else %}2-unverified{% endif %}">
+                    {{ user_status(user) }}
+                </td>
+                <td data-sort-value="{{ user.created_sort }}">{{ date_label(user.created_at) }}</td>
+                <td data-sort-value="{{ user.last_login_sort }}">{{ date_label(user.last_login_at) }}</td>
+                <td data-sort-value="{{ user.last_usage_sort }}">
+                    {{ date_label(user.last_usage_at) }}
+                    {% if user.last_split_at %}
+                    <span class="table-secondary">Last split {{ date_label(user.last_split_at) }}</span>
+                    {% endif %}
+                </td>
+                <td data-sort-value="{{ user.days_idle_sort }}">
+                    {% if user.days_idle is not none %}
+                    {{ user.days_idle }} days
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+                <td data-sort-value="{{ user.member_group_count }}">
+                    {{ user.member_group_count }}
+                    <span class="table-secondary">{{ user.admin_group_count }} owned</span>
+                </td>
+                <td data-sort-value="{{ user.expense_count + user.split_count }}">
+                    {{ user.expense_count }} paid
+                    <span class="table-secondary">{{ user.split_count }} owed splits</span>
+                </td>
+                <td data-sort-value="{{ user.payment_count }}">
+                    {{ user.payments_sent_count }} sent
+                    <span class="table-secondary">{{ user.payments_received_count }} received</span>
+                </td>
+                <td data-sort-value="{{ user.last_inactivity_email_sent_sort }}">
+                    {% if user.last_inactivity_email_sent_at %}
+                    {{ date_label(user.last_inactivity_email_sent_at) }}
+                    {% else %}
+                    Not sent
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="empty-state">{{ empty_text }}</p>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="page-header page-header-action">
+    <div>
+        <h1>Users Report</h1>
+        <p>Detailed user data, split activity, reminders, and account status.</p>
+    </div>
+    <a href="{{ url_for('admin.emails') }}" class="btn btn-outline btn-sm">Email Report</a>
+</div>
+
+<div class="admin-report-summary">
+    <div>
+        <span class="stat-label">Total users</span>
+        <strong>{{ stats.total_users }}</strong>
+    </div>
+    <div>
+        <span class="stat-label">Verified</span>
+        <strong>{{ stats.verified_users }}</strong>
+    </div>
+    <div>
+        <span class="stat-label">No split this month</span>
+        <strong>{{ stats.no_split_this_month }}</strong>
+    </div>
+    <div>
+        <span class="stat-label">Long inactive</span>
+        <strong>{{ stats.long_inactive_users }}</strong>
+    </div>
+</div>
+
+<div class="card admin-report-card">
+    <div class="admin-tabs" role="tablist" aria-label="User report tabs">
+        {% for tab in tabs %}
+        <button type="button"
+                class="admin-tab-button {% if tab.id == active_tab %}active{% endif %}"
+                data-tab-target="{{ tab.id }}"
+                role="tab"
+                aria-selected="{{ 'true' if tab.id == active_tab else 'false' }}">
+            {{ tab.label }}
+            <span>{{ tab.users|length }}</span>
+        </button>
+        {% endfor %}
+    </div>
+
+    {% for tab in tabs %}
+    <section class="admin-tab-panel {% if tab.id == active_tab %}active{% endif %}"
+             data-tab-panel="{{ tab.id }}"
+             role="tabpanel">
+        <div class="card-header admin-panel-header">
+            <div>
+                <h2>{{ tab.label }}</h2>
+                <p>{{ tab.users|length }} user{{ '' if tab.users|length == 1 else 's' }}</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {{ users_table('users-table-' ~ tab.id, tab.users, tab.empty) }}
+        </div>
+    </section>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function () {
+        var tabButtons = document.querySelectorAll('.admin-tab-button');
+        var panels = document.querySelectorAll('.admin-tab-panel');
+
+        tabButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                var target = button.dataset.tabTarget;
+
+                tabButtons.forEach(function (item) {
+                    var isActive = item.dataset.tabTarget === target;
+                    item.classList.toggle('active', isActive);
+                    item.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+
+                panels.forEach(function (panel) {
+                    panel.classList.toggle('active', panel.dataset.tabPanel === target);
+                });
+
+                var url = new URL(window.location.href);
+                url.searchParams.set('tab', target);
+                window.history.replaceState({}, '', url);
+            });
+        });
+
+        document.querySelectorAll('.js-sort-table').forEach(function (table) {
+            table.querySelectorAll('.sort-button').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var tbody = table.querySelector('tbody');
+                    var index = Number(button.dataset.sortIndex);
+                    var type = button.dataset.sortType || 'text';
+                    var currentIndex = table.dataset.sortIndex;
+                    var currentDirection = table.dataset.sortDirection || 'asc';
+                    var nextDirection = currentIndex === String(index) && currentDirection === 'asc' ? 'desc' : 'asc';
+                    var rows = Array.from(tbody.querySelectorAll('tr'));
+
+                    rows.sort(function (left, right) {
+                        var leftCell = left.children[index];
+                        var rightCell = right.children[index];
+                        var leftValue = leftCell ? leftCell.dataset.sortValue || leftCell.textContent.trim() : '';
+                        var rightValue = rightCell ? rightCell.dataset.sortValue || rightCell.textContent.trim() : '';
+
+                        if (type === 'number') {
+                            leftValue = Number(leftValue) || 0;
+                            rightValue = Number(rightValue) || 0;
+                            return nextDirection === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+                        }
+
+                        return nextDirection === 'asc'
+                            ? leftValue.localeCompare(rightValue)
+                            : rightValue.localeCompare(leftValue);
+                    });
+
+                    rows.forEach(function (row) {
+                        tbody.appendChild(row);
+                    });
+
+                    table.dataset.sortIndex = String(index);
+                    table.dataset.sortDirection = nextDirection;
+                    table.querySelectorAll('.sort-button').forEach(function (item) {
+                        item.classList.remove('sorted-asc', 'sorted-desc');
+                    });
+                    button.classList.add(nextDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+                });
+            });
+        });
+    })();
+</script>
+{% endblock %}
