@@ -124,6 +124,16 @@
     </div>
 
     <div class="card">
+        <div class="card-header">
+            <h2>Payment Activity</h2>
+            <span class="badge">Splitmate ledger</span>
+        </div>
+        <div class="card-body">
+            <div id="paymentsList" class="payment-ledger-list"></div>
+        </div>
+    </div>
+
+    <div class="card">
         <div class="card-header"><h2>Expense Breakdown</h2></div>
         <div class="card-body">
             <div id="summaryList" class="summary-list"></div>
@@ -196,6 +206,7 @@
         loadExpenses();
         loadSummaries();
         loadPaymentOptions();
+        loadPayments();
     }
 
     async function loadExpenses() {
@@ -283,6 +294,34 @@
             </option>
         `).join('');
         updatePaymentAmount();
+    }
+
+    async function loadPayments() {
+        const data = await fetchJson(`/split/api/group/${currentGroupId}/payments`);
+        const container = document.getElementById('paymentsList');
+        if (!data.length) {
+            container.innerHTML = '<p class="empty-state">No payments yet</p>';
+            return;
+        }
+
+        container.innerHTML = data.map(payment => {
+            const statusClass = ['paid', 'recorded'].includes(payment.status) ? 'badge-success' : '';
+            const methodLabel = payment.method === 'stripe' ? 'Online' : 'Manual';
+            const dateLabel = payment.date ? new Date(payment.date).toLocaleString() : '';
+
+            return `
+                <div class="payment-ledger-item">
+                    <div class="payment-ledger-main">
+                        <div>
+                            <span class="payment-ledger-route">${escapeHtml(payment.payer)} paid ${escapeHtml(payment.receiver)}</span>
+                            <span class="payment-ledger-meta">${escapeHtml(methodLabel)}${dateLabel ? ` &bull; ${escapeHtml(dateLabel)}` : ''}</span>
+                        </div>
+                        <span class="payment-ledger-amount">${formatMoney(payment.amount)}</span>
+                    </div>
+                    <span class="badge ${statusClass}">${escapeHtml(payment.status_label)}</span>
+                </div>
+            `;
+        }).join('');
     }
 
     function updatePaymentAmount() {

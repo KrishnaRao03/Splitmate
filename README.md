@@ -9,7 +9,7 @@ Splitmate is a Flask web application for managing shared group expenses, balance
 - Equal, exact amount, and percentage expense splits
 - Recent expense tracking and transaction history
 - Balance overview for group members
-- Manual payment recording and optional Stripe Checkout flow through the app's Stripe account
+- Splitmate payment ledger with manual payments and optional Stripe Checkout processing
 - Admin dashboard with user growth, inactive-user lists, and reminder email controls
 - Group notes and task management
 - Gmail SMTP configuration through environment variables

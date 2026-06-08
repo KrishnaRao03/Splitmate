@@ -74,28 +74,10 @@ def outstanding_splits_for(group, payer, receiver):
     total = sum((money_decimal(split.amount_owed) for split in splits), Decimal('0.00'))
     return splits, total
 
-def apply_payment_to_splits(group, payer, receiver, amount, method='manual',
-                            stripe_checkout_session_id=None, status='recorded'):
-    payment_amount = money_decimal(amount)
-
-    if stripe_checkout_session_id:
-        existing = Payment.query.filter_by(stripe_checkout_session_id=stripe_checkout_session_id).first()
-        if existing:
-            return existing, False
-
-    payment = Payment(
-        payer_id=payer.id,
-        receiver_id=receiver.id,
-        amount=float(payment_amount),
-        group_id=group.id,
-        method=method,
-        stripe_checkout_session_id=stripe_checkout_session_id,
-        status=status
-    )
-    db.session.add(payment)
-
+def settle_outstanding_splits(group, payer, receiver, amount):
     outstanding_splits, _ = outstanding_splits_for(group, payer, receiver)
-    remaining = payment_amount
+    remaining = money_decimal(amount)
+
     for split in outstanding_splits:
         owed = money_decimal(split.amount_owed)
         if remaining >= owed:
@@ -109,6 +91,41 @@ def apply_payment_to_splits(group, payer, receiver, amount, method='manual',
         if remaining <= 0:
             break
 
+def create_payment_record(group, payer, receiver, amount, method='manual',
+                          stripe_checkout_session_id=None, status='recorded'):
+    payment_amount = money_decimal(amount)
+
+    payment = Payment(
+        payer_id=payer.id,
+        receiver_id=receiver.id,
+        amount=float(payment_amount),
+        group_id=group.id,
+        method=method,
+        stripe_checkout_session_id=stripe_checkout_session_id,
+        status=status
+    )
+    db.session.add(payment)
+    return payment
+
+def apply_payment_to_splits(group, payer, receiver, amount, method='manual',
+                            stripe_checkout_session_id=None, status='recorded'):
+    payment_amount = money_decimal(amount)
+
+    if stripe_checkout_session_id:
+        existing = Payment.query.filter_by(stripe_checkout_session_id=stripe_checkout_session_id).first()
+        if existing:
+            return existing, False
+
+    payment = create_payment_record(
+        group,
+        payer,
+        receiver,
+        payment_amount,
+        method=method,
+        stripe_checkout_session_id=stripe_checkout_session_id,
+        status=status
+    )
+    settle_outstanding_splits(group, payer, receiver, payment_amount)
     return payment, True
 
 @split_bp.route('/')
@@ -348,7 +365,18 @@ def create_stripe_payment():
                 'metadata': metadata
             }
         )
+        create_payment_record(
+            group,
+            current_user,
+            receiver,
+            payment_amount,
+            method='stripe',
+            stripe_checkout_session_id=checkout_session.id,
+            status='pending'
+        )
+        db.session.commit()
     except Exception as exc:
+        db.session.rollback()
         current_app.logger.exception('Failed to create Stripe Checkout session: %s', exc)
         flash('Could not start Stripe payment. Check your Stripe configuration.', 'error')
         return redirect(url_for('split.index'))
@@ -367,8 +395,8 @@ def stripe_payment_success():
         flash('Stripe is not configured, so the payment could not be verified.', 'error')
         return redirect(url_for('split.index'))
 
-    existing = Payment.query.filter_by(stripe_checkout_session_id=session_id).first()
-    if existing:
+    payment = Payment.query.filter_by(stripe_checkout_session_id=session_id).first()
+    if payment and payment.status == 'paid':
         flash('Payment was already recorded.', 'info')
         return redirect(url_for('split.index'))
 
@@ -405,15 +433,25 @@ def stripe_payment_success():
         flash('Stripe payment group membership is invalid.', 'error')
         return redirect(url_for('split.index'))
 
-    apply_payment_to_splits(
-        group,
-        current_user,
-        receiver,
-        amount,
-        method='stripe',
-        stripe_checkout_session_id=session_id,
-        status='paid'
-    )
+    if payment:
+        if payment.payer_id != current_user.id or payment.receiver_id != receiver.id or payment.group_id != group.id:
+            flash('Stripe payment record did not match this settlement.', 'error')
+            return redirect(url_for('split.index'))
+
+        payment.status = 'paid'
+        payment.amount = float(amount)
+    else:
+        payment = create_payment_record(
+            group,
+            current_user,
+            receiver,
+            amount,
+            method='stripe',
+            stripe_checkout_session_id=session_id,
+            status='paid'
+        )
+
+    settle_outstanding_splits(group, current_user, receiver, amount)
     db.session.commit()
     flash('Online payment completed and recorded.', 'success')
     return redirect(url_for('split.index'))
@@ -547,6 +585,30 @@ def get_group_expenses(group_id):
             'is_settled': s.is_settled
         } for s in e.splits]
     } for e in expenses])
+
+@split_bp.route('/api/group/<int:group_id>/payments')
+@login_required
+def get_group_payments(group_id):
+    group = Group.query.get_or_404(group_id)
+    if current_user not in group.members:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    payments = Payment.query.filter_by(group_id=group_id).order_by(Payment.date.desc()).limit(20).all()
+    nicknames = member_nickname_rows(group.id)
+    return jsonify([{
+        'id': payment.id,
+        'amount': round(payment.amount, 2),
+        'date': payment.date.isoformat() if payment.date else None,
+        'payer': nicknames.get(payment.payer_id) or payment.payer.name,
+        'receiver': nicknames.get(payment.receiver_id) or payment.receiver.name,
+        'method': payment.method,
+        'status': payment.status,
+        'status_label': {
+            'pending': 'Pending',
+            'paid': 'Paid',
+            'recorded': 'Recorded'
+        }.get(payment.status, payment.status.title())
+    } for payment in payments])
 
 @split_bp.route('/api/group/<int:group_id>/history')
 @login_required

@@ -1586,6 +1586,53 @@ input[type="file"]::file-selector-button:hover {
     margin-top: 10px;
 }
 
+.payment-ledger-list {
+    display: grid;
+    gap: 12px;
+}
+
+.payment-ledger-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background: var(--bg-primary);
+    padding: 14px;
+}
+
+.payment-ledger-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-width: 0;
+    flex: 1;
+}
+
+.payment-ledger-route,
+.payment-ledger-meta {
+    display: block;
+    min-width: 0;
+}
+
+.payment-ledger-route {
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+.payment-ledger-meta {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+}
+
+.payment-ledger-amount {
+    color: var(--primary);
+    font-weight: 900;
+    white-space: nowrap;
+}
+
 .split-input-row {
     display: grid;
     grid-template-columns: 1fr 132px;
@@ -2148,6 +2195,12 @@ input[type="file"]::file-selector-button:hover {
 
     .payment-actions {
         grid-template-columns: 1fr;
+    }
+
+    .payment-ledger-item,
+    .payment-ledger-main {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .balances-grid,
