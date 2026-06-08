@@ -10,6 +10,7 @@ Splitmate is a Flask web application for managing shared group expenses, balance
 - Recent expense tracking and transaction history
 - Balance overview for group members
 - Manual payment recording and optional Stripe payment flow
+- Admin dashboard with user growth, inactive-user lists, and reminder email controls
 - Group notes and task management
 - Gmail SMTP configuration through environment variables
 
@@ -88,10 +89,15 @@ The app reads configuration from `.env`. Do not commit `.env` to GitHub.
 - `MAIL_USERNAME`: Email account used to send OTP and reset emails
 - `MAIL_PASSWORD`: Gmail app password or SMTP password
 - `MAIL_DEFAULT_SENDER`: Default sender address
+- `ADMIN_EMAILS`: Comma-separated app admin email addresses. Defaults to `MAIL_USERNAME`.
 - `STRIPE_SECRET_KEY`: Optional Stripe secret key
 - `STRIPE_PUBLISHABLE_KEY`: Optional Stripe publishable key for client-side Stripe features
 - `STRIPE_CURRENCY`: Stripe currency, default is `cad`
 - `STRIPE_ACCOUNT_COUNTRY`: Stripe account country, default is `CA`
+- `INACTIVITY_REMINDER_DAYS`: Days of no app activity before a reminder is eligible, default is `30`
+- `INACTIVITY_EMAIL_COOLDOWN_DAYS`: Days before another inactivity reminder can be sent to the same user, default is `14`
+- `INACTIVITY_EMAILS_ENABLED`: Enables the daily inactive-user email job, default is `true`
+- `INACTIVITY_EMAIL_HOUR_UTC`: UTC hour for the daily inactive-user email job, default is `14`
 
 ## Security Notes
 

@@ -58,6 +58,12 @@ def set_pending_verification(user):
     session['pending_verification_user_id'] = user.id
     session['pending_verification_email'] = user.email
 
+def mark_user_logged_in(user):
+    now = datetime.utcnow()
+    user.last_login_at = now
+    user.last_activity_at = now
+    db.session.commit()
+
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     # If already logged in, go to home
@@ -89,6 +95,7 @@ def login():
                 return redirect(url_for('auth.verify_email'))
 
             login_user(user, remember=True)
+            mark_user_logged_in(user)
             # Redirect to the page they were trying to access, or home
             next_page = request.args.get('next')
             return redirect(next_page if next_page else url_for('main.home'))
@@ -251,6 +258,7 @@ def verify_email():
             session.pop('pending_verification_email', None)
             if not current_user.is_authenticated:
                 login_user(user, remember=True)
+                mark_user_logged_in(user)
             flash('Email verified successfully.', 'success')
             return redirect(url_for('main.profile' if verifying_authenticated_user else 'main.home'))
 

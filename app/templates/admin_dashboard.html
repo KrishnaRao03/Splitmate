@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - Splitmate{% endblock %}
+
+{% macro user_table(title, users, empty_text) %}
+<div class="card">
+    <div class="card-header">
+        <h2>{{ title }}</h2>
+    </div>
+    <div class="card-body">
+        {% if users %}
+        <div class="table-scroll">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Created</th>
+                        <th>Last Activity</th>
+                        <th>Idle</th>
+                        <th>Reminder</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>
+                            <span class="table-primary">{{ user.name }}</span>
+                            <span class="table-secondary">{{ user.email }}</span>
+                        </td>
+                        <td>{{ user.created_at.strftime('%b %d, %Y') if user.created_at else 'Unknown' }}</td>
+                        <td>{{ user.last_usage_at.strftime('%b %d, %Y') if user.last_usage_at else 'Never' }}</td>
+                        <td>{{ user.days_idle if user.days_idle is not none else '-' }} days</td>
+                        <td>
+                            {% if user.last_inactivity_email_sent_at %}
+                            {{ user.last_inactivity_email_sent_at.strftime('%b %d, %Y') }}
+                            {% else %}
+                            Not sent
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="empty-state">{{ empty_text }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-header page-header-action">
+    <div>
+        <h1>Admin Dashboard</h1>
+        <p>User growth, inactive accounts, and reminder email status</p>
+    </div>
+    <form method="POST" action="{{ url_for('admin.send_inactivity_reminders_now') }}">
+        <button type="submit" class="btn btn-primary btn-sm">Send Reminders Now</button>
+    </form>
+</div>
+
+<div class="stats-grid admin-stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">U</div>
+        <div class="stat-content">
+            <span class="stat-label">Users</span>
+            <span class="stat-value">{{ stats.total_users }}</span>
+        </div>
+    </div>
+    <div class="stat-card stat-positive">
+        <div class="stat-icon">N</div>
+        <div class="stat-content">
+            <span class="stat-label">New This Month</span>
+            <span class="stat-value">{{ stats.new_users_this_month }}</span>
+            <span class="stat-subvalue">{{ "%+d"|format(stats.new_user_delta) }} vs last month</span>
+        </div>
+    </div>
+    <div class="stat-card stat-negative">
+        <div class="stat-icon">I</div>
+        <div class="stat-content">
+            <span class="stat-label">No Split This Month</span>
+            <span class="stat-value">{{ stats.no_split_this_month }}</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">M</div>
+        <div class="stat-content">
+            <span class="stat-label">Reminder Candidates</span>
+            <span class="stat-value">{{ stats.reminder_candidates }}</span>
+            <span class="stat-subvalue">{{ inactivity_days }}+ idle days</span>
+        </div>
+    </div>
+</div>
+
+<div class="content-grid admin-content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2>New Users by Month</h2>
+            <span class="badge">12 months</span>
+        </div>
+        <div class="card-body">
+            {% set max_users = growth_data | map(attribute='count') | list | max %}
+            <div class="admin-growth-chart" aria-label="New users by month">
+                {% for point in growth_data %}
+                {% set bar_height = (point.count / max_users * 100) if max_users else 0 %}
+                <div class="admin-chart-item">
+                    <div class="admin-chart-track">
+                        <div class="admin-chart-fill" style="height: {{ bar_height }}%"></div>
+                    </div>
+                    <span class="admin-chart-value">{{ point.count }}</span>
+                    <span class="admin-chart-label">{{ point.label }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Reminder Automation</h2>
+            {% if emails_enabled %}
+            <span class="badge badge-success">Enabled</span>
+            {% else %}
+            <span class="badge">Disabled</span>
+            {% endif %}
+        </div>
+        <div class="card-body admin-automation-list">
+            <div class="automation-row">
+                <span>Daily send time</span>
+                <strong>{{ "%02d:00"|format(email_hour_utc) }} UTC</strong>
+            </div>
+            <div class="automation-row">
+                <span>Idle threshold</span>
+                <strong>{{ inactivity_days }} days</strong>
+            </div>
+            <div class="automation-row">
+                <span>Verified users</span>
+                <strong>{{ stats.verified_users }}</strong>
+            </div>
+            <div class="automation-row">
+                <span>Never used core features</span>
+                <strong>{{ stats.never_used_core_feature }}</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="admin-table-grid">
+    {{ user_table('Users with no split this month', no_split_this_month, 'Every user has split activity this month.') }}
+    {{ user_table('Created account but never used core features', never_used_core_feature, 'Every user has used at least one core feature.') }}
+    {{ user_table('Long inactive users', long_inactive_users, 'No users are past the inactivity threshold.') }}
+</div>
+{% endblock %}

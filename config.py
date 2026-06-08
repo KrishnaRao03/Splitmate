@@ -37,9 +37,19 @@ class Config:
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME') or 'krishna.rao.0302@gmail.com'
     MAIL_PASSWORD = (os.environ.get('MAIL_PASSWORD') or '').replace(' ', '') or None
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or MAIL_USERNAME
+    ADMIN_EMAILS = {
+        email.strip().lower()
+        for email in (os.environ.get('ADMIN_EMAILS') or MAIL_USERNAME or '').split(',')
+        if email.strip()
+    }
     OTP_EXPIRY_MINUTES = int(os.environ.get('OTP_EXPIRY_MINUTES') or 10)
     OTP_RESEND_COOLDOWN_SECONDS = int(os.environ.get('OTP_RESEND_COOLDOWN_SECONDS') or 60)
     PASSWORD_RESET_EXPIRY_MINUTES = int(os.environ.get('PASSWORD_RESET_EXPIRY_MINUTES') or 30)
+    ACTIVITY_UPDATE_INTERVAL_MINUTES = int(os.environ.get('ACTIVITY_UPDATE_INTERVAL_MINUTES') or 5)
+    INACTIVITY_REMINDER_DAYS = int(os.environ.get('INACTIVITY_REMINDER_DAYS') or 30)
+    INACTIVITY_EMAIL_COOLDOWN_DAYS = int(os.environ.get('INACTIVITY_EMAIL_COOLDOWN_DAYS') or 14)
+    INACTIVITY_EMAILS_ENABLED = os.environ.get('INACTIVITY_EMAILS_ENABLED', 'true').lower() in ('1', 'true', 'yes')
+    INACTIVITY_EMAIL_HOUR_UTC = int(os.environ.get('INACTIVITY_EMAIL_HOUR_UTC') or 14)
     STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
     STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
     STRIPE_CURRENCY = (os.environ.get('STRIPE_CURRENCY') or 'cad').lower()

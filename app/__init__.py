@@ -1,8 +1,9 @@
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
-from flask import Flask
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 from sqlalchemy import inspect, text
 from config import Config
@@ -12,6 +13,9 @@ migrate = Migrate()
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'  # Redirect unauthorized users here
 login_manager.login_message_category = 'info'
+
+def datetime_column_type():
+    return 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
 
 def ensure_note_schema():
     inspector = inspect(db.engine)
@@ -44,10 +48,28 @@ def ensure_user_email_schema():
         db.session.execute(text('ALTER TABLE "user" ADD COLUMN email_otp_hash VARCHAR(256)'))
 
     if 'email_otp_expires_at' not in columns:
-        db.session.execute(text('ALTER TABLE "user" ADD COLUMN email_otp_expires_at DATETIME'))
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN email_otp_expires_at {datetime_column_type()}'))
 
     if 'email_otp_sent_at' not in columns:
-        db.session.execute(text('ALTER TABLE "user" ADD COLUMN email_otp_sent_at DATETIME'))
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN email_otp_sent_at {datetime_column_type()}'))
+
+    db.session.commit()
+
+def ensure_user_activity_schema():
+    inspector = inspect(db.engine)
+    if not inspector.has_table('user'):
+        return
+
+    columns = {column['name'] for column in inspector.get_columns('user')}
+
+    if 'last_login_at' not in columns:
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN last_login_at {datetime_column_type()}'))
+
+    if 'last_activity_at' not in columns:
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN last_activity_at {datetime_column_type()}'))
+
+    if 'last_inactivity_email_sent_at' not in columns:
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN last_inactivity_email_sent_at {datetime_column_type()}'))
 
     db.session.commit()
 
@@ -140,14 +162,42 @@ def create_app(config_class=Config):
 
     @app.context_processor
     def inject_currency_context():
+        from app.admin_utils import is_app_admin
+
         return {
             'currency_code': configured_currency_code(),
-            'currency_symbol': configured_currency_symbol()
+            'currency_symbol': configured_currency_symbol(),
+            'is_app_admin': is_app_admin(current_user)
         }
 
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    scheduler_started = {'value': False}
+
+    @app.before_request
+    def ensure_scheduler_started():
+        if scheduler_started['value']:
+            return
+
+        from app.scheduler import start_inactivity_scheduler
+        start_inactivity_scheduler(app)
+        scheduler_started['value'] = True
+
+    @app.before_request
+    def record_authenticated_activity():
+        endpoint = request.endpoint or ''
+        if endpoint == 'static' or endpoint.startswith('auth.'):
+            return
+
+        if not current_user.is_authenticated:
+            return
+
+        now = datetime.utcnow()
+        interval = timedelta(minutes=app.config['ACTIVITY_UPDATE_INTERVAL_MINUTES'])
+        if not current_user.last_activity_at or now - current_user.last_activity_at >= interval:
+            current_user.last_activity_at = now
+            db.session.commit()
 
     # Register blueprints
     from app.routes.auth import auth_bp
@@ -155,17 +205,20 @@ def create_app(config_class=Config):
     from app.routes.split import split_bp
     from app.routes.notes import notes_bp
     from app.routes.tasks import tasks_bp
+    from app.routes.admin import admin_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(split_bp)
     app.register_blueprint(notes_bp)
     app.register_blueprint(tasks_bp)
+    app.register_blueprint(admin_bp)
 
     with app.app_context():
         db.create_all()
         ensure_note_schema()
         ensure_user_email_schema()
+        ensure_user_activity_schema()
         ensure_stripe_schema()
         ensure_expense_schema()
         ensure_group_members_schema()

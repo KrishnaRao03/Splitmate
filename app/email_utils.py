@@ -52,3 +52,16 @@ def send_password_reset_email(user, reset_url):
         f'This link expires in {expiry_minutes} minutes.\n\n'
         'If you did not request this, you can ignore this email.\n'
     )
+
+
+def send_inactivity_reminder_email(user, days_idle):
+    return send_email(
+        user.email,
+        'Your Splitmate groups miss you',
+        f'Hi {user.name},\n\n'
+        f'It has been about {days_idle} days since your last Splitmate activity.\n'
+        'Open Splitmate to add recent expenses, settle balances, or check what your group still needs.\n\n'
+        'If everything is already settled, you can ignore this reminder.\n\n'
+        'Thanks,\n'
+        'Splitmate\n'
+    )

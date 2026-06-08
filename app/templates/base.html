@@ -61,6 +61,14 @@
                     <span>Notes</span>
                 </a>
             </li>
+            {% if is_app_admin %}
+            <li class="nav-item {% if request.endpoint and 'admin' in request.endpoint %}active{% endif %}">
+                <a href="{{ url_for('admin.dashboard') }}">
+                    <span class="nav-icon">A</span>
+                    <span>Admin</span>
+                </a>
+            </li>
+            {% endif %}
         </ul>
 
         <div class="sidebar-footer">
