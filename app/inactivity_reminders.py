@@ -16,6 +16,9 @@ def inactive_reminder_candidates(now=None):
     candidates = []
 
     for user in users:
+        if getattr(user, 'is_suspended', False):
+            continue
+
         last_usage_at = user_last_usage_at(user)
         if last_usage_at and last_usage_at > inactive_cutoff:
             continue

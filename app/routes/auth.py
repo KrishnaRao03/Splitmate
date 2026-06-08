@@ -77,6 +77,10 @@ def login():
         user = User.query.filter_by(email=email).first()
 
         if user and user.check_password(password):
+            if getattr(user, 'is_suspended', False):
+                flash('Your Splitmate account is suspended. Contact an administrator.', 'error')
+                return render_template('login.html')
+
             if not user.is_email_verified:
                 set_pending_verification(user)
                 if not user.email_otp_hash or not user.email_otp_expires_at or user.email_otp_expires_at <= datetime.utcnow():
@@ -113,7 +117,7 @@ def forgot_password():
         email = request.form.get('email', '').strip().lower()
         user = User.query.filter_by(email=email).first() if email else None
 
-        if user:
+        if user and not getattr(user, 'is_suspended', False):
             token = generate_password_reset_token(user)
             reset_url = url_for('auth.reset_password', token=token, _external=True)
             try:
@@ -140,6 +144,10 @@ def reset_password(token):
     if not user:
         flash('That password reset link is invalid or expired. Please request a new one.', 'error')
         return redirect(url_for('auth.forgot_password'))
+
+    if getattr(user, 'is_suspended', False):
+        flash('Your Splitmate account is suspended. Contact an administrator.', 'error')
+        return redirect(url_for('auth.login'))
 
     if request.method == 'POST':
         password = request.form.get('password', '')

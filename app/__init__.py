@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
-from flask import Flask, request
+from flask import Flask, flash, redirect, request, url_for
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, current_user
+from flask_login import LoginManager, current_user, logout_user
 from flask_migrate import Migrate
 from sqlalchemy import inspect, text
 from config import Config
@@ -16,6 +16,9 @@ login_manager.login_message_category = 'info'
 
 def datetime_column_type():
     return 'TIMESTAMP' if db.engine.dialect.name == 'postgresql' else 'DATETIME'
+
+def false_boolean_default():
+    return 'BOOLEAN DEFAULT false NOT NULL' if db.engine.dialect.name == 'postgresql' else 'BOOLEAN DEFAULT 0 NOT NULL'
 
 def ensure_note_schema():
     inspector = inspect(db.engine)
@@ -70,6 +73,18 @@ def ensure_user_activity_schema():
 
     if 'last_inactivity_email_sent_at' not in columns:
         db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN last_inactivity_email_sent_at {datetime_column_type()}'))
+
+    db.session.commit()
+
+def ensure_user_management_schema():
+    inspector = inspect(db.engine)
+    if not inspector.has_table('user'):
+        return
+
+    columns = {column['name'] for column in inspector.get_columns('user')}
+
+    if 'is_suspended' not in columns:
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN is_suspended {false_boolean_default()}'))
 
     db.session.commit()
 
@@ -193,6 +208,11 @@ def create_app(config_class=Config):
         if not current_user.is_authenticated:
             return
 
+        if getattr(current_user, 'is_suspended', False):
+            logout_user()
+            flash('Your Splitmate account is suspended. Contact an administrator.', 'error')
+            return redirect(url_for('auth.login'))
+
         now = datetime.utcnow()
         interval = timedelta(minutes=app.config['ACTIVITY_UPDATE_INTERVAL_MINUTES'])
         if not current_user.last_activity_at or now - current_user.last_activity_at >= interval:
@@ -219,6 +239,7 @@ def create_app(config_class=Config):
         ensure_note_schema()
         ensure_user_email_schema()
         ensure_user_activity_schema()
+        ensure_user_management_schema()
         ensure_stripe_schema()
         ensure_expense_schema()
         ensure_group_members_schema()

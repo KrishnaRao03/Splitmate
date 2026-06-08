@@ -19,6 +19,7 @@ class User(UserMixin, db.Model):
     last_login_at = db.Column(db.DateTime)
     last_activity_at = db.Column(db.DateTime)
     last_inactivity_email_sent_at = db.Column(db.DateTime)
+    is_suspended = db.Column(db.Boolean, default=False, nullable=False)
     is_email_verified = db.Column(db.Boolean, default=False, nullable=False)
     email_otp_hash = db.Column(db.String(256))
     email_otp_expires_at = db.Column(db.DateTime)

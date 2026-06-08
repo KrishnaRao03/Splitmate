@@ -8,6 +8,8 @@
 {% macro user_status(user) -%}
     {% if user.is_admin %}
     <span class="badge badge-admin">Admin</span>
+    {% elif user.is_suspended %}
+    <span class="badge badge-danger">Suspended</span>
     {% elif user.is_email_verified %}
     <span class="badge badge-success">Verified</span>
     {% else %}
@@ -15,7 +17,7 @@
     {% endif %}
 {%- endmacro %}
 
-{% macro users_table(table_id, users, empty_text) %}
+{% macro users_table(table_id, tab_id, users, empty_text) %}
 {% if users %}
 <div class="table-scroll">
     <table class="admin-table admin-user-table js-sort-table" id="{{ table_id }}">
@@ -31,16 +33,17 @@
                 <th><button type="button" class="sort-button" data-sort-index="7" data-sort-type="number">Expenses</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="8" data-sort-type="number">Payments</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="9" data-sort-type="number">Last Reminder</button></th>
+                <th>Manage</th>
             </tr>
         </thead>
         <tbody>
             {% for user in users %}
-            <tr>
+            <tr id="{{ tab_id }}-user-{{ user.id }}">
                 <td data-sort-value="{{ user.name|lower }}">
                     <span class="table-primary">{{ user.name }}</span>
                     <span class="table-secondary">{{ user.email }}</span>
                 </td>
-                <td data-sort-value="{% if user.is_admin %}0-admin{% elif user.is_email_verified %}1-verified{% else %}2-unverified{% endif %}">
+                <td data-sort-value="{% if user.is_admin %}0-admin{% elif user.is_suspended %}3-suspended{% elif user.is_email_verified %}1-verified{% else %}2-unverified{% endif %}">
                     {{ user_status(user) }}
                 </td>
                 <td data-sort-value="{{ user.created_sort }}">{{ date_label(user.created_at) }}</td>
@@ -76,6 +79,45 @@
                     {% else %}
                     Not sent
                     {% endif %}
+                </td>
+                <td>
+                    <details class="admin-user-actions">
+                        <summary>Manage</summary>
+                        <div class="admin-action-panel">
+                            <form method="POST" action="{{ url_for('admin.update_user_profile', user_id=user.id) }}" class="admin-action-form">
+                                <input type="hidden" name="tab" value="{{ tab_id }}">
+                                <div class="admin-action-grid">
+                                    <label>
+                                        <span>Name</span>
+                                        <input type="text" name="name" value="{{ user.name }}" required>
+                                    </label>
+                                    <label>
+                                        <span>Email</span>
+                                        <input type="email" name="email" value="{{ user.email }}" required {% if user.is_admin %}readonly{% endif %}>
+                                    </label>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm">Save Profile</button>
+                            </form>
+
+                            <form method="POST" action="{{ url_for('admin.update_user_status', user_id=user.id) }}" class="admin-action-form">
+                                <input type="hidden" name="tab" value="{{ tab_id }}">
+                                <label class="admin-checkline">
+                                    <input type="checkbox" name="is_email_verified" {% if user.is_email_verified or user.is_admin %}checked{% endif %} {% if user.is_admin %}disabled{% endif %}>
+                                    <span>Email verified</span>
+                                </label>
+                                <label class="admin-checkline">
+                                    <input type="checkbox" name="is_suspended" {% if user.is_suspended %}checked{% endif %} {% if user.is_admin %}disabled{% endif %}>
+                                    <span>Suspended</span>
+                                </label>
+                                <button type="submit" class="btn btn-outline btn-sm">Save Status</button>
+                            </form>
+
+                            <form method="POST" action="{{ url_for('admin.send_user_password_reset', user_id=user.id) }}" class="admin-action-form">
+                                <input type="hidden" name="tab" value="{{ tab_id }}">
+                                <button type="submit" class="btn btn-outline btn-sm">Send Password Reset</button>
+                            </form>
+                        </div>
+                    </details>
                 </td>
             </tr>
             {% endfor %}
@@ -113,6 +155,40 @@
         <span class="stat-label">Long inactive</span>
         <strong>{{ stats.long_inactive_users }}</strong>
     </div>
+    <div>
+        <span class="stat-label">Suspended</span>
+        <strong>{{ stats.suspended_users }}</strong>
+    </div>
+</div>
+
+<div class="card admin-create-user-card">
+    <div class="card-header">
+        <div>
+            <h2>Create User</h2>
+            <p>Add a user account and send a password setup email when needed.</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin.create_user') }}" class="admin-create-user-form">
+            <label>
+                <span>Name</span>
+                <input type="text" name="name" placeholder="Full name" required>
+            </label>
+            <label>
+                <span>Email</span>
+                <input type="email" name="email" placeholder="user@example.com" required>
+            </label>
+            <label class="admin-checkline">
+                <input type="checkbox" name="is_email_verified" checked>
+                <span>Mark verified</span>
+            </label>
+            <label class="admin-checkline">
+                <input type="checkbox" name="send_password_reset" checked>
+                <span>Send setup email</span>
+            </label>
+            <button type="submit" class="btn btn-primary btn-sm">Create User</button>
+        </form>
+    </div>
 </div>
 
 <div class="card admin-report-card">
@@ -140,7 +216,7 @@
             </div>
         </div>
         <div class="card-body">
-            {{ users_table('users-table-' ~ tab.id, tab.users, tab.empty) }}
+            {{ users_table('users-table-' ~ tab.id, tab.id, tab.users, tab.empty) }}
         </div>
     </section>
     {% endfor %}
