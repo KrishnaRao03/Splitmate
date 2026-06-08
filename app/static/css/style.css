@@ -34,6 +34,9 @@
     --bg-tertiary: #eef2f6;
     --body-tint: rgba(219, 234, 254, 0.78);
     --body-tint-fade: rgba(245, 247, 250, 0);
+    --page-bg-image: url("../images/blue-dashboard-bg.png");
+    --page-bg-overlay-a: rgba(245, 247, 250, 0.82);
+    --page-bg-overlay-b: rgba(245, 247, 250, 0.94);
     --surface-glass: rgba(255, 255, 255, 0.92);
     --hover-surface: #f3f7f8;
     --placeholder: #9aa6b5;
@@ -88,6 +91,8 @@ html[data-theme="dark"] {
     --bg-tertiary: #242b34;
     --body-tint: rgba(96, 165, 250, 0.1);
     --body-tint-fade: rgba(17, 20, 24, 0);
+    --page-bg-overlay-a: rgba(17, 20, 24, 0.84);
+    --page-bg-overlay-b: rgba(17, 20, 24, 0.92);
     --surface-glass: rgba(24, 29, 35, 0.92);
     --hover-surface: #212a33;
     --placeholder: #7e8c9c;
@@ -118,6 +123,8 @@ body {
     min-height: 100vh;
     background:
         linear-gradient(180deg, var(--body-tint) 0, var(--body-tint-fade) 240px),
+        linear-gradient(135deg, var(--page-bg-overlay-a), var(--page-bg-overlay-b)),
+        var(--page-bg-image) center top / cover no-repeat fixed,
         var(--bg-primary);
     color: var(--text-primary);
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
