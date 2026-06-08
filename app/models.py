@@ -6,7 +6,8 @@ from app import db, login_manager
 # Association table for group members
 group_members = db.Table('group_members',
                          db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
-                         db.Column('group_id', db.Integer, db.ForeignKey('group.id'), primary_key=True)
+                         db.Column('group_id', db.Integer, db.ForeignKey('group.id'), primary_key=True),
+                         db.Column('nickname', db.String(100))
                          )
 
 class User(UserMixin, db.Model):

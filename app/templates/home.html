@@ -13,14 +13,14 @@
         <div class="stat-icon">IN</div>
         <div class="stat-content">
             <span class="stat-label">You're Owed</span>
-            <span class="stat-value">&#8377;{{ "%.2f"|format(total_owed_to_user) }}</span>
+            <span class="stat-value">{{ total_owed_to_user|money }}</span>
         </div>
     </div>
     <div class="stat-card stat-negative">
         <div class="stat-icon">OUT</div>
         <div class="stat-content">
             <span class="stat-label">You Owe</span>
-            <span class="stat-value">&#8377;{{ "%.2f"|format(total_user_owes) }}</span>
+            <span class="stat-value">{{ total_user_owes|money }}</span>
         </div>
     </div>
     <div class="stat-card">
@@ -44,7 +44,7 @@
                 {% for group_name, amount in monthly_spending.items() %}
                 <div class="spending-item">
                     <span class="spending-group">{{ group_name }}</span>
-                    <span class="spending-amount">&#8377;{{ "%.2f"|format(amount) }}</span>
+                    <span class="spending-amount">{{ amount|money }}</span>
                 </div>
                 {% endfor %}
             </div>
@@ -70,7 +70,7 @@
                                 {{ expense.added_by.name }} &bull; {{ expense.group.name }}
                             </span>
                     </div>
-                    <span class="activity-amount">&#8377;{{ "%.2f"|format(expense.amount) }}</span>
+                    <span class="activity-amount">{{ expense.amount|money }}</span>
                 </div>
                 {% endfor %}
             </div>
@@ -101,7 +101,7 @@
                         <div class="bar-chart-track">
                             <div class="bar-chart-fill" style="height: {{ bar_height }}%"></div>
                         </div>
-                        <span class="bar-chart-value">&#8377;{{ "%.0f"|format(point.total) }}</span>
+                        <span class="bar-chart-value">{{ point.total|money(0) }}</span>
                         <span class="bar-chart-label">{{ point.label[5:] }}</span>
                     </div>
                     {% endfor %}
@@ -148,13 +148,15 @@
                 </div>
                 {% if group.admin_id == current_user.id %}
                 <div class="group-actions">
-                    <button class="btn btn-sm btn-outline"
-                            onclick="openAddMemberModal({{ group.id }}, '{{ group.name }}')">
+                    <button class="btn btn-sm btn-outline js-add-member"
+                            type="button"
+                            data-group-id="{{ group.id }}">
                         Add Member
                     </button>
                     {% set g_json = groups_json | selectattr('id', 'equalto', group.id) | first %}
-                    <button class="btn btn-sm btn-outline"
-                            onclick="openManageMembersModal({{ g_json.id }}, '{{ g_json.name }}', {{ g_json.members|tojson|safe }}, {{ g_json.admin_id }})">
+                    <button class="btn btn-sm btn-outline js-manage-members"
+                            type="button"
+                            data-group-id="{{ g_json.id }}">
                         Manage
                     </button>
 
@@ -231,6 +233,92 @@
         </div>
     </div>
 </div>
+
+<script>
+    const homeGroups = {{ groups_json|tojson|safe }};
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function findHomeGroup(groupId) {
+        return homeGroups.find(group => Number(group.id) === Number(groupId));
+    }
+
+    function openAddMemberModal(groupId) {
+        const group = findHomeGroup(groupId);
+        if (!group) return;
+
+        document.getElementById('addMemberGroupName').textContent = group.name;
+        document.getElementById('addMemberForm').action = `/group/${group.id}/members/add`;
+        document.getElementById('memberEmail').value = '';
+        openModal('addMemberModal');
+    }
+
+    function openManageMembersModal(groupId) {
+        const group = findHomeGroup(groupId);
+        if (!group) return;
+
+        document.getElementById('manageMembersGroupName').textContent = group.name;
+        const membersList = document.getElementById('membersList');
+
+        membersList.innerHTML = group.members.map(member => {
+            const isAdmin = Number(member.id) === Number(group.admin_id);
+            const adminBadge = '<span class="badge badge-admin">Admin</span>';
+            const fullName = member.full_name || member.name;
+            const nicknameForm = `
+                <form method="POST" action="/group/${group.id}/members/${member.id}/nickname" class="nickname-form">
+                    <label for="nickname_${group.id}_${member.id}">Nickname</label>
+                    <div class="nickname-form-row">
+                        <input type="text"
+                               id="nickname_${group.id}_${member.id}"
+                               name="nickname"
+                               value="${escapeHtml(member.nickname || member.name)}"
+                               placeholder="${escapeHtml(fullName)}">
+                        <button type="submit" class="btn btn-xs btn-outline">Save</button>
+                    </div>
+                </form>
+            `;
+            const removeForm = `
+                <form method="POST" action="/group/${group.id}/members/${member.id}/remove">
+                    <button type="submit" class="btn btn-xs btn-ghost">Remove</button>
+                </form>
+            `;
+
+            return `
+                <div class="member-item member-item-manage">
+                    <div class="member-info">
+                        <div class="member-avatar">${escapeHtml(member.name.charAt(0).toUpperCase())}</div>
+                        <div class="member-details">
+                            <span class="member-name">${escapeHtml(member.name)}</span>
+                            <span class="member-email">${escapeHtml(fullName)}</span>
+                            <span class="member-email">${escapeHtml(member.email)}</span>
+                        </div>
+                    </div>
+                    <div class="member-manage-actions">
+                        ${nicknameForm}
+                        ${isAdmin ? adminBadge : removeForm}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        openModal('manageMembersModal');
+    }
+
+    document.querySelectorAll('.js-add-member').forEach(button => {
+        button.addEventListener('click', () => openAddMemberModal(button.dataset.groupId));
+    });
+
+    document.querySelectorAll('.js-manage-members').forEach(button => {
+        button.addEventListener('click', () => openManageMembersModal(button.dataset.groupId));
+    });
+</script>
 {% endblock %}
 
 {% block scripts %}{% endblock %}

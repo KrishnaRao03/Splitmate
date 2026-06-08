@@ -2,9 +2,14 @@
 {% block title %}Split Expenses - Splitmate{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Split Expenses</h1>
-    <p>Track and split expenses with your groups</p>
+<div class="page-header page-header-action">
+    <div>
+        <h1>Split Expenses</h1>
+        <p>Track and split expenses with your groups</p>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm" onclick="openModal('createGroupModal')">
+        Create Group
+    </button>
 </div>
 
 {% if groups %}
@@ -35,7 +40,7 @@
 
                     <div class="form-row-inline">
                         <div class="form-group">
-                            <label>Amount (&#8377;)</label>
+                            <label>Amount ({{ currency_code }})</label>
                             <input type="number" name="amount" step="0.01" min="0.01" required>
                         </div>
 
@@ -73,17 +78,7 @@
         </div>
     </div>
 
-    <div class="split-secondary-layout">
-        <div class="card">
-            <div class="card-header">
-                <h2>Balance Overview</h2>
-            </div>
-            <div class="card-body">
-                <div id="balancesContainer" class="balances-grid"></div>
-            </div>
-        </div>
-
-        <div class="card">
+    <div class="card">
             <div class="card-header"><h2>Pay</h2></div>
             <div class="card-body">
                 <div class="payment-setup-panel">
@@ -91,9 +86,9 @@
                         {% if current_user.stripe_charges_enabled and current_user.stripe_payouts_enabled %}
                         <span class="badge badge-success">Online payouts ready</span>
                         {% else %}
-                        <p class="text-subtle">Set up Stripe payouts so group members can pay you online.</p>
+                        <p class="text-subtle">Stripe is configured. Finish payout setup to receive online payments.</p>
                         <form method="POST" action="{{ url_for('split.stripe_connect_onboard') }}" class="inline-form">
-                            <button type="submit" class="btn btn-outline btn-sm">Set Up Payouts</button>
+                            <button type="submit" class="btn btn-outline btn-sm">Finish Payout Setup</button>
                         </form>
                         {% endif %}
                     {% else %}
@@ -117,7 +112,7 @@
                                 onchange="updatePaymentAmount()"></select>
                     </div>
                     <div class="form-group">
-                        <label>Amount (&#8377;)</label>
+                        <label>Amount ({{ currency_code }})</label>
                         <input type="number" step="0.01" min="0.01" name="amount"
                                id="paymentAmount" required>
                     </div>
@@ -132,7 +127,6 @@
                     <p class="text-subtle payment-help" id="onlinePaymentHelp"></p>
                 </form>
             </div>
-        </div>
     </div>
 
     <div class="card">
@@ -143,14 +137,22 @@
     </div>
 </div>
 {% else %}
-<p class="empty-state-full">No groups yet.</p>
+<div class="empty-state-full">
+    <p>No groups yet.</p>
+    <button type="button" class="btn btn-primary" onclick="openModal('createGroupModal')">
+        Create Your First Group
+    </button>
+</div>
 {% endif %}
+
+{% include "_create_group_modal.html" %}
 {% endblock %}
 
 {% block scripts %}
 <script>
     const groups = {{ groups_json|tojson|safe }};
     const stripeEnabled = {{ stripe_enabled|tojson }};
+    const currencyCode = {{ currency_code|tojson }};
     let currentGroupId = null;
     let paymentOptions = [];
 
@@ -163,10 +165,12 @@
             .replace(/'/g, '&#039;');
     }
 
-    function formatRupees(amount) {
+    function formatMoney(amount) {
         const value = Number(amount || 0);
-        const sign = value < 0 ? '-' : '';
-        return `${sign}\u20b9${Math.abs(value).toFixed(2)}`;
+        return new Intl.NumberFormat(undefined, {
+            style: 'currency',
+            currency: currencyCode
+        }).format(value);
     }
 
     function selectedGroup() {
@@ -195,25 +199,9 @@
         }
         document.getElementById('clearForm').action = `/split/clear_recent/${id}`;
         renderSplitOptions();
-        loadBalances();
         loadExpenses();
         loadSummaries();
         loadPaymentOptions();
-    }
-
-    async function loadBalances() {
-        const data = await fetchJson(`/split/api/balances/${currentGroupId}`);
-        const container = document.getElementById('balancesContainer');
-        container.innerHTML = data.map(b => {
-            const amount = `${b.net > 0 ? '+' : ''}${formatRupees(b.net)}`;
-            const tone = b.net > 0 ? 'positive' : b.net < 0 ? 'negative' : '';
-            return `
-                <div class="balance-card ${tone}">
-                    <div class="balance-name">${escapeHtml(b.name)}</div>
-                    <div class="balance-amount">${amount}</div>
-                </div>
-            `;
-        }).join('');
     }
 
     async function loadExpenses() {
@@ -227,7 +215,7 @@
             <div class="expense-item">
                 <div class="expense-info">
                     <span class="expense-description">${escapeHtml(e.description)}</span>
-                    <span class="expense-meta">${formatRupees(e.amount)} by ${escapeHtml(e.paid_by)}</span>
+                    <span class="expense-meta">${formatMoney(e.amount)} by ${escapeHtml(e.paid_by)}</span>
                     ${e.receipt_url ? `<a class="receipt-link" href="${escapeHtml(e.receipt_url)}" target="_blank" rel="noopener">View Receipt</a>` : ''}
                 </div>
             </div>
@@ -238,10 +226,37 @@
         const data = await fetchJson(`/split/api/group/${currentGroupId}/summaries`);
         const container = document.getElementById('summaryList');
         if (!data.length) {
-            container.innerHTML = '<p class="empty-state">No outstanding splits</p>';
+            container.innerHTML = '<p class="empty-state">No split records yet</p>';
             return;
         }
-        container.innerHTML = data.map(i => `<div class="summary-item">${escapeHtml(i.text)}</div>`).join('');
+        container.innerHTML = data.map(i => {
+            if (i.text) {
+                return `<div class="summary-item">${escapeHtml(i.text)}</div>`;
+            }
+            const isSettled = Boolean(i.is_settled || i.status === 'settled');
+            const routeLabel = isSettled ? 'settled with' : 'owes';
+            const amountLabel = isSettled
+                ? '<span class="breakdown-status-text">Settled</span>'
+                : `<span class="breakdown-amount">${formatMoney(i.amount_owed)}</span>`;
+
+            return `
+                <div class="summary-item breakdown-item ${isSettled ? 'settled' : ''}">
+                    <div class="breakdown-main">
+                        <div class="breakdown-route">
+                            <span class="breakdown-person">${escapeHtml(i.owed_by)}</span>
+                            <span class="breakdown-arrow">${routeLabel}</span>
+                            <span class="breakdown-person">${escapeHtml(i.payer)}</span>
+                        </div>
+                        ${amountLabel}
+                    </div>
+                    <div class="breakdown-meta">
+                        <span>${escapeHtml(i.expense)}</span>
+                        <span>${escapeHtml(i.date)}</span>
+                        <span class="badge ${isSettled ? 'badge-success' : ''}">${escapeHtml(i.status_label || (isSettled ? 'Settled' : 'Outstanding'))}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     async function loadPaymentOptions() {
@@ -270,7 +285,7 @@
         recordButton.disabled = false;
         select.innerHTML = paymentOptions.map(option => `
             <option value="${option.id}" data-amount="${option.amount_owed}" data-online="${option.can_receive_online ? '1' : '0'}">
-                ${escapeHtml(option.name)} - ${formatRupees(option.amount_owed)}
+                ${escapeHtml(option.name)} - ${formatMoney(option.amount_owed)}
             </option>
         `).join('');
         updatePaymentAmount();
@@ -326,7 +341,7 @@
         }
 
         const fieldPrefix = splitType === 'percentage' ? 'percent' : 'amount';
-        const suffix = splitType === 'percentage' ? '%' : '\u20b9';
+        const suffix = splitType === 'percentage' ? '%' : currencyCode;
         container.innerHTML = `
             <div class="split-inputs">
                 ${group.members.map(member => `

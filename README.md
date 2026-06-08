@@ -62,6 +62,7 @@ SECRET_KEY=change-this-to-a-random-secret
 MAIL_USERNAME=your-email@gmail.com
 MAIL_PASSWORD=your-gmail-app-password
 STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
 ```
 
 4. Run the app.
@@ -88,8 +89,9 @@ The app reads configuration from `.env`. Do not commit `.env` to GitHub.
 - `MAIL_PASSWORD`: Gmail app password or SMTP password
 - `MAIL_DEFAULT_SENDER`: Default sender address
 - `STRIPE_SECRET_KEY`: Optional Stripe secret key
-- `STRIPE_CURRENCY`: Stripe currency, default is `inr`
-- `STRIPE_ACCOUNT_COUNTRY`: Stripe account country, default is `IN`
+- `STRIPE_PUBLISHABLE_KEY`: Optional Stripe publishable key for client-side Stripe features
+- `STRIPE_CURRENCY`: Stripe currency, default is `cad`
+- `STRIPE_ACCOUNT_COUNTRY`: Stripe account country, default is `CA`
 
 ## Security Notes
 
@@ -100,4 +102,3 @@ The app reads configuration from `.env`. Do not commit `.env` to GitHub.
 ## GitHub Repository Name
 
 Recommended repository name: `splitmate`
-

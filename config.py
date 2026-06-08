@@ -24,8 +24,12 @@ _load_env_file(os.path.join(BASE_DIR, '.env'))
 
 
 class Config:
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-change-in-production'
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///splitmate.db'
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL or 'sqlite:///splitmate.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     MAIL_SERVER = os.environ.get('MAIL_SERVER') or 'smtp.gmail.com'
     MAIL_PORT = int(os.environ.get('MAIL_PORT') or 587)
@@ -37,5 +41,6 @@ class Config:
     OTP_RESEND_COOLDOWN_SECONDS = int(os.environ.get('OTP_RESEND_COOLDOWN_SECONDS') or 60)
     PASSWORD_RESET_EXPIRY_MINUTES = int(os.environ.get('PASSWORD_RESET_EXPIRY_MINUTES') or 30)
     STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
-    STRIPE_CURRENCY = os.environ.get('STRIPE_CURRENCY') or 'inr'
-    STRIPE_ACCOUNT_COUNTRY = os.environ.get('STRIPE_ACCOUNT_COUNTRY') or 'IN'
+    STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
+    STRIPE_CURRENCY = (os.environ.get('STRIPE_CURRENCY') or 'cad').lower()
+    STRIPE_ACCOUNT_COUNTRY = (os.environ.get('STRIPE_ACCOUNT_COUNTRY') or 'CA').upper()

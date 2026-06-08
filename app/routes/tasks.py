@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 from datetime import datetime
 from app import db
 from app.models import Group, Task, User
+from app.group_utils import group_member_payload, member_nickname_rows
 
 tasks_bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 
@@ -15,7 +16,7 @@ def index():
     groups_json = [{
         'id': g.id,
         'name': g.name,
-        'members': [{'id': m.id, 'name': m.name, 'email': m.email} for m in g.members]
+        'members': group_member_payload(g)
     } for g in groups]
 
     return render_template('tasks.html', groups=groups, groups_json=groups_json)
@@ -98,6 +99,7 @@ def get_group_tasks(group_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     tasks = Task.query.filter_by(group_id=group_id).all()
+    nicknames = member_nickname_rows(group.id)
     return jsonify([{
         'id': t.id,
         'title': t.title,
@@ -105,8 +107,8 @@ def get_group_tasks(group_id):
         'due_date': t.due_date.isoformat(),
         'reminder_time': t.reminder_time.isoformat() if t.reminder_time else None,
         'is_completed': t.is_completed,
-        'assigned_to': t.assigned_to.name if t.assigned_to else None,
-        'created_by': t.created_by.name
+        'assigned_to': (nicknames.get(t.assigned_to_id) or t.assigned_to.name) if t.assigned_to else None,
+        'created_by': nicknames.get(t.created_by_id) or t.created_by.name
     } for t in tasks])
 
 

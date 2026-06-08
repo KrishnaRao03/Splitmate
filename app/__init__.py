@@ -1,10 +1,14 @@
+from decimal import Decimal, InvalidOperation
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
+from flask_migrate import Migrate
 from sqlalchemy import inspect, text
 from config import Config
 
 db = SQLAlchemy()
+migrate = Migrate()
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'  # Redirect unauthorized users here
 login_manager.login_message_category = 'info'
@@ -89,11 +93,60 @@ def ensure_expense_schema():
 
     db.session.commit()
 
+def ensure_group_members_schema():
+    inspector = inspect(db.engine)
+    if not inspector.has_table('group_members'):
+        return
+
+    columns = {column['name'] for column in inspector.get_columns('group_members')}
+
+    if 'nickname' not in columns:
+        db.session.execute(text('ALTER TABLE group_members ADD COLUMN nickname VARCHAR(100)'))
+
+    db.session.execute(text(
+        'UPDATE group_members '
+        'SET nickname = (SELECT "user".name FROM "user" WHERE "user".id = group_members.user_id) '
+        "WHERE group_members.nickname IS NULL OR group_members.nickname = ''"
+    ))
+
+    db.session.commit()
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    def configured_currency_code():
+        return (app.config.get('STRIPE_CURRENCY') or 'cad').upper()
+
+    def configured_currency_symbol():
+        symbols = {
+            'CAD': '$',
+            'USD': '$',
+            'INR': '\u20b9',
+            'EUR': '\u20ac',
+            'GBP': '\u00a3'
+        }
+        return symbols.get(configured_currency_code(), configured_currency_code())
+
+    @app.template_filter('money')
+    def money_filter(value, decimals=2):
+        try:
+            amount = Decimal(str(value if value is not None else 0))
+        except (InvalidOperation, ValueError):
+            amount = Decimal('0')
+
+        precision = int(decimals)
+        return f'{configured_currency_symbol()}{amount:,.{precision}f}'
+
+    @app.context_processor
+    def inject_currency_context():
+        return {
+            'currency_code': configured_currency_code(),
+            'currency_symbol': configured_currency_symbol()
+        }
+
     db.init_app(app)
+    migrate.init_app(app, db)
     login_manager.init_app(app)
 
     # Register blueprints
@@ -115,5 +168,6 @@ def create_app(config_class=Config):
         ensure_user_email_schema()
         ensure_stripe_schema()
         ensure_expense_schema()
+        ensure_group_members_schema()
 
     return app

@@ -3,9 +3,14 @@
 {% block title %}Tasks Calendar - Splitmate{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Tasks & Calendar</h1>
-    <p>Schedule and track group tasks with reminders</p>
+<div class="page-header page-header-action">
+    <div>
+        <h1>Tasks & Calendar</h1>
+        <p>Schedule and track group tasks with reminders</p>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm" onclick="openModal('createGroupModal')">
+        Create Group
+    </button>
 </div>
 
 {% if groups %}
@@ -93,9 +98,13 @@
 {% else %}
 <div class="empty-state-full">
     <p>You need to join or create a group first.</p>
-    <a href="{{ url_for('main.home') }}" class="btn btn-primary">Go to Home</a>
+    <button type="button" class="btn btn-primary" onclick="openModal('createGroupModal')">
+        Create Your First Group
+    </button>
 </div>
 {% endif %}
+
+{% include "_create_group_modal.html" %}
 {% endblock %}
 
 {% block scripts %}

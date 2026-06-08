@@ -210,15 +210,26 @@ def register():
 
 @auth_bp.route('/verify-email', methods=['GET', 'POST'])
 def verify_email():
-    if current_user.is_authenticated:
-        return redirect(url_for('main.home'))
-
     user_id = session.get('pending_verification_user_id')
-    if not user_id:
-        flash('Please register or log in first.', 'info')
-        return redirect(url_for('auth.login'))
+    verifying_authenticated_user = False
 
-    user = User.query.get(user_id)
+    if current_user.is_authenticated:
+        if not user_id and not current_user.is_email_verified:
+            set_pending_verification(current_user)
+            user_id = current_user.id
+
+        if not user_id or int(user_id) != current_user.id or current_user.is_email_verified:
+            return redirect(url_for('main.home'))
+
+        user = current_user
+        verifying_authenticated_user = True
+    else:
+        if not user_id:
+            flash('Please register or log in first.', 'info')
+            return redirect(url_for('auth.login'))
+
+        user = User.query.get(user_id)
+
     if not user:
         session.pop('pending_verification_user_id', None)
         session.pop('pending_verification_email', None)
@@ -238,9 +249,10 @@ def verify_email():
             db.session.commit()
             session.pop('pending_verification_user_id', None)
             session.pop('pending_verification_email', None)
-            login_user(user, remember=True)
+            if not current_user.is_authenticated:
+                login_user(user, remember=True)
             flash('Email verified successfully.', 'success')
-            return redirect(url_for('main.home'))
+            return redirect(url_for('main.profile' if verifying_authenticated_user else 'main.home'))
 
         flash('Invalid OTP. Please try again.', 'error')
 
@@ -249,6 +261,10 @@ def verify_email():
 @auth_bp.route('/resend-otp', methods=['POST'])
 def resend_otp():
     user_id = session.get('pending_verification_user_id')
+    if current_user.is_authenticated and not user_id and not current_user.is_email_verified:
+        set_pending_verification(current_user)
+        user_id = current_user.id
+
     if not user_id:
         flash('Please register or log in first.', 'info')
         return redirect(url_for('auth.login'))

@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, flash, redirect, url_for,
 from flask_login import login_required, current_user
 from app import db
 from app.models import Group, Note
+from app.group_utils import member_nickname_rows
 
 notes_bp = Blueprint('notes', __name__, url_prefix='/notes')
 
@@ -104,6 +105,7 @@ def get_group_notes(group_id):
 
     notes = Note.query.filter_by(group_id=group_id) \
         .order_by(Note.created_at.desc()).all()
+    nicknames = member_nickname_rows(group.id)
 
     return jsonify([{
         'id': n.id,
@@ -112,5 +114,5 @@ def get_group_notes(group_id):
         'content': n.content,
         'is_completed': n.is_completed,
         'created_at': n.created_at.isoformat(),
-        'created_by': n.created_by.name
+        'created_by': nicknames.get(n.created_by_id) or n.created_by.name
     } for n in notes])

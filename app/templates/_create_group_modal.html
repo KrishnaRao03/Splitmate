@@ -1,0 +1,21 @@
+<div id="createGroupModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Create New Group</h2>
+            <button class="modal-close" type="button" onclick="closeModal('createGroupModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('main.create_group') }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="form-group">
+                <label for="groupName">Group Name</label>
+                <input type="text" id="groupName" name="name" required
+                       placeholder="e.g., Apartment 4B, Trip to Paris">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline"
+                        onclick="closeModal('createGroupModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Group</button>
+            </div>
+        </form>
+    </div>
+</div>

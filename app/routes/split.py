@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.models import Group, Expense, ExpenseSplit, ExpenseHistory, Payment, User
+from app.group_utils import group_member_payload, member_nickname_rows
 
 try:
     import stripe
@@ -34,6 +35,12 @@ def configure_stripe():
 
 def amount_to_minor_units(amount):
     return int((money_decimal(amount) * Decimal('100')).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+
+def payment_currency_code():
+    return (current_app.config.get('STRIPE_CURRENCY') or 'cad').lower()
+
+def format_payment_amount(amount):
+    return f'{payment_currency_code().upper()} {money_decimal(amount):.2f}'
 
 def is_allowed_receipt(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_RECEIPT_EXTENSIONS
@@ -141,12 +148,18 @@ def create_stripe_account_link(user):
 @split_bp.route('/')
 @login_required
 def index():
+    if stripe_enabled() and current_user.stripe_account_id:
+        try:
+            refresh_stripe_account_status(current_user)
+        except Exception as exc:
+            current_app.logger.exception('Failed to refresh current user Stripe status: %s', exc)
+
     groups = current_user.groups.all()
     groups_json = [
         {
             'id': g.id,
             'name': g.name,
-            'members': [{'id': m.id, 'name': m.name, 'email': m.email} for m in g.members]
+            'members': group_member_payload(g)
         }
         for g in groups
     ]
@@ -296,7 +309,7 @@ def record_payment():
         return redirect(url_for('split.index'))
 
     if payment_amount > total_owed:
-        flash(f'You only owe {receiver.name} ₹{total_owed:.2f}.', 'error')
+        flash(f'You only owe {receiver.name} {format_payment_amount(total_owed)}.', 'error')
         return redirect(url_for('split.index'))
 
     apply_payment_to_splits(group, current_user, receiver, payment_amount)
@@ -316,6 +329,9 @@ def stripe_connect_onboard():
         account_link_url = create_stripe_account_link(current_user)
     except Exception as exc:
         current_app.logger.exception('Failed to start Stripe onboarding: %s', exc)
+        if 'signed up for Connect' in str(exc):
+            flash('Stripe Connect is not enabled yet. Open Stripe Dashboard > Connect and complete platform setup first.', 'error')
+            return redirect(url_for('split.index'))
         flash('Could not start Stripe onboarding. Check your Stripe settings.', 'error')
         return redirect(url_for('split.index'))
 
@@ -396,7 +412,7 @@ def create_stripe_payment():
         return redirect(url_for('split.index'))
 
     if payment_amount > total_owed:
-        flash(f'You only owe {receiver.name} ₹{total_owed:.2f}.', 'error')
+        flash(f'You only owe {receiver.name} {format_payment_amount(total_owed)}.', 'error')
         return redirect(url_for('split.index'))
 
     metadata = {
@@ -416,7 +432,7 @@ def create_stripe_payment():
             metadata=metadata,
             line_items=[{
                 'price_data': {
-                    'currency': current_app.config['STRIPE_CURRENCY'],
+                    'currency': payment_currency_code(),
                     'product_data': {
                         'name': f'Splitmate payment to {receiver.name}',
                         'description': f'{group.name} settlement'
@@ -523,22 +539,29 @@ def group_summaries(group_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     expenses = Expense.query.filter_by(group_id=group_id).order_by(Expense.date.desc()).all()
+    nicknames = member_nickname_rows(group.id)
     summaries = []
 
     for exp in expenses:
-        payer = exp.added_by.name
+        payer = nicknames.get(exp.paid_by_id) or exp.added_by.name
         for split in exp.splits:
             if split.user_id == exp.paid_by_id:
                 continue
-            owed_user = split.user.name
-            owed_amount = round(split.amount_owed, 2)
-            text = (
-                f"On {exp.date.strftime('%Y-%m-%d')}, {payer} paid ₹{exp.amount:.2f} for '{exp.description}'. "
-                f"{owed_user} owes {payer} ₹{owed_amount:.2f}."
-            )
-            if split.is_settled:
-                text += " ✅ (Settled)"
-            summaries.append({'text': text})
+            is_settled = bool(split.is_settled)
+            summaries.append({
+                'split_id': split.id,
+                'expense': exp.description,
+                'expense_amount': round(exp.amount, 2),
+                'date': exp.date.strftime('%Y-%m-%d') if exp.date else '',
+                'payer_id': exp.paid_by_id,
+                'payer': payer,
+                'owed_by_id': split.user_id,
+                'owed_by': nicknames.get(split.user_id) or split.user.name,
+                'amount_owed': round(split.amount_owed, 2),
+                'is_settled': is_settled,
+                'status': 'settled' if is_settled else 'outstanding',
+                'status_label': 'Settled' if is_settled else 'Outstanding'
+            })
 
     return jsonify(summaries)
 
@@ -550,8 +573,9 @@ def get_balances(group_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     balances = {}
+    nicknames = member_nickname_rows(group.id)
     for member in group.members:
-        balances[member.id] = {'id': member.id, 'name': member.name, 'paid': 0, 'owes': 0, 'net': 0}
+        balances[member.id] = {'id': member.id, 'name': nicknames.get(member.id) or member.name, 'paid': 0, 'owes': 0, 'net': 0}
 
     for exp in group.expenses:
         for split in exp.splits:
@@ -574,6 +598,7 @@ def get_payment_options(group_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     owed_by_receiver = {}
+    nicknames = member_nickname_rows(group.id)
     outstanding_splits = ExpenseSplit.query.join(Expense).filter(
         Expense.group_id == group.id,
         ExpenseSplit.user_id == current_user.id,
@@ -591,7 +616,7 @@ def get_payment_options(group_id):
         if receiver:
             options.append({
                 'id': receiver.id,
-                'name': receiver.name,
+                'name': nicknames.get(receiver.id) or receiver.name,
                 'amount_owed': float(owed_amount),
                 'can_receive_online': bool(receiver.stripe_account_id and receiver.stripe_charges_enabled)
             })
@@ -607,16 +632,17 @@ def get_group_expenses(group_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     expenses = Expense.query.filter_by(group_id=group_id).order_by(Expense.date.desc()).all()
+    nicknames = member_nickname_rows(group.id)
     return jsonify([{
         'id': e.id,
         'description': e.description,
         'amount': e.amount,
         'date': e.date.isoformat() if e.date else None,
-        'paid_by': e.added_by.name,
+        'paid_by': nicknames.get(e.paid_by_id) or e.added_by.name,
         'receipt_url': e.receipt_url,
         'splits': [{
             'id': s.id,
-            'user': s.user.name,
+            'user': nicknames.get(s.user_id) or s.user.name,
             'amount': s.amount_owed,
             'is_settled': s.is_settled
         } for s in e.splits]
