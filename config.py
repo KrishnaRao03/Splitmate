@@ -53,4 +53,3 @@ class Config:
     STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
     STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
     STRIPE_CURRENCY = (os.environ.get('STRIPE_CURRENCY') or 'cad').lower()
-    STRIPE_ACCOUNT_COUNTRY = (os.environ.get('STRIPE_ACCOUNT_COUNTRY') or 'CA').upper()

@@ -83,14 +83,8 @@
             <div class="card-body">
                 <div class="payment-setup-panel">
                     {% if stripe_enabled %}
-                        {% if current_user.stripe_charges_enabled and current_user.stripe_payouts_enabled %}
-                        <span class="badge badge-success">Online payouts ready</span>
-                        {% else %}
-                        <p class="text-subtle">Stripe is configured. Finish payout setup to receive online payments.</p>
-                        <form method="POST" action="{{ url_for('split.stripe_connect_onboard') }}" class="inline-form">
-                            <button type="submit" class="btn btn-outline btn-sm">Finish Payout Setup</button>
-                        </form>
-                        {% endif %}
+                        <span class="badge badge-success">Online payments ready</span>
+                        <p class="text-subtle">Payments are processed through the app's Stripe test account and recorded here.</p>
                     {% else %}
                         <span class="badge">Manual payments</span>
                     {% endif %}
@@ -314,7 +308,7 @@
         if (onlineButton) {
             onlineButton.disabled = !canReceiveOnline || !owed;
             if (selected && !canReceiveOnline) {
-                help.textContent = 'This receiver needs to finish Stripe payout setup before online payments can be sent.';
+                help.textContent = 'Stripe is not configured, so online payments are unavailable.';
             } else {
                 help.textContent = '';
             }

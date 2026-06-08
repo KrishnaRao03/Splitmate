@@ -111,49 +111,9 @@ def apply_payment_to_splits(group, payer, receiver, amount, method='manual',
 
     return payment, True
 
-def refresh_stripe_account_status(user):
-    if not user.stripe_account_id or not configure_stripe():
-        return
-
-    account = stripe.Account.retrieve(user.stripe_account_id)
-    user.stripe_charges_enabled = bool(account.get('charges_enabled'))
-    user.stripe_payouts_enabled = bool(account.get('payouts_enabled'))
-    db.session.commit()
-
-def create_stripe_account_link(user):
-    if not configure_stripe():
-        return None
-
-    if not user.stripe_account_id:
-        account = stripe.Account.create(
-            type='express',
-            country=current_app.config['STRIPE_ACCOUNT_COUNTRY'],
-            email=user.email,
-            capabilities={
-                'card_payments': {'requested': True},
-                'transfers': {'requested': True}
-            }
-        )
-        user.stripe_account_id = account.id
-        db.session.commit()
-
-    account_link = stripe.AccountLink.create(
-        account=user.stripe_account_id,
-        refresh_url=url_for('split.stripe_connect_refresh', _external=True),
-        return_url=url_for('split.stripe_connect_return', _external=True),
-        type='account_onboarding'
-    )
-    return account_link.url
-
 @split_bp.route('/')
 @login_required
 def index():
-    if stripe_enabled() and current_user.stripe_account_id:
-        try:
-            refresh_stripe_account_status(current_user)
-        except Exception as exc:
-            current_app.logger.exception('Failed to refresh current user Stripe status: %s', exc)
-
     groups = current_user.groups.all()
     groups_json = [
         {
@@ -318,54 +278,6 @@ def record_payment():
     flash('Payment recorded.', 'success')
     return redirect(url_for('split.index'))
 
-@split_bp.route('/stripe/connect', methods=['POST'])
-@login_required
-def stripe_connect_onboard():
-    if not stripe_enabled():
-        flash('Stripe is not configured yet. Add STRIPE_SECRET_KEY to .env first.', 'error')
-        return redirect(url_for('split.index'))
-
-    try:
-        account_link_url = create_stripe_account_link(current_user)
-    except Exception as exc:
-        current_app.logger.exception('Failed to start Stripe onboarding: %s', exc)
-        if 'signed up for Connect' in str(exc):
-            flash('Stripe Connect is not enabled yet. Open Stripe Dashboard > Connect and complete platform setup first.', 'error')
-            return redirect(url_for('split.index'))
-        flash('Could not start Stripe onboarding. Check your Stripe settings.', 'error')
-        return redirect(url_for('split.index'))
-
-    return redirect(account_link_url, code=303)
-
-@split_bp.route('/stripe/connect/refresh')
-@login_required
-def stripe_connect_refresh():
-    try:
-        account_link_url = create_stripe_account_link(current_user)
-    except Exception as exc:
-        current_app.logger.exception('Failed to refresh Stripe onboarding: %s', exc)
-        flash('Could not refresh Stripe onboarding. Please try again.', 'error')
-        return redirect(url_for('split.index'))
-
-    return redirect(account_link_url, code=303)
-
-@split_bp.route('/stripe/connect/return')
-@login_required
-def stripe_connect_return():
-    try:
-        refresh_stripe_account_status(current_user)
-    except Exception as exc:
-        current_app.logger.exception('Failed to refresh Stripe account status: %s', exc)
-        flash('Stripe onboarding returned, but account status could not be refreshed.', 'error')
-        return redirect(url_for('split.index'))
-
-    if current_user.stripe_charges_enabled and current_user.stripe_payouts_enabled:
-        flash('Stripe payouts are ready. Group members can pay you online now.', 'success')
-    else:
-        flash('Stripe onboarding is not complete yet. Finish all required steps to receive payments.', 'info')
-
-    return redirect(url_for('split.index'))
-
 @split_bp.route('/stripe/pay', methods=['POST'])
 @login_required
 def create_stripe_payment():
@@ -394,15 +306,6 @@ def create_stripe_payment():
 
     if not stripe_enabled():
         flash('Stripe is not configured yet. Add STRIPE_SECRET_KEY to .env first.', 'error')
-        return redirect(url_for('split.index'))
-
-    try:
-        refresh_stripe_account_status(receiver)
-    except Exception as exc:
-        current_app.logger.exception('Failed to refresh receiver Stripe status: %s', exc)
-
-    if not receiver.stripe_account_id or not receiver.stripe_charges_enabled:
-        flash(f'{receiver.name} needs to finish Stripe payout setup before online payments can be sent.', 'error')
         return redirect(url_for('split.index'))
 
     payment_amount = money_decimal(amount)
@@ -442,9 +345,6 @@ def create_stripe_payment():
                 'quantity': 1
             }],
             payment_intent_data={
-                'transfer_data': {
-                    'destination': receiver.stripe_account_id
-                },
                 'metadata': metadata
             }
         )
@@ -618,7 +518,7 @@ def get_payment_options(group_id):
                 'id': receiver.id,
                 'name': nicknames.get(receiver.id) or receiver.name,
                 'amount_owed': float(owed_amount),
-                'can_receive_online': bool(receiver.stripe_account_id and receiver.stripe_charges_enabled)
+                'can_receive_online': stripe_enabled()
             })
 
     options.sort(key=lambda item: item['name'].lower())
