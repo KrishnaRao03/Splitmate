@@ -187,7 +187,7 @@ def create_app(config_class=Config):
     @app.before_request
     def record_authenticated_activity():
         endpoint = request.endpoint or ''
-        if endpoint == 'static' or endpoint.startswith('auth.'):
+        if endpoint == 'static' or endpoint.startswith('auth.') or endpoint.startswith('admin.'):
             return
 
         if not current_user.is_authenticated:

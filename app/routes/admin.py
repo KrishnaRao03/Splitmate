@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta
 from functools import wraps
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, url_for
-from flask_login import current_user, login_required
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
 from app.admin_utils import core_activity_user_ids, is_app_admin, month_sequence, split_user_ids_since, user_last_usage_at
 from app.inactivity_reminders import inactive_reminder_candidates, send_inactivity_reminders
@@ -11,15 +10,65 @@ from app.models import User
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
+def admin_user():
+    user_id = session.get('admin_user_id')
+    if not user_id:
+        return None
+
+    user = User.query.get(user_id)
+    if not user or not is_app_admin(user):
+        session.pop('admin_user_id', None)
+        return None
+
+    return user
+
+
 def admin_required(view):
     @wraps(view)
-    @login_required
     def wrapped(*args, **kwargs):
-        if not is_app_admin(current_user):
-            abort(403)
+        if not admin_user():
+            return redirect(url_for('admin.login', next=request.path))
         return view(*args, **kwargs)
 
     return wrapped
+
+
+def safe_admin_redirect(default_endpoint='admin.dashboard'):
+    target = request.args.get('next', '').strip()
+    if target.startswith('/admin') and not target.startswith('//'):
+        return target
+    return url_for(default_endpoint)
+
+
+@admin_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    if admin_user():
+        return redirect(safe_admin_redirect())
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        user = User.query.filter_by(email=email).first() if email else None
+
+        if user and user.check_password(password) and is_app_admin(user):
+            if not user.is_email_verified:
+                flash('Verify this account email before using the admin dashboard.', 'error')
+                return render_template('admin_login.html')
+
+            session['admin_user_id'] = user.id
+            flash('Admin sign in successful.', 'success')
+            return redirect(safe_admin_redirect())
+
+        flash('Invalid admin email or password.', 'error')
+
+    return render_template('admin_login.html')
+
+
+@admin_bp.route('/logout')
+def logout():
+    session.pop('admin_user_id', None)
+    flash('Signed out of admin.', 'info')
+    return redirect(url_for('admin.login'))
 
 
 def count_users_created_between(users, start, end):
@@ -104,6 +153,7 @@ def dashboard():
 
     return render_template(
         'admin_dashboard.html',
+        admin_user=admin_user(),
         stats=stats,
         growth_data=growth_data,
         no_split_this_month=no_split_this_month[:12],
