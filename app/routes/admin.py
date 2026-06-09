@@ -8,6 +8,7 @@ from sqlalchemy import func
 from app import db
 from app.admin_utils import core_activity_user_ids, is_app_admin, month_sequence, split_user_ids_since, user_last_usage_at
 from app.email_utils import send_password_reset_email
+from app.email_validation import normalize_email
 from app.inactivity_reminders import inactive_reminder_candidates, send_inactivity_reminders
 from app.models import Expense, ExpenseSplit, Group, Payment, User, group_members
 from app.routes.auth import generate_password_reset_token
@@ -71,10 +72,10 @@ def login():
         return redirect(safe_admin_redirect())
 
     if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
+        email = normalize_email(request.form.get('email'))
         password = request.form.get('password', '')
         admin_emails = current_app.config.get('ADMIN_EMAILS') or set()
-        user = User.query.filter_by(email=email).first() if email in admin_emails else None
+        user = User.query.filter_by(email=email).first() if email and email in admin_emails else None
 
         if user and user.check_password(password) and is_app_admin(user):
             if getattr(user, 'is_suspended', False):
@@ -396,7 +397,7 @@ def users():
 @admin_required
 def create_user():
     name = request.form.get('name', '').strip()
-    email = request.form.get('email', '').strip().lower()
+    email = normalize_email(request.form.get('email'))
     is_email_verified = request.form.get('is_email_verified') == 'on'
     should_send_reset = request.form.get('send_password_reset') == 'on'
 
@@ -404,7 +405,7 @@ def create_user():
         flash('User name is required.', 'error')
         return admin_users_redirect(tab='all')
 
-    if not email or '@' not in email:
+    if not email:
         flash('A valid user email is required.', 'error')
         return admin_users_redirect(tab='all')
 
@@ -464,14 +465,14 @@ def emails():
 def update_user_profile(user_id):
     user = User.query.get_or_404(user_id)
     name = request.form.get('name', '').strip()
-    email = request.form.get('email', '').strip().lower()
+    email = normalize_email(request.form.get('email'))
     tab = request.form.get('tab') or 'all'
 
     if not name:
         flash('User name is required.', 'error')
         return admin_users_redirect(user.id, tab)
 
-    if not email or '@' not in email:
+    if not email:
         flash('A valid user email is required.', 'error')
         return admin_users_redirect(user.id, tab)
 

@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 from datetime import datetime
 from sqlalchemy import func
 from app import db
+from app.email_validation import normalize_email
 from app.models import User, Group, Expense, ExpenseSplit, ExpenseHistory
 from app.routes.auth import send_user_otp, set_pending_verification
 from app.group_utils import group_member_payload, set_member_nickname
@@ -130,12 +131,12 @@ def profile():
 
         if form_type == 'details':
             name = request.form.get('name', '').strip()
-            email = request.form.get('email', '').strip().lower()
+            email = normalize_email(request.form.get('email'))
             errors = []
 
             if not name:
                 errors.append('Full name is required.')
-            if not email or '@' not in email:
+            if not email:
                 errors.append('Valid email is required.')
 
             existing_user = User.query.filter(
@@ -231,9 +232,9 @@ def add_group_member(group_id):
         flash('Only the group admin can add members.', 'error')
         return redirect(url_for('main.home'))
 
-    email = request.form.get('email', '').strip().lower()
+    email = normalize_email(request.form.get('email'))
     if not email:
-        flash('Member email is required.', 'error')
+        flash('Enter a valid member email.', 'error')
         return redirect(url_for('main.home'))
 
     user = User.query.filter_by(email=email).first()

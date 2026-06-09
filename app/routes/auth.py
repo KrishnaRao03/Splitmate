@@ -6,6 +6,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from app import db
 from app.email_utils import send_password_reset_email, send_verification_otp
+from app.email_validation import normalize_email
 from app.models import User
 
 auth_bp = Blueprint('auth', __name__)
@@ -71,10 +72,10 @@ def login():
         return redirect(url_for('main.home'))
 
     if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
+        email = normalize_email(request.form.get('email'))
         password = request.form.get('password', '')
 
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter_by(email=email).first() if email else None
 
         if user and user.check_password(password):
             if getattr(user, 'is_suspended', False):
@@ -114,7 +115,7 @@ def forgot_password():
         return redirect(url_for('main.home'))
 
     if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
+        email = normalize_email(request.form.get('email'))
         user = User.query.filter_by(email=email).first() if email else None
 
         if user and not getattr(user, 'is_suspended', False):
@@ -177,14 +178,14 @@ def register():
         return redirect(url_for('main.home'))
 
     if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
+        email = normalize_email(request.form.get('email'))
         name = request.form.get('name', '').strip()
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
 
         # Validation
         errors = []
-        if not email or '@' not in email:
+        if not email:
             errors.append('Valid email is required')
         if not name:
             errors.append('Name is required')
@@ -192,7 +193,7 @@ def register():
             errors.append('Password must be at least 6 characters')
         if password != confirm_password:
             errors.append('Passwords do not match')
-        if User.query.filter_by(email=email).first():
+        if email and User.query.filter_by(email=email).first():
             errors.append('Email already registered')
 
         if errors:

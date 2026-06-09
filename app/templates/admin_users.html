@@ -116,7 +116,7 @@
                                     </label>
                                     <label>
                                         <span>Email</span>
-                                        <input type="email" name="email" value="{{ user.email }}" required {% if user.is_admin %}readonly{% endif %}>
+                                        <input type="email" name="email" value="{{ user.email }}" maxlength="120" required {% if user.is_admin %}readonly{% endif %}>
                                     </label>
                                 </div>
                                 <button type="submit" class="btn btn-primary btn-sm">Save Profile</button>
@@ -204,7 +204,7 @@
             </label>
             <label>
                 <span>Email</span>
-                <input type="email" name="email" placeholder="user@example.com" required>
+                <input type="email" name="email" maxlength="120" placeholder="user@example.com" required>
             </label>
             <label class="admin-checkline">
                 <input type="checkbox" name="is_email_verified" checked>
