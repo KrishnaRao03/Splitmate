@@ -50,12 +50,130 @@ function toggleSidebar() {
 // ========================================
 // Form Validation Helpers
 // ========================================
+const EMAIL_MAX_LENGTH = 120;
+const EMAIL_PATTERN = /^[^\s@]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
+let generatedFieldId = 0;
+
 function validateEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const normalizedEmail = String(email || '').trim();
+    return normalizedEmail.length <= EMAIL_MAX_LENGTH && EMAIL_PATTERN.test(normalizedEmail);
 }
 
 function validatePassword(password) {
     return password.length >= 6;
+}
+
+function ensureElementId(element, prefix) {
+    if (!element.id) {
+        generatedFieldId += 1;
+        element.id = `${prefix}_${generatedFieldId}`;
+    }
+    return element.id;
+}
+
+function emailValidationMessage(input) {
+    const email = input.value.trim();
+
+    if (!email) {
+        return input.required ? 'Email is required.' : '';
+    }
+
+    if (email.length > EMAIL_MAX_LENGTH) {
+        return `Email must be ${EMAIL_MAX_LENGTH} characters or fewer.`;
+    }
+
+    if ((input.validity && input.validity.typeMismatch) || !validateEmail(email)) {
+        return 'Enter a valid email address.';
+    }
+
+    return '';
+}
+
+function emailErrorElement(input) {
+    const inputId = ensureElementId(input, 'email_field');
+    const errorId = `${inputId}_error`;
+    let error = document.getElementById(errorId);
+
+    if (!error) {
+        error = document.createElement('small');
+        error.id = errorId;
+        error.className = 'field-error email-field-error';
+        error.setAttribute('aria-live', 'polite');
+        error.hidden = true;
+        input.insertAdjacentElement('afterend', error);
+    }
+
+    const describedBy = new Set((input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+    describedBy.add(errorId);
+    input.setAttribute('aria-describedby', Array.from(describedBy).join(' '));
+
+    return error;
+}
+
+function setEmailValidationState(input, showMessage = false) {
+    const message = emailValidationMessage(input);
+    const error = emailErrorElement(input);
+
+    input.setCustomValidity(message);
+    input.classList.toggle('is-invalid', Boolean(message) && showMessage);
+    input.classList.toggle('is-valid', !message && showMessage && Boolean(input.value.trim()));
+
+    if (message && showMessage) {
+        error.textContent = message;
+        error.hidden = false;
+        input.setAttribute('aria-invalid', 'true');
+    } else {
+        error.textContent = '';
+        error.hidden = true;
+        input.removeAttribute('aria-invalid');
+    }
+
+    return !message;
+}
+
+function initializeEmailValidation() {
+    const emailInputs = Array.from(document.querySelectorAll('input[type="email"]'));
+
+    emailInputs.forEach(input => {
+        input.setAttribute('inputmode', 'email');
+        input.setAttribute('spellcheck', 'false');
+        setEmailValidationState(input, false);
+
+        input.addEventListener('input', () => {
+            const shouldShowMessage = input.dataset.emailTouched === '1' || Boolean(input.value.trim());
+            setEmailValidationState(input, shouldShowMessage);
+        });
+
+        input.addEventListener('blur', () => {
+            input.dataset.emailTouched = '1';
+            input.value = input.value.trim();
+            setEmailValidationState(input, true);
+        });
+    });
+
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', event => {
+            const formEmailInputs = Array.from(form.querySelectorAll('input[type="email"]'));
+            let firstInvalidEmail = null;
+
+            formEmailInputs.forEach(input => {
+                input.dataset.emailTouched = '1';
+                input.value = input.value.trim();
+
+                if (!setEmailValidationState(input, true) && !firstInvalidEmail) {
+                    firstInvalidEmail = input;
+                }
+            });
+
+            if (firstInvalidEmail) {
+                event.preventDefault();
+                firstInvalidEmail.focus();
+                if (typeof firstInvalidEmail.reportValidity === 'function') {
+                    firstInvalidEmail.reportValidity();
+                }
+            }
+        });
+    });
 }
 
 // ========================================
@@ -93,6 +211,8 @@ function formatDateTime(dateString) {
 // Initialize
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
+    initializeEmailValidation();
+
     const passwordIcons = {
         eye: `
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">

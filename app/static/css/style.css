@@ -1970,6 +1970,18 @@ html[data-theme="dark"] .admin-datatable .admin-table th {
     font-size: 0.8rem;
 }
 
+.field-error {
+    display: block;
+    margin-top: 6px;
+    color: var(--danger);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.field-error[hidden] {
+    display: none;
+}
+
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -2005,6 +2017,11 @@ select:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-focus);
+}
+
+input.is-invalid {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px var(--danger-border);
 }
 
 input:disabled,
