@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Splitmate",
-    "slug": "splitmate-app",
+    "slug": "splimate",
     "scheme": "splitmate",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -21,7 +21,11 @@
       "expo-notifications"
     ],
     "extra": {
-      "apiBaseUrl": ""
-    }
+      "apiBaseUrl": "",
+      "eas": {
+        "projectId": "dc469888-57ee-404d-97d8-689e3d8b83c4"
+      }
+    },
+    "owner": "rk011s-team"
   }
 }
