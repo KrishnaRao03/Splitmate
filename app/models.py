@@ -144,3 +144,13 @@ class Task(db.Model):
 
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id], backref='assigned_tasks')
     created_by = db.relationship('User', foreign_keys=[created_by_id], backref='created_tasks')
+
+class MobileDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    expo_push_token = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    platform = db.Column(db.String(30))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='mobile_devices')

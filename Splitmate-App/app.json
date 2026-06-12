@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Splitmate",
+    "slug": "splitmate-app",
+    "scheme": "splitmate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.splitmate.mobile"
+    },
+    "android": {
+      "package": "com.splitmate.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#0f4f7f"
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-notifications"
+    ],
+    "extra": {
+      "apiBaseUrl": ""
+    }
+  }
+}

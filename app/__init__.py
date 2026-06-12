@@ -226,6 +226,7 @@ def create_app(config_class=Config):
     from app.routes.notes import notes_bp
     from app.routes.tasks import tasks_bp
     from app.routes.admin import admin_bp
+    from app.routes.mobile_api import mobile_api_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -233,6 +234,7 @@ def create_app(config_class=Config):
     app.register_blueprint(notes_bp)
     app.register_blueprint(tasks_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(mobile_api_bp)
 
     with app.app_context():
         db.create_all()

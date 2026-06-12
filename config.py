@@ -50,6 +50,7 @@ class Config:
     INACTIVITY_EMAIL_COOLDOWN_DAYS = int(os.environ.get('INACTIVITY_EMAIL_COOLDOWN_DAYS') or 14)
     INACTIVITY_EMAILS_ENABLED = os.environ.get('INACTIVITY_EMAILS_ENABLED', 'true').lower() in ('1', 'true', 'yes')
     INACTIVITY_EMAIL_HOUR_UTC = int(os.environ.get('INACTIVITY_EMAIL_HOUR_UTC') or 14)
+    MOBILE_TOKEN_EXPIRY_DAYS = int(os.environ.get('MOBILE_TOKEN_EXPIRY_DAYS') or 30)
     STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
     STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
     STRIPE_CURRENCY = (os.environ.get('STRIPE_CURRENCY') or 'cad').lower()
