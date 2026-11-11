@@ -1,5 +1,7 @@
 import os
 
+from env_crypto import is_protected, unprotect_value
+
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -17,16 +19,27 @@ def _load_env_file(path):
             key, value = line.split('=', 1)
             key = key.strip().lstrip('\ufeff')
             value = value.strip().strip('"').strip("'")
-            os.environ.setdefault(key, value)
+            # Real environment variables win, so servers and CI never need the .env file.
+            if key in os.environ:
+                continue
+            if is_protected(value):
+                # Encrypted on this machine with scripts/protect_env.py (Windows DPAPI).
+                value = unprotect_value(value)
+            os.environ[key] = value
 
 
 _load_env_file(os.path.join(BASE_DIR, '.env'))
 
 
-def _local_secret_key():
-    # Without SECRET_KEY, use a random key kept in instance/ so sessions and
-    # mobile tokens survive restarts but can't be forged with a known default.
-    path = os.path.join(BASE_DIR, 'instance', 'secret_key')
+def _new_fernet_key():
+    from cryptography.fernet import Fernet
+    return Fernet.generate_key().decode()
+
+
+def _local_secret_key(filename='secret_key', make_key=None):
+    # Without the variable set, use a random key kept in instance/ so it survives
+    # restarts but can't be guessed from a known default.
+    path = os.path.join(BASE_DIR, 'instance', filename)
     if os.path.exists(path):
         with open(path, encoding='utf-8') as key_file:
             key = key_file.read().strip()
@@ -34,7 +47,7 @@ def _local_secret_key():
             return key
 
     import secrets
-    key = secrets.token_hex(32)
+    key = make_key() if make_key else secrets.token_hex(32)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'w', encoding='utf-8') as key_file:
         key_file.write(key)
@@ -47,6 +60,8 @@ class Config:
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
     SECRET_KEY = os.environ.get('SECRET_KEY') or _local_secret_key()
+    # Fernet key for payment handles stored in the database. Losing it makes them unreadable.
+    FIELD_ENCRYPTION_KEY = os.environ.get('FIELD_ENCRYPTION_KEY') or _local_secret_key('field_encryption_key', _new_fernet_key)
     SQLALCHEMY_DATABASE_URI = DATABASE_URL or 'sqlite:///splitmate.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # Uploads (receipts) are capped; bigger requests get a 413.

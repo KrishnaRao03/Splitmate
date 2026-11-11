@@ -11,6 +11,7 @@ from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import inspect, text
 from config import Config
+from app import field_encryption
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -380,5 +381,8 @@ def create_app(config_class=Config):
         ensure_group_default_split_schema()
         ensure_task_schema()
         ensure_group_members_schema()
+        # Fails fast on a malformed FIELD_ENCRYPTION_KEY, then encrypts any plain-text payment handles.
+        field_encryption.fernet()
+        field_encryption.encrypt_existing_payment_handles(db)
 
     return app

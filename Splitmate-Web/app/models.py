@@ -2,6 +2,7 @@ from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, login_manager
+from app.field_encryption import EncryptedString
 
 # Wrong codes allowed before an emailed OTP stops working and a new one is needed.
 MAX_OTP_ATTEMPTS = 5
@@ -31,9 +32,10 @@ class User(UserMixin, db.Model):
     # Bumped on password change/reset and "log out everywhere"; old tokens and links stop working.
     token_version = db.Column(db.Integer, default=0, nullable=False)
     # Where other members can send this user money (the app only links out; it never holds funds).
-    interac_email = db.Column(db.String(120))
-    paypal_username = db.Column(db.String(40))
-    upi_id = db.Column(db.String(120))
+    # Encrypted in the database with FIELD_ENCRYPTION_KEY; see app/field_encryption.py.
+    interac_email = db.Column(EncryptedString)
+    paypal_username = db.Column(EncryptedString)
+    upi_id = db.Column(EncryptedString)
     stripe_account_id = db.Column(db.String(255))
     stripe_charges_enabled = db.Column(db.Boolean, default=False, nullable=False)
     stripe_payouts_enabled = db.Column(db.Boolean, default=False, nullable=False)
