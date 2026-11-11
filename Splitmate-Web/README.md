@@ -143,6 +143,7 @@ All settings are read in `config.py` from the process environment, then from `.e
 | `MAIL_SERVER` / `MAIL_PORT` / `MAIL_USE_TLS` | `smtp.gmail.com` / `587` / `true` | SMTP server |
 | `MAIL_USERNAME` / `MAIL_PASSWORD` | none | SMTP login. For Gmail use an app password; spaces are stripped. |
 | `MAIL_DEFAULT_SENDER` | `MAIL_USERNAME` | From address |
+| `BREVO_API_KEY` | none | When set, emails are sent through [Brevo](https://www.brevo.com)'s HTTPS API instead of SMTP. Needed on hosts that block SMTP, such as Render's free plan. `MAIL_DEFAULT_SENDER` must be a verified sender in Brevo. |
 | `ADMIN_EMAILS` | `MAIL_USERNAME` | Comma-separated admin addresses |
 | `OTP_EXPIRY_MINUTES` | `10` | How long an email verification code is valid |
 | `OTP_RESEND_COOLDOWN_SECONDS` | `60` | Wait before another code can be sent |

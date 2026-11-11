@@ -29,6 +29,9 @@ services:
         sync: false
       - key: MAIL_PASSWORD
         sync: false
+      # Render's free plan blocks SMTP, so email goes through Brevo's HTTPS API when this is set.
+      - key: BREVO_API_KEY
+        sync: false
       - key: ADMIN_EMAILS
         sync: false
       - key: GEMINI_API_KEY

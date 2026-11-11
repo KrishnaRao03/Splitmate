@@ -1,11 +1,38 @@
+import json
 import smtplib
+import urllib.request
 from email.message import EmailMessage
 
 from flask import current_app
 
+BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email'
+
+
+def _send_with_brevo(api_key, sender, recipient, subject, body):
+    # HTTPS email API, for hosts that block outbound SMTP (e.g. Render's free plan).
+    payload = {
+        'sender': {'name': 'Splitmate', 'email': sender},
+        'to': [{'email': recipient}],
+        'subject': subject,
+        'textContent': body,
+    }
+    request = urllib.request.Request(
+        BREVO_SEND_URL,
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'api-key': api_key, 'Content-Type': 'application/json', 'Accept': 'application/json'},
+        method='POST',
+    )
+    with urllib.request.urlopen(request, timeout=15):
+        pass
+    return True
+
 
 def send_email(recipient, subject, body):
     sender = current_app.config['MAIL_DEFAULT_SENDER']
+    brevo_api_key = current_app.config.get('BREVO_API_KEY')
+    if brevo_api_key:
+        return _send_with_brevo(brevo_api_key, sender, recipient, subject, body)
+
     username = current_app.config['MAIL_USERNAME']
     password = current_app.config['MAIL_PASSWORD']
 
