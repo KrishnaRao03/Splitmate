@@ -42,9 +42,8 @@ services:
   - type: web
     name: splitmate-app
     runtime: static
-    rootDir: Splitmate-App
-    buildCommand: npm ci && EXPO_PUBLIC_SPLITMATE_API_URL="https://$BACKEND_HOST/api/mobile" npx expo export --platform web
-    staticPublishPath: dist
+    buildCommand: cd Splitmate-App && npm ci && npx expo export --platform web
+    staticPublishPath: Splitmate-App/dist
     routes:
       - type: rewrite
         source: /*
@@ -52,11 +51,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      - key: BACKEND_HOST
-        fromService:
-          type: web
-          name: splitmate-web
-          property: host
+      # Public backend address, inlined into the app at build time.
+      # If Render gives the backend a different address, update this and redeploy.
+      - key: EXPO_PUBLIC_SPLITMATE_API_URL
+        value: https://splitmate-web.onrender.com/api/mobile
 
 databases:
   - name: splitmate-db
