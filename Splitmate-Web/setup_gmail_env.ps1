@@ -2,7 +2,10 @@ $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $envPath = Join-Path $projectRoot '.env'
-$mailAddress = 'krishna.rao.0302@gmail.com'
+$mailAddress = (Read-Host 'Gmail address to send Splitmate emails from').Trim()
+if ([string]::IsNullOrWhiteSpace($mailAddress)) {
+    throw 'MAIL_USERNAME cannot be empty.'
+}
 
 $bytes = New-Object byte[] 32
 $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::Create()
