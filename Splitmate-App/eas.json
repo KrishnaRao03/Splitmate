@@ -14,7 +14,10 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "SPLITMATE_ALLOW_CLEARTEXT": "false"
+      }
     }
   },
   "submit": {

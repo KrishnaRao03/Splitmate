@@ -1,8 +1,16 @@
-export type User = {
+/** Where other members can send this user money. Splitmate only links out; it never holds funds. */
+export type PaymentHandles = {
+  interac_email?: string;
+  paypal_username?: string;
+  upi_id?: string;
+};
+
+export type User = PaymentHandles & {
   id: number;
   name: string;
   email: string;
   is_email_verified: boolean;
+  created_at?: string | null;
 };
 
 export type GroupMember = {
@@ -47,6 +55,7 @@ export type Expense = {
   id: number;
   description: string;
   amount: number;
+  category: string;
   date: string | null;
   paid_by_id: number;
   paid_by: string;
@@ -66,10 +75,16 @@ export type Task = {
   description: string;
   due_date: string | null;
   reminder_time: string | null;
+  priority: 'low' | 'medium' | 'high';
+  recurrence: 'none' | 'daily' | 'weekly' | 'monthly';
+  is_overdue: boolean;
   is_completed: boolean;
   assigned_to_id?: number | null;
   assigned_to?: string | null;
   created_by: string;
+  created_by_id: number;
+  /** Only the creator or the group admin may delete a task. */
+  can_delete: boolean;
   group_id: number;
   group_name: string;
 };
@@ -82,28 +97,193 @@ export type Note = {
   is_completed: boolean;
   created_at: string | null;
   created_by: string;
+  created_by_id: number;
+  /** Only the writer or the group admin may delete a note. */
+  can_delete: boolean;
   group_id: number;
   group_name: string;
+  can_compare_prices?: boolean;
+};
+
+/** Response of POST /receipts/scan: the line items read off a receipt photo. */
+export type ReceiptScan = {
+  merchant: string;
+  currency: string;
+  items: Array<{ name: string; quantity: number; price: number }>;
+  tax: number;
+  total: number;
 };
 
 export type Payment = {
   id: number;
   amount: number;
   date: string | null;
+  payer_id: number;
+  receiver_id: number;
   payer: string;
   receiver: string;
   method: string;
+  /** 'pending' until the receiver confirms; then 'recorded'. 'declined' if they say it never arrived. */
   status: string;
+  status_label: string;
+  can_confirm: boolean;
+  can_decline: boolean;
+  reward_points_awarded?: number;
+};
+
+export type PendingInvite = {
+  id: number;
+  email: string;
+  created_at: string | null;
+  expires_at: string | null;
+  invited_by: string;
+};
+
+export type DefaultSplit = {
+  type: 'equal' | 'selected' | 'percentage';
+  member_ids: string[];
+  percentages: Record<string, string>;
+};
+
+export type PaymentMethod = {
+  type: 'interac' | 'paypal' | 'upi';
+  label: string;
+  handle: string;
+  /** null for Interac, which has no universal pay link: the payer copies the email instead. */
+  url: string | null;
+};
+
+export type PaymentOption = {
+  receiver_id: number;
+  receiver: string;
+  /** What can still be recorded: what's owed minus payments already waiting for confirmation. */
+  max_amount: number;
+  owed: number;
+  pending_amount: number;
+  payment_methods: PaymentMethod[];
+};
+
+export type Analytics = {
+  total: number;
+  count: number;
+  top_category: string;
+  category_totals: Array<{ category: string; total: number }>;
+  payer_totals: Array<{ name: string; total: number }>;
+  monthly_totals: Array<{ month: string; label: string; total: number }>;
+};
+
+export type Transaction = {
+  id: number;
+  type: 'expense' | 'payment';
+  description: string;
+  amount: number;
+  category?: string;
+  date: string | null;
+  paid_by?: string;
+  payer?: string;
+  receiver?: string;
+  method?: string;
+  status?: string;
+};
+
+export type ExpenseSearchResult = {
+  id: number;
+  description: string;
+  amount: number;
+  category: string;
+  date: string | null;
+  paid_by: string;
+};
+
+export type GroupActivity = {
+  expense_results: Transaction[];
+  transactions: Transaction[];
+  analytics: Analytics;
+};
+
+export type Dashboard = {
+  groups: Group[];
+  monthly_spending: Array<{ group_id: number; group: string; total: number }>;
+  recent_expenses: Array<Expense & { group_id: number; group_name: string }>;
+  total_owed_to_user: number;
+  total_user_owes: number;
+  chart_data: Array<{
+    group_id: number;
+    group: string;
+    data: Array<{ month: string; label: string; total: number }>;
+  }>;
+  spending_insights: {
+    total: number;
+    count: number;
+    average?: number;
+    top_category: string;
+    category_totals: Array<{ category: string; total: number }>;
+    payer_totals: Array<{ name: string; total: number }>;
+    group_totals?: Array<{ name: string; total: number }>;
+    monthly_totals?: Array<{ month: string; label: string; total: number }>;
+  };
+};
+
+export type GroceryLine = {
+  requested: { name?: string; raw?: string; quantity?: number; unit?: string };
+  status: 'available' | 'unavailable' | 'missing';
+  matched_item: string | null;
+  brand?: string | null;
+  size?: string;
+  unit_price: number | null;
+  line_total: number;
+};
+
+export type GroceryStore = {
+  rank: number;
+  store_name: string;
+  total: number;
+  available_count: number;
+  unavailable_count?: number;
+  missing_count?: number;
+  requested_count: number;
+  all_items_available: boolean;
+  items?: GroceryLine[];
+};
+
+export type GroceryComparison = {
+  note_id: number;
+  currency: string;
+  catalog_source?: string;
+  requested_items: Array<{ name?: string; raw?: string; quantity?: number; unit?: string }>;
+  top_store?: GroceryStore | null;
+  stores: GroceryStore[];
 };
 
 export type GroupDetail = {
   group: Group;
+  current_user_id: number;
+  pending_invites: PendingInvite[];
+  default_split: DefaultSplit;
+  expense_categories: string[];
   balances: Balance[];
   summaries: SplitSummary[];
   expenses: Expense[];
   tasks: Task[];
   notes: Note[];
   payments: Payment[];
+  payment_options: PaymentOption[];
+  /** People who owe the current user, with the email to send an Interac "Request money" to. */
+  money_requests: MoneyRequest[];
+};
+
+export type MoneyRequest = {
+  payer_id: number;
+  payer: string;
+  amount: number;
+  email: string;
+};
+
+export type PersonBalance = {
+  user_id: number;
+  name: string;
+  net: number;
+  groups: { group_id: number; group_name: string; net: number }[];
 };
 
 export type AuthResponse = {
@@ -112,11 +292,93 @@ export type AuthResponse = {
   currency_code: string;
 };
 
+export type RewardTier = {
+  points: number;
+  label: string;
+  description: string;
+};
+
+export type RewardTransactionRow = {
+  id: number;
+  points: number;
+  type: string;
+  note: string;
+  created_at: string | null;
+};
+
+export type MembershipPlan = {
+  id: string;
+  name: string;
+  price: string;
+  interval: string;
+  badge: string;
+  features: string[];
+};
+
+export type ProfileQr = {
+  payload: string;
+  size: number;
+  rows: string[];
+};
+
+export type MyInvite = {
+  id: number;
+  group_id: number;
+  group_name: string;
+  invited_by: string;
+  created_at: string | null;
+  expires_at: string | null;
+};
+
+export type RewardsSummary = {
+  points: number;
+  progress: {
+    balance: number;
+    target: number;
+    remaining: number;
+    percent: number;
+    tier: RewardTier;
+    redeemable: boolean;
+  };
+  membership_plan: string;
+  membership_status: string;
+  tiers?: RewardTier[];
+  recent_transactions?: RewardTransactionRow[];
+  membership_plans?: MembershipPlan[];
+  earning_paused?: boolean;
+};
+
+export type MainTabParamList = {
+  Home: undefined;
+  Split: undefined;
+  Tasks: undefined;
+  Notes: undefined;
+};
+
 export type RootStackParamList = {
   Auth: undefined;
-  Home: undefined;
+  /** The bottom tabs; named Main so it does not clash with the Home tab inside it. */
+  Main: undefined;
+  Groups: undefined;
+  CreateGroup: undefined;
   GroupDetail: { groupId: number; groupName: string };
-  AddExpense: { groupId: number; members: GroupMember[] };
-  AddTask: { groupId: number; members: GroupMember[] };
+  AddExpense: {
+    groupId: number;
+    members: GroupMember[];
+    currentUserId: number;
+    categories: string[];
+    defaultSplit: DefaultSplit;
+    /** When set, the screen edits this expense instead of creating a new one. */
+    expense?: Expense;
+  };
+  /** Without params (from the Tasks tab) the screen asks which group the task is for. */
+  AddTask: { groupId: number; members: GroupMember[] } | undefined;
+  Profile: undefined;
+  GroupSettings: { groupId: number; groupName: string };
+  Insights: { groupId: number; groupName: string; members: GroupMember[]; categories: string[] };
+  TaskCalendar: { groupId: number; groupName: string };
   Settings: undefined;
+  Membership: undefined;
+  HelpChat: undefined;
+  Invites: undefined;
 };

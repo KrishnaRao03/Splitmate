@@ -1,7 +1,9 @@
-import { ReactNode } from 'react';
-import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import { ReactNode, useState } from 'react';
+import { StyleSheet, TextInput, TextInputProps, View } from 'react-native';
 
-import { colors, radius, spacing } from '@/theme/colors';
+import { AppText as Text } from '@/components/AppText';
+import { colors, fonts, radius, spacing } from '@/theme/colors';
+import { typography } from '@/theme/typography';
 
 type Props = TextInputProps & {
   label: string;
@@ -9,14 +11,30 @@ type Props = TextInputProps & {
   right?: ReactNode;
 };
 
-export function TextField({ label, error, right, style, ...props }: Props) {
+export function TextField({ label, error, right, style, onFocus, onBlur, ...props }: Props) {
+  const [focused, setFocused] = useState(false);
+
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputWrap, Boolean(error) && styles.invalid]}>
+      <View
+        style={[
+          styles.inputWrap,
+          focused && styles.focused,
+          Boolean(error) && styles.invalid
+        ]}
+      >
         <TextInput
-          placeholderTextColor="#8aa0af"
+          placeholderTextColor={colors.placeholder}
           style={[styles.input, style]}
+          onFocus={(event) => {
+            setFocused(true);
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
+          }}
           {...props}
         />
         {right}
@@ -32,18 +50,20 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.ink,
-    fontSize: 13,
-    fontWeight: '800'
+    ...typography.label
   },
   inputWrap: {
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.md,
     backgroundColor: colors.input,
     paddingHorizontal: spacing.sm
+  },
+  focused: {
+    borderColor: colors.primary
   },
   invalid: {
     borderColor: colors.danger
@@ -52,6 +72,8 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.text,
     fontSize: 15,
+    fontFamily: fonts.regular,
+    fontWeight: 'normal',
     paddingVertical: 11
   },
   error: {

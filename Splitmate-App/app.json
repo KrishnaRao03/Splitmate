@@ -20,7 +20,16 @@
       "expo-secure-store",
       "expo-notifications",
       "expo-font",
-      "./plugins/withCleartextTraffic"
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Splitmate uses the camera to scan receipts.",
+          "photosPermission": "Splitmate uses your photos to scan receipts."
+        }
+      ],
+      "./plugins/withCleartextTraffic",
+      "./plugins/withBankAppQueries",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "apiBaseUrl": "",

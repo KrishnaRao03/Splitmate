@@ -17,7 +17,7 @@ Cross-platform iOS and Android app for Splitmate, built with Expo and React Nati
 
 ## Run The Flask Backend
 
-From the parent Splitmate folder:
+From the Splitmate-Web folder:
 
 ```powershell
 .\venv\Scripts\python.exe run.py
@@ -27,6 +27,12 @@ The backend should be available at:
 
 ```text
 http://127.0.0.1:5000
+```
+
+For Expo Go on a physical phone, the same backend is available on your computer's LAN IP:
+
+```text
+http://YOUR_COMPUTER_IP:5000
 ```
 
 ## Configure The Mobile API URL

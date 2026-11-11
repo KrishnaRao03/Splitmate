@@ -1,0 +1,6 @@
+.env
+.expo/
+dist/
+node_modules/
+*.log
+expo-go-qr.png

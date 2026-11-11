@@ -1,15 +1,24 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { colors } from '@/theme/colors';
+import { colors, fonts } from '@/theme/colors';
 import type { RootStackParamList } from '@/types';
 import { useAuth } from '@/state/AuthContext';
 import { LoadingState } from '@/components/States';
 import { AddExpenseScreen } from '@/screens/AddExpenseScreen';
 import { AddTaskScreen } from '@/screens/AddTaskScreen';
 import { AuthScreen } from '@/screens/AuthScreen';
+import { CreateGroupScreen } from '@/screens/CreateGroupScreen';
+import { GroupsScreen } from '@/screens/GroupsScreen';
+import { HelpChatScreen } from '@/screens/HelpChatScreen';
 import { GroupDetailScreen } from '@/screens/GroupDetailScreen';
-import { HomeScreen } from '@/screens/HomeScreen';
+import { GroupSettingsScreen } from '@/screens/GroupSettingsScreen';
+import { InsightsScreen } from '@/screens/InsightsScreen';
+import { InvitesScreen } from '@/screens/InvitesScreen';
+import { MembershipScreen } from '@/screens/MembershipScreen';
+import { ProfileScreen } from '@/screens/ProfileScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
+import { TaskCalendarScreen } from '@/screens/TaskCalendarScreen';
+import { TabNavigator } from '@/navigation/TabNavigator';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -23,10 +32,10 @@ export function AppNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: colors.bg },
+        headerStyle: { backgroundColor: colors.surfaceGlass },
         headerShadowVisible: false,
         headerTintColor: colors.ink,
-        headerTitleStyle: { fontWeight: '800' },
+        headerTitleStyle: { fontFamily: fonts.extraBold, fontWeight: 'normal' },
         contentStyle: { backgroundColor: colors.bg }
       }}
     >
@@ -34,11 +43,20 @@ export function AppNavigator() {
         <Stack.Screen name="Auth" component={AuthScreen} options={{ headerShown: false }} />
       ) : (
         <>
-          <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Splitmate' }} />
+          <Stack.Screen name="Main" component={TabNavigator} options={{ headerShown: false }} />
+          <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Your Groups' }} />
+          <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create Group' }} />
           <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={({ route }) => ({ title: route.params.groupName })} />
           <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Add Expense' }} />
           <Stack.Screen name="AddTask" component={AddTaskScreen} options={{ title: 'Add Task' }} />
+          <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
+          <Stack.Screen name="GroupSettings" component={GroupSettingsScreen} options={({ route }) => ({ title: `${route.params.groupName} Settings` })} />
+          <Stack.Screen name="Insights" component={InsightsScreen} options={({ route }) => ({ title: `${route.params.groupName} Insights` })} />
+          <Stack.Screen name="TaskCalendar" component={TaskCalendarScreen} options={({ route }) => ({ title: `${route.params.groupName} Calendar` })} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+          <Stack.Screen name="Membership" component={MembershipScreen} options={{ title: 'Membership' }} />
+          <Stack.Screen name="HelpChat" component={HelpChatScreen} options={{ title: 'Splitmate Help' }} />
+          <Stack.Screen name="Invites" component={InvitesScreen} options={{ title: 'Group Invites' }} />
         </>
       )}
     </Stack.Navigator>

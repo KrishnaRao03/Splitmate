@@ -1,8 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { api, TOKEN_KEY } from '@/api/client';
-import type { User } from '@/types';
+import type { ApiError } from '@/api/client';
+import type { PaymentHandles, User } from '@/types';
 
 type AuthState = {
   apiBaseUrl: string;
@@ -12,14 +14,57 @@ type AuthState = {
   user: User | null;
   setApiBaseUrl: (url: string) => void;
   signIn: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<string>;
+  register: (name: string, email: string, password: string, confirmPassword: string) => Promise<string>;
   verifyEmail: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  updateProfile: (details: { name: string; email: string; currentPassword?: string } & PaymentHandles) => Promise<{ verificationRequired: boolean; otpSent: boolean }>;
+  updatePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
+  signOutEverywhere: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
 const API_URL_KEY = 'splitmate.mobile.api-url';
+
+type WebStorage = {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+  removeItem: (key: string) => void;
+};
+
+function webStorage() {
+  if (Platform.OS !== 'web') {
+    return null;
+  }
+  return (globalThis as unknown as { localStorage?: WebStorage }).localStorage || null;
+}
+
+async function getStoredValue(key: string) {
+  const storage = webStorage();
+  if (storage) {
+    return storage.getItem(key);
+  }
+  return SecureStore.getItemAsync(key);
+}
+
+async function setStoredValue(key: string, value: string) {
+  const storage = webStorage();
+  if (storage) {
+    storage.setItem(key, value);
+    return;
+  }
+  await SecureStore.setItemAsync(key, value);
+}
+
+async function deleteStoredValue(key: string) {
+  const storage = webStorage();
+  if (storage) {
+    storage.removeItem(key);
+    return;
+  }
+  await SecureStore.deleteItemAsync(key);
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -33,19 +78,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(nextToken);
     setUser(nextUser);
     setCurrencyCode(nextCurrency || 'CAD');
-    await SecureStore.setItemAsync(TOKEN_KEY, nextToken);
+    await setStoredValue(TOKEN_KEY, nextToken);
   }, []);
 
   useEffect(() => {
     async function bootstrap() {
       try {
-        const savedApiUrl = await SecureStore.getItemAsync(API_URL_KEY);
+        const savedApiUrl = await getStoredValue(API_URL_KEY);
         if (savedApiUrl) {
           api.setBaseUrl(savedApiUrl);
           setApiBaseUrlState(savedApiUrl);
         }
 
-        const savedToken = await SecureStore.getItemAsync(TOKEN_KEY);
+        const savedToken = await getStoredValue(TOKEN_KEY);
         if (!savedToken) {
           return;
         }
@@ -56,8 +101,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(profile.user);
         setCurrencyCode(profile.currency_code || 'CAD');
       } catch (error) {
-        await SecureStore.deleteItemAsync(TOKEN_KEY);
-        api.setToken(null);
+        // Only discard the saved login when the server says it is invalid.
+        // A network failure must not sign the user out.
+        if ((error as ApiError).status === 401) {
+          await deleteStoredValue(TOKEN_KEY).catch(() => undefined);
+          api.setToken(null);
+        } else {
+          const savedToken = await getStoredValue(TOKEN_KEY).catch(() => null);
+          if (savedToken) {
+            setToken(savedToken);
+          }
+        }
       } finally {
         setIsLoading(false);
       }
@@ -65,6 +119,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     bootstrap();
   }, []);
+
+  const clearSession = useCallback(async () => {
+    await deleteStoredValue(TOKEN_KEY).catch(() => undefined);
+    api.setToken(null);
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    api.setUnauthorizedHandler(() => {
+      clearSession();
+    });
+    return () => api.setUnauthorizedHandler(null);
+  }, [clearSession]);
 
   const value = useMemo<AuthState>(() => ({
     apiBaseUrl,
@@ -76,30 +144,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const nextUrl = url.trim();
       api.setBaseUrl(nextUrl);
       setApiBaseUrlState(api.getBaseUrl());
-      SecureStore.setItemAsync(API_URL_KEY, api.getBaseUrl()).catch(() => undefined);
+      setStoredValue(API_URL_KEY, api.getBaseUrl()).catch(() => undefined);
     },
     signIn: async (email: string, password: string) => {
       const response = await api.login(email.trim(), password);
       await applySession(response.token, response.user, response.currency_code);
     },
-    register: async (name: string, email: string, password: string) => {
-      const response = await api.register(name.trim(), email.trim(), password);
+    register: async (name: string, email: string, password: string, confirmPassword: string) => {
+      const response = await api.register(name.trim(), email.trim(), password, confirmPassword);
       return response.user.email;
     },
     verifyEmail: async (email: string, otp: string) => {
       const response = await api.verifyEmail(email.trim(), otp.trim());
-      await applySession(response.token, response.user, response.currency_code);
+      if (!response.token || !response.user) {
+        throw new Error(response.message || 'This email is already verified. Sign in with your password.');
+      }
+      await applySession(response.token, response.user, response.currency_code || 'CAD');
     },
     resendOtp: async (email: string) => {
       await api.resendOtp(email.trim());
     },
-    signOut: async () => {
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-      api.setToken(null);
-      setToken(null);
-      setUser(null);
+    requestPasswordReset: async (email: string) => {
+      await api.requestPasswordReset(email.trim());
+    },
+    updateProfile: async details => {
+      const response = await api.updateProfile({ ...details, name: details.name.trim(), email: details.email.trim() });
+      await applySession(response.token, response.user, response.currency_code);
+      return {
+        verificationRequired: response.verification_required,
+        otpSent: response.otp_sent
+      };
+    },
+    updatePassword: async (currentPassword: string, newPassword: string, confirmPassword: string) => {
+      // The server revokes every old token on a password change and returns a new one for this device.
+      const response = await api.updatePassword(currentPassword, newPassword, confirmPassword);
+      await applySession(response.token, response.user, response.currency_code);
+    },
+    signOut: clearSession,
+    signOutEverywhere: async () => {
+      await api.logoutAllDevices();
+      await clearSession();
     }
-  }), [apiBaseUrl, applySession, currencyCode, isLoading, token, user]);
+  }), [apiBaseUrl, applySession, clearSession, currencyCode, isLoading, token, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

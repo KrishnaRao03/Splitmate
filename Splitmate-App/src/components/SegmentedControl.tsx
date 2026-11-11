@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { AppText as Text } from '@/components/AppText';
 import { colors, radius, spacing } from '@/theme/colors';
+import { typography } from '@/theme/typography';
 
 type Option<T extends string> = {
   label: string;
@@ -38,8 +40,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceBlue,
+    backgroundColor: colors.surfaceAlt,
     padding: spacing.xs
   },
   item: {
@@ -53,8 +57,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary
   },
   label: {
-    color: colors.primaryDark,
-    fontWeight: '800'
+    ...typography.label,
+    color: colors.secondary
   },
   activeLabel: {
     color: colors.white
