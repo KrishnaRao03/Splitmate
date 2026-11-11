@@ -14,9 +14,9 @@ type AuthState = {
   user: User | null;
   setApiBaseUrl: (url: string) => void;
   signIn: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, confirmPassword: string) => Promise<string>;
+  register: (name: string, email: string, password: string, confirmPassword: string) => Promise<{ email: string; otpSent: boolean }>;
   verifyEmail: (email: string, otp: string) => Promise<void>;
-  resendOtp: (email: string) => Promise<void>;
+  resendOtp: (email: string) => Promise<boolean>;
   requestPasswordReset: (email: string) => Promise<void>;
   updateProfile: (details: { name: string; email: string; currentPassword?: string } & PaymentHandles) => Promise<{ verificationRequired: boolean; otpSent: boolean }>;
   updatePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
@@ -152,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     register: async (name: string, email: string, password: string, confirmPassword: string) => {
       const response = await api.register(name.trim(), email.trim(), password, confirmPassword);
-      return response.user.email;
+      return { email: response.user.email, otpSent: response.otp_sent };
     },
     verifyEmail: async (email: string, otp: string) => {
       const response = await api.verifyEmail(email.trim(), otp.trim());
@@ -162,7 +162,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applySession(response.token, response.user, response.currency_code || 'CAD');
     },
     resendOtp: async (email: string) => {
-      await api.resendOtp(email.trim());
+      const response = await api.resendOtp(email.trim());
+      return response.sent;
     },
     requestPasswordReset: async (email: string) => {
       await api.requestPasswordReset(email.trim());

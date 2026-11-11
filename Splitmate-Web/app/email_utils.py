@@ -1,5 +1,6 @@
 import json
 import smtplib
+import urllib.error
 import urllib.request
 from email.message import EmailMessage
 
@@ -22,8 +23,14 @@ def _send_with_brevo(api_key, sender, recipient, subject, body):
         headers={'api-key': api_key, 'Content-Type': 'application/json', 'Accept': 'application/json'},
         method='POST',
     )
-    with urllib.request.urlopen(request, timeout=15):
-        pass
+    try:
+        with urllib.request.urlopen(request, timeout=15):
+            pass
+    except urllib.error.HTTPError as exc:
+        # Brevo explains rejections (unverified sender, blocked IP, bad key) in the body; log it.
+        detail = exc.read().decode('utf-8', 'replace')[:500]
+        current_app.logger.error('Brevo rejected the email (HTTP %s): %s', exc.code, detail)
+        raise
     return True
 
 

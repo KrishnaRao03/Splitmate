@@ -341,7 +341,13 @@ def analytics_for(group):
 
 @mobile_api_bp.route('/health')
 def health():
-    return jsonify({'ok': True, 'service': 'Splitmate mobile API'})
+    if current_app.config.get('BREVO_API_KEY'):
+        email_provider = 'brevo'
+    elif current_app.config.get('MAIL_PASSWORD'):
+        email_provider = 'smtp'
+    else:
+        email_provider = 'none'
+    return jsonify({'ok': True, 'service': 'Splitmate mobile API', 'email_provider': email_provider})
 
 
 @mobile_api_bp.route('/auth/login', methods=['POST'])

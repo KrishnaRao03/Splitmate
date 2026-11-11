@@ -16,6 +16,8 @@ type Mode = 'login' | 'register' | 'verify' | 'forgot';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const OTP_NOT_SENT = "We couldn't send the verification email. Wait a minute and tap Resend OTP.";
+
 export function AuthScreen() {
   const auth = useAuth();
   const [mode, setMode] = useState<Mode>('login');
@@ -28,6 +30,7 @@ export function AuthScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [showConnection, setShowConnection] = useState(false);
 
   const emailError = email && !emailPattern.test(email.trim()) ? 'Enter a valid email address.' : '';
@@ -36,6 +39,7 @@ export function AuthScreen() {
 
   function switchMode(nextMode: Mode) {
     setError('');
+    setNotice('');
     if (nextMode !== 'verify') {
       setOtp('');
     }
@@ -61,8 +65,23 @@ export function AuthScreen() {
     );
   }
 
+  async function resendOtp() {
+    setError('');
+    setNotice('');
+    try {
+      if (await auth.resendOtp(email)) {
+        setNotice('A new code is on its way. Check your inbox and spam folder.');
+      } else {
+        setError(OTP_NOT_SENT);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.');
+    }
+  }
+
   async function submit() {
     setError('');
+    setNotice('');
     if (!emailPattern.test(email.trim())) {
       setError('Enter a valid email address.');
       return;
@@ -86,12 +105,18 @@ export function AuthScreen() {
       if (mode === 'login') {
         await auth.signIn(email, password);
       } else if (mode === 'register') {
-        const registeredEmail = await auth.register(name, email, password, confirmPassword);
-        setEmail(registeredEmail);
+        const registered = await auth.register(name, email, password, confirmPassword);
+        setEmail(registered.email);
         setPassword('');
         setConfirmPassword('');
         setMode('verify');
-        Alert.alert('Check your email', 'Enter the 6-digit OTP to finish registration.');
+        // Shown on screen as well as in an alert: Alert.alert does nothing in the web build.
+        if (registered.otpSent) {
+          setNotice('Check your email and enter the 6-digit OTP to finish registration.');
+          Alert.alert('Check your email', 'Enter the 6-digit OTP to finish registration.');
+        } else {
+          setError(OTP_NOT_SENT);
+        }
       } else if (mode === 'forgot') {
         await auth.requestPasswordReset(email);
         setPassword('');
@@ -174,12 +199,13 @@ export function AuthScreen() {
             <Text style={styles.inlineActionText}>Forgot password?</Text>
           </Pressable>
         ) : null}
+        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <AppButton loading={loading} onPress={submit}>
           {mode === 'login' ? 'Sign In' : mode === 'register' ? 'Create Account' : mode === 'forgot' ? 'Send Reset Link' : 'Verify Email'}
         </AppButton>
         {mode === 'verify' ? (
-          <AppButton icon="refresh-outline" variant="ghost" onPress={() => auth.resendOtp(email).catch(err => setError(err.message))}>
+          <AppButton icon="refresh-outline" variant="ghost" onPress={resendOtp}>
             Resend OTP
           </AppButton>
         ) : null}
@@ -252,6 +278,11 @@ const styles = StyleSheet.create({
   },
   modeTextActive: {
     color: colors.white
+  },
+  notice: {
+    color: colors.primaryDark,
+    fontSize: 14,
+    lineHeight: 20
   },
   error: {
     color: colors.danger,
