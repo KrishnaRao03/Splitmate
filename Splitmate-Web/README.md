@@ -61,16 +61,19 @@ Splitmate-Web/
 │   ├── grocery_compare.py     Grocery price comparison
 │   ├── rewards.py             Reward points and membership plans
 │   ├── inactivity_reminders.py + scheduler.py   Daily inactive-user emails
+│   ├── field_encryption.py    Encrypted database columns (payment handles)
 │   ├── admin_utils.py         Admin checks
 │   └── security.py            Security helpers
 ├── migrations/                Flask-Migrate (Alembic) configuration
 ├── scripts/
-│   └── migrate_sqlite_to_postgres.py   Copy a local SQLite database into PostgreSQL
+│   ├── migrate_sqlite_to_postgres.py   Copy a local SQLite database into PostgreSQL
+│   └── protect_env.py                  Encrypt the secrets in .env (Windows)
 ├── tests/                     unittest suite (in-memory SQLite)
 ├── docs/
 │   ├── API.md                 Mobile API reference
 │   └── SECURITY_AUDIT.md      Security review and fixes
 ├── config.py                  Settings, read from environment variables / .env
+├── env_crypto.py              Windows DPAPI helpers used by config.py and protect_env.py
 ├── run.py                     Development entry point
 ├── requirements.txt
 ├── .env.example               Every supported variable, with placeholder values
@@ -131,6 +134,7 @@ All settings are read in `config.py` from the process environment, then from `.e
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SECRET_KEY` | random, saved in `instance/secret_key` | Signs sessions and mobile tokens. Set a long random value in production. |
+| `FIELD_ENCRYPTION_KEY` | random, saved in `instance/field_encryption_key` | Fernet key that encrypts payment handles in the database. **Back it up. If it is lost, those values can't be read.** Generate one with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. |
 | `DATABASE_URL` | SQLite `instance/splitmate.db` | PostgreSQL URL. `postgres://` is rewritten to `postgresql://`. |
 | `SECURE_COOKIES` | `false` | Set `true` when served over HTTPS |
 | `RATELIMIT_ENABLED` | `true` | Turn rate limiting off for local testing only |
@@ -154,6 +158,33 @@ All settings are read in `config.py` from the process environment, then from `.e
 | `RECEIPT_SCAN_MODEL` | `gemini-3.6-flash` | Gemini model used for receipts |
 | `GROCERY_PRICE_SOURCE` | `trimcart` | `trimcart` (live prices, falls back to demo data) or `demo` |
 
+## Protecting secrets
+
+### Payment details in the database
+
+Interac e-mail, PayPal username and UPI ID are stored encrypted (Fernet, `enc:` prefix) with `FIELD_ENCRYPTION_KEY`. The code reads and writes them as plain text, so pages and the API are unchanged. At start-up, `app/field_encryption.py` encrypts any rows still in plain text and, on PostgreSQL, widens those columns to 512 characters. This runs on every start-up and skips rows that are already encrypted.
+
+- Use the same `FIELD_ENCRYPTION_KEY` on every server that shares a database.
+- If the key is wrong, those fields show as empty (and a warning is logged) instead of breaking the site.
+- Passwords and email codes were already stored as one-way hashes.
+
+### Secrets in `.env` (Windows)
+
+`scripts/protect_env.py` encrypts the sensitive values in `.env` with Windows DPAPI. Only your Windows user on this machine can decrypt them, so a copied `.env` is useless elsewhere. The values it covers are `SECRET_KEY`, `FIELD_ENCRYPTION_KEY`, `DATABASE_URL`, `MAIL_PASSWORD`, `GEMINI_API_KEY` and `STRIPE_SECRET_KEY`.
+
+```powershell
+python scripts/protect_env.py --add-field-key   # first time: add FIELD_ENCRYPTION_KEY, then encrypt
+python scripts/protect_env.py                   # encrypt anything new you added in plain text
+python scripts/protect_env.py --check           # list which values are encrypted (never prints values)
+python scripts/protect_env.py --decrypt         # back to plain text, e.g. before editing a value
+```
+
+Encrypted lines look like `MAIL_PASSWORD=dpapi:AQAAANCMnd8B...`. `config.py` decrypts them at start-up. To change a value, run `--decrypt`, edit the file, then run the script again.
+
+Servers, CI and macOS/Linux don't use DPAPI. Set the variables in the environment or use a plain `.env` there. Real environment variables always override `.env`.
+
+Keep an offline backup of `FIELD_ENCRYPTION_KEY`, for example in a password manager. A DPAPI-protected `.env` can't be decrypted after a Windows reinstall or on another machine.
+
 ## Testing
 
 The tests use `unittest` with an in-memory SQLite database, so they never touch your real data or send email.
@@ -170,6 +201,7 @@ python -m unittest tests.test_mobile_api -v   # one module
 | `test_group_management.py` | Renaming, admin hand-over, leaving and deleting groups, invite QR codes |
 | `test_custom_categories.py` | Custom expense categories |
 | `test_email_validation.py` | Email address rules |
+| `test_field_encryption.py` | Encrypted payment handles and the DPAPI `.env` loader (Windows only) |
 | `test_task_flow.py`, `test_note_flow.py` | Tasks and notes on the website |
 
 ## How the mobile app connects
@@ -206,6 +238,8 @@ See [`docs/API.md`](docs/API.md) for every endpoint.
 | `429 Too Many Requests` | You hit a rate limit. Wait, or set `RATELIMIT_ENABLED=false` locally. |
 | Everyone is logged out after a restart | `SECRET_KEY` changed. Set it in `.env`, or keep `instance/secret_key`. |
 | Receipt scan says it isn't set up | Add `GEMINI_API_KEY` to `.env` and restart. |
+| `RuntimeError: Could not decrypt a value in .env` | The `.env` was encrypted by another Windows user or machine. Put the plain value back and run `scripts/protect_env.py` again. |
+| Payment details show as empty | `FIELD_ENCRYPTION_KEY` doesn't match the one the data was encrypted with. Restore the original key. |
 | `ModuleNotFoundError` | Activate the venv and run `pip install -r requirements.txt`. |
 
 ## Security

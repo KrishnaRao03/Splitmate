@@ -4,6 +4,14 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Security
+- Interac e-mail, PayPal username and UPI ID are encrypted in the database with `FIELD_ENCRYPTION_KEY` (Fernet). Existing rows are encrypted at start-up.
+- `scripts/protect_env.py` encrypts secrets in `.env` with Windows DPAPI, and `config.py` decrypts them at start-up.
+- `config.py` no longer falls back to a personal Gmail address.
+
+### Added
+- `cryptography` dependency (pinned).
+
 ## [0.1.0] - 2026-11-11
 
 First documented release.
