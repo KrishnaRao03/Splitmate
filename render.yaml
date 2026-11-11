@@ -1,4 +1,5 @@
-# Render Blueprint: deploys the Flask backend (Splitmate-Web) with a PostgreSQL database.
+# Render Blueprint: deploys the Flask backend (Splitmate-Web) with a PostgreSQL database,
+# plus a web build of the Expo app (Splitmate-App) that runs in a phone browser.
 # In Render: New > Blueprint > pick this repo. Fill in the "sync: false" values when asked.
 services:
   - type: web
@@ -32,6 +33,30 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      # The web build of the app (splitmate-app below) calls the API from the browser.
+      # If Render gives the static site a different address, update this value.
+      - key: MOBILE_API_CORS_ORIGINS
+        value: https://splitmate-app.onrender.com
+
+  # Web build of the Expo app, for using Splitmate in a phone browser (Safari: Share > Add to Home Screen).
+  - type: web
+    name: splitmate-app
+    runtime: static
+    rootDir: Splitmate-App
+    buildCommand: npm ci && EXPO_PUBLIC_SPLITMATE_API_URL="https://$BACKEND_HOST/api/mobile" npx expo export --platform web
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: BACKEND_HOST
+        fromService:
+          type: web
+          name: splitmate-web
+          property: host
 
 databases:
   - name: splitmate-db

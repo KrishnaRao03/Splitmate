@@ -231,7 +231,8 @@ See [`docs/API.md`](docs/API.md) for every endpoint.
 
 1. In Render, choose **New > Blueprint** and pick this repository.
 2. Fill in the values it asks for: `MAIL_USERNAME`, `MAIL_PASSWORD`, `ADMIN_EMAILS` and, for receipt scanning, `GEMINI_API_KEY`.
-3. Once it's live, point the app at it with `EXPO_PUBLIC_SPLITMATE_API_URL=https://<your-service>.onrender.com/api/mobile`.
+3. The Blueprint also deploys `splitmate-app`, a web build of the Expo app already pointed at the backend. Open it in a phone browser and use **Add to Home Screen**. If Render gives it an address other than `https://splitmate-app.onrender.com`, update `MOBILE_API_CORS_ORIGINS` in `render.yaml`.
+4. For native builds, point the app at the backend with `EXPO_PUBLIC_SPLITMATE_API_URL=https://<your-service>.onrender.com/api/mobile`.
 
 Render generates `SECRET_KEY` and `FIELD_ENCRYPTION_KEY_SEED`; the Fernet key for payment details is derived from the seed. Don't change the seed after launch, or stored payment details become unreadable. `TRUST_PROXY_HEADERS=true` makes rate limits use each client's real IP behind Render's proxy.
 
