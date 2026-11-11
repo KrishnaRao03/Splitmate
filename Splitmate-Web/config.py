@@ -54,6 +54,19 @@ def _local_secret_key(filename='secret_key', make_key=None):
     return key
 
 
+def _field_encryption_key():
+    key = os.environ.get('FIELD_ENCRYPTION_KEY')
+    if key:
+        return key
+    seed = os.environ.get('FIELD_ENCRYPTION_KEY_SEED')
+    if seed:
+        # Hosts like Render can generate a random secret but not a Fernet key, so derive one.
+        import base64
+        import hashlib
+        return base64.urlsafe_b64encode(hashlib.sha256(seed.encode()).digest()).decode()
+    return _local_secret_key('field_encryption_key', _new_fernet_key)
+
+
 class Config:
     DATABASE_URL = os.environ.get('DATABASE_URL')
     if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
@@ -61,7 +74,7 @@ class Config:
 
     SECRET_KEY = os.environ.get('SECRET_KEY') or _local_secret_key()
     # Fernet key for payment handles stored in the database. Losing it makes them unreadable.
-    FIELD_ENCRYPTION_KEY = os.environ.get('FIELD_ENCRYPTION_KEY') or _local_secret_key('field_encryption_key', _new_fernet_key)
+    FIELD_ENCRYPTION_KEY = _field_encryption_key()
     SQLALCHEMY_DATABASE_URI = DATABASE_URL or 'sqlite:///splitmate.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # Uploads (receipts) are capped; bigger requests get a 413.

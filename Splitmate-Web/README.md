@@ -135,6 +135,8 @@ All settings are read in `config.py` from the process environment, then from `.e
 | --- | --- | --- |
 | `SECRET_KEY` | random, saved in `instance/secret_key` | Signs sessions and mobile tokens. Set a long random value in production. |
 | `FIELD_ENCRYPTION_KEY` | random, saved in `instance/field_encryption_key` | Fernet key that encrypts payment handles in the database. **Back it up. If it is lost, those values can't be read.** Generate one with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. |
+| `FIELD_ENCRYPTION_KEY_SEED` | none | Used only when `FIELD_ENCRYPTION_KEY` is unset: any random string, from which the Fernet key is derived (for hosts like Render). |
+| `TRUST_PROXY_HEADERS` | `false` | Set `true` behind a hosting proxy so rate limits see real client IPs. |
 | `DATABASE_URL` | SQLite `instance/splitmate.db` | PostgreSQL URL. `postgres://` is rewritten to `postgresql://`. |
 | `SECURE_COOKIES` | `false` | Set `true` when served over HTTPS |
 | `RATELIMIT_ENABLED` | `true` | Turn rate limiting off for local testing only |
@@ -222,6 +224,18 @@ See [`docs/API.md`](docs/API.md) for every endpoint.
 | `/notes` | `notes.py` | Notes and grocery comparison |
 | `/tasks` | `tasks.py` | Tasks and upcoming reminders |
 | `/admin` | `admin.py` | Admin login, dashboard, users, emails, inactivity reminders |
+
+## Deploying to Render
+
+`render.yaml` at the repository root is a Render Blueprint for the backend and a PostgreSQL database.
+
+1. In Render, choose **New > Blueprint** and pick this repository.
+2. Fill in the values it asks for: `MAIL_USERNAME`, `MAIL_PASSWORD`, `ADMIN_EMAILS` and, for receipt scanning, `GEMINI_API_KEY`.
+3. Once it's live, point the app at it with `EXPO_PUBLIC_SPLITMATE_API_URL=https://<your-service>.onrender.com/api/mobile`.
+
+Render generates `SECRET_KEY` and `FIELD_ENCRYPTION_KEY_SEED`; the Fernet key for payment details is derived from the seed. Don't change the seed after launch, or stored payment details become unreadable. `TRUST_PROXY_HEADERS=true` makes rate limits use each client's real IP behind Render's proxy.
+
+Free-plan limits: the service sleeps after about 15 minutes idle (the first request then takes up to a minute), the free database expires after 30 days, and uploaded receipts are lost on each redeploy because the disk isn't persistent.
 
 ## Database
 

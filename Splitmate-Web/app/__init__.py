@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
@@ -232,6 +233,11 @@ def ensure_group_members_schema():
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    if os.environ.get('TRUST_PROXY_HEADERS', 'false').lower() in ('1', 'true', 'yes'):
+        # Behind a hosting proxy (e.g. Render): use the client's real IP for rate limits and https for URLs.
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     def configured_currency_code():
         return (app.config.get('STRIPE_CURRENCY') or 'cad').upper()
