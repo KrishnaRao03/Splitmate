@@ -1,0 +1,32 @@
+<div id="inviteMemberModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Invite to <span id="inviteGroupName"></span></h2>
+            <button class="modal-close" type="button" onclick="closeModal('inviteMemberModal')">&times;</button>
+        </div>
+        <form method="POST" id="inviteMemberForm" class="invite-member-form">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="form-group">
+                <label for="inviteEmail">Email</label>
+                <input type="email" id="inviteEmail" name="email" required maxlength="120"
+                       placeholder="friend@example.com" autocomplete="email">
+                <small>They will get a secure link to join this group.</small>
+            </div>
+            <div id="inviteResult" class="invite-result" hidden>
+                <div>
+                    <strong id="inviteResultTitle">Invite link ready</strong>
+                    <p id="inviteResultText"></p>
+                </div>
+                <div class="invite-link-row">
+                    <input type="text" id="inviteLink" readonly>
+                    <button type="button" class="btn btn-sm btn-outline" id="copyInviteLinkBtn">Copy</button>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline"
+                        onclick="closeModal('inviteMemberModal')">Close</button>
+                <button type="submit" class="btn btn-primary" id="sendInviteBtn">Send Invite</button>
+            </div>
+        </form>
+    </div>
+</div>

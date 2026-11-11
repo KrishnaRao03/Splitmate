@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}Profile - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Profile & Settings</h1>
+    <p>Account details and app preferences</p>
+</div>
+
+<div class="profile-page-grid">
+    <section class="card profile-identity-card">
+        <div class="card-body">
+            <div class="profile-hero">
+                <div class="profile-avatar-lg">{{ current_user.name[0].upper() }}</div>
+                <div class="profile-hero-details">
+                    <span class="profile-hero-name">{{ current_user.name }}</span>
+                    <span class="profile-hero-email">{{ current_user.email }}</span>
+                    <span class="profile-status {% if current_user.is_email_verified %}is-verified{% else %}is-pending{% endif %}">
+                        {% if current_user.is_email_verified %}Verified{% else %}Pending verification{% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="profile-details profile-details-panel">
+                <div class="profile-detail">
+                    <span class="profile-detail-label">Name</span>
+                    <span class="profile-detail-value">{{ current_user.name }}</span>
+                </div>
+                <div class="profile-detail">
+                    <span class="profile-detail-label">Email</span>
+                    <span class="profile-detail-value">{{ current_user.email }}</span>
+                </div>
+                <div class="profile-detail">
+                    <span class="profile-detail-label">Joined</span>
+                    <span class="profile-detail-value">
+                        {% if current_user.created_at %}
+                        {{ current_user.created_at.strftime('%b %d, %Y') }}
+                        {% else %}
+                        Not available
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="profile-qr-panel">
+                <div>
+                    <h2>Profile QR</h2>
+                    <p>Scan to share your Splitmate contact.</p>
+                </div>
+                <div class="profile-qr-frame">
+                    <img src="{{ url_for('main.profile_qr') }}" alt="QR code for {{ current_user.name }} profile">
+                </div>
+                <a class="btn btn-outline btn-sm btn-full"
+                   href="{{ url_for('main.profile_qr') }}"
+                   download="splitmate-profile-qr.svg">
+                    Download QR
+                </a>
+            </div>
+
+            <div class="rewards-panel">
+                <div class="rewards-head">
+                    <div>
+                        <h2>Splitmate Points</h2>
+                        <p>Earning points is paused. Points you already have are kept.</p>
+                    </div>
+                    <span class="rewards-balance">{{ reward_progress.balance }}</span>
+                </div>
+                <div class="rewards-progress" aria-label="Reward progress">
+                    <span style="width: {{ reward_progress.percent }}%"></span>
+                </div>
+                <div class="rewards-progress-meta">
+                    {% if reward_progress.redeemable %}
+                    <span>Reward available</span>
+                    {% else %}
+                    <span>{{ reward_progress.remaining }} points to {{ reward_progress.tier.label }}</span>
+                    {% endif %}
+                    <strong>{{ reward_progress.target }} pts</strong>
+                </div>
+
+                <div class="reward-tier-list">
+                    {% for tier in reward_tiers %}
+                    <div class="reward-tier {% if reward_progress.balance >= tier.points %}is-unlocked{% endif %}">
+                        <span>{{ tier.points }} pts</span>
+                        <strong>{{ tier.label }}</strong>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if recent_reward_transactions %}
+                <div class="reward-history">
+                    {% for transaction in recent_reward_transactions %}
+                    <div class="reward-history-row">
+                        <span>+{{ transaction.points }} points</span>
+                        <small>{{ transaction.created_at.strftime('%b %d') }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <div class="profile-form-stack">
+        <section class="card" id="membership-panel">
+            <div class="card-header">
+                <h2>Membership</h2>
+                <span class="badge">{{ current_user.membership_plan|title }}</span>
+            </div>
+            <div class="card-body">
+                <div class="membership-plan-grid">
+                    {% for plan in membership_plans %}
+                    <div class="membership-plan {% if current_user.membership_plan == plan.id %}is-current{% endif %}">
+                        <div class="membership-plan-head">
+                            <div>
+                                <span class="membership-plan-name">{{ plan.name }}</span>
+                                <span class="membership-plan-badge">{{ plan.badge }}</span>
+                            </div>
+                            <div class="membership-price">
+                                <strong>{{ plan.price }}</strong>
+                                <span>{{ plan.interval }}</span>
+                            </div>
+                        </div>
+                        <ul class="membership-features">
+                            {% for feature in plan.features %}
+                            <li>{{ feature }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% if current_user.membership_plan == plan.id %}
+                        <button type="button" class="btn btn-outline btn-sm btn-full" disabled>Current Plan</button>
+                        {% else %}
+                        <button type="button" class="btn btn-primary btn-sm btn-full" disabled>Billing Setup Needed</button>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <section class="card" id="settings-panel">
+            <div class="card-header">
+                <h2>Settings</h2>
+            </div>
+            <div class="card-body">
+                <div class="settings-list">
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Theme</span>
+                            <span class="settings-meta" id="themeSettingValue">Light</span>
+                        </div>
+                        <button class="theme-toggle settings-theme-toggle" id="themeToggle" type="button" aria-label="Switch theme" title="Switch theme">
+                            <span class="theme-toggle-icon theme-toggle-light" aria-hidden="true"></span>
+                            <span class="theme-toggle-icon theme-toggle-dark" aria-hidden="true"></span>
+                        </button>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Task Notifications</span>
+                            <span class="settings-meta" data-notification-status>Off</span>
+                        </div>
+                        <label class="switch-control" for="notificationToggle">
+                            <input type="checkbox" id="notificationToggle" data-notification-toggle>
+                            <span class="switch-slider" aria-hidden="true"></span>
+                            <span class="sr-only">Task notifications</span>
+                        </label>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Browser Permission</span>
+                            <span class="settings-meta" data-notification-permission-status>Not requested</span>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" data-notification-permission>
+                            Allow
+                        </button>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Help Chat</span>
+                            <span class="settings-meta">Get quick help when something feels stuck</span>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="openModal('supportChatModal')">
+                            Open
+                        </button>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Account Data</span>
+                            <span class="settings-meta">Export profile, groups, expenses, notes, tasks, and rewards</span>
+                        </div>
+                        <a class="btn btn-outline btn-sm" href="{{ url_for('main.export_profile_data') }}">
+                            Download
+                        </a>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Privacy Policy</span>
+                            <span class="settings-meta">Data, payments, grocery prices, ads, and analytics</span>
+                        </div>
+                        <a class="btn btn-outline btn-sm" href="{{ url_for('main.privacy_policy') }}">
+                            View
+                        </a>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Terms</span>
+                            <span class="settings-meta">Payments, rewards, memberships, and app usage</span>
+                        </div>
+                        <a class="btn btn-outline btn-sm" href="{{ url_for('main.terms') }}">
+                            View
+                        </a>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">App Version</span>
+                            <span class="settings-meta">MVP 0.1</span>
+                        </div>
+                        <span class="badge">Launch Prep</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Edit Details</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="profile-form">
+                    <input type="hidden" name="form_type" value="details">
+
+                    <div class="form-group">
+                        <label for="profileName">Full Name</label>
+                        <input type="text" id="profileName" name="name" required
+                               value="{{ current_user.name }}" autocomplete="name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileEmail">Email</label>
+                        <input type="email" id="profileEmail" name="email" required
+                               maxlength="120" value="{{ current_user.email }}" autocomplete="email">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileEmailPassword">Current Password <span class="text-subtle">(only needed to change your email)</span></label>
+                        <input type="password" id="profileEmailPassword" name="current_password"
+                               autocomplete="current-password">
+                    </div>
+
+                    <h3>How people can pay you</h3>
+                    <p class="text-subtle">Shown to members who owe you money. Splitmate never handles the money itself.</p>
+                    <div class="form-group">
+                        <label for="profileInterac">Interac e-Transfer email</label>
+                        <input type="email" id="profileInterac" name="interac_email" maxlength="120"
+                               value="{{ current_user.interac_email or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="profilePaypal">PayPal.Me username</label>
+                        <input type="text" id="profilePaypal" name="paypal_username" maxlength="40"
+                               value="{{ current_user.paypal_username or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="profileUpi">UPI ID</label>
+                        <input type="text" id="profileUpi" name="upi_id" maxlength="120" placeholder="name@bank"
+                               value="{{ current_user.upi_id or '' }}">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Save Details</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Change Password</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="profile-form">
+                    <input type="hidden" name="form_type" value="password">
+
+                    <div class="form-group">
+                        <label for="currentPassword">Current Password</label>
+                        <input type="password" id="currentPassword" name="current_password" required
+                               autocomplete="current-password">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="newPassword">New Password</label>
+                            <input type="password" id="newPassword" name="new_password" required
+                                   minlength="8" autocomplete="new-password">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirm Password</label>
+                            <input type="password" id="confirmPassword" name="confirm_password" required
+                                   minlength="8" autocomplete="new-password">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-outline">Update Password</button>
+                </form>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

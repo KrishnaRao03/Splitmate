@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks Calendar - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header page-header-action">
+    <div>
+        <h1>Tasks & Calendar</h1>
+        <p>Schedule and track group tasks with reminders</p>
+    </div>
+    <div class="page-actions">
+        <button type="button" class="btn btn-text-action btn-sm" onclick="openModal('inviteSplitmateModal')">
+            Invite
+        </button>
+        <button type="button" class="btn btn-text-action btn-sm" id="inviteSelectedGroupBtn" hidden
+                onclick="openInviteMemberModal(this.dataset.groupId)">
+            Group Invite
+        </button>
+        <button type="button" class="btn btn-primary btn-sm action-plus" onclick="openModal('createGroupModal')" aria-label="Create group" title="Create group">
+            <span aria-hidden="true">+</span>
+            <span class="action-plus-label">Group</span>
+        </button>
+    </div>
+</div>
+
+{% if groups %}
+<div class="group-grid">
+    {% for group in groups %}
+    <div class="group-box" data-group-id="{{ group.id }}" onclick="selectGroup({{ group.id }})">
+        <h3>{{ group.name }}</h3>
+        <p>{{ group.members|length }} members</p>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="tasksContent" style="display: none;">
+    <div class="content-grid">
+        <!-- Add Task Form -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Add Task</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('tasks.add_task') }}">
+                    <input type="hidden" name="group_id" id="taskGroupId">
+
+                    <div class="form-group">
+                        <label for="title">Task Title</label>
+                        <input type="text" id="title" name="title" required
+                               placeholder="e.g., Pay rent, Buy groceries">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="task_description">Description (optional)</label>
+                        <textarea id="task_description" name="description" rows="2"
+                                  placeholder="Add details..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="due_date">Due Date & Time</label>
+                        <input type="datetime-local" id="due_date" name="due_date" required>
+                    </div>
+
+                    <div class="form-row-inline">
+                        <div class="form-group">
+                            <label for="priority">Priority</label>
+                            <select id="priority" name="priority" class="form-select">
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="recurrence">Repeat</label>
+                            <select id="recurrence" name="recurrence" class="form-select">
+                                <option value="none" selected>Does not repeat</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reminder_time">Reminder (optional)</label>
+                        <input type="datetime-local" id="reminder_time" name="reminder_time">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assigned_to_id">Assign To (optional)</label>
+                        <select id="assigned_to_id" name="assigned_to_id" class="form-select">
+                            <option value="">Anyone</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-full">Add Task</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Calendar View -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Calendar</h2>
+                <div class="calendar-nav">
+                    <button class="btn btn-sm btn-outline" onclick="changeMonth(-1)" aria-label="Previous month">&larr;</button>
+                    <span id="currentMonth"></span>
+                    <button class="btn btn-sm btn-outline" onclick="changeMonth(1)" aria-label="Next month">&rarr;</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="calendar" class="calendar-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tasks List -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Upcoming Tasks</h2>
+        </div>
+        <div class="card-body">
+            <div id="tasksList" class="tasks-list"></div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="empty-state-full">
+    <p>You need to join or create a group first.</p>
+    <button type="button" class="btn btn-primary" onclick="openModal('createGroupModal')">
+        Create Your First Group
+    </button>
+</div>
+{% endif %}
+
+{% include "_create_group_modal.html" %}
+{% include "_invite_member_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const groups = {{ groups_json|tojson|safe }};
+    window.splitmateInviteGroupData = groups;
+    let currentGroupId = null;
+    let currentTasks = [];
+    let currentDate = new Date();
+    let groupMembers = [];
+    const priorityLabels = { low: 'Low', medium: 'Medium', high: 'High' };
+    const priorityRank = { high: 0, medium: 1, low: 2 };
+    const recurrenceLabels = {
+        none: '',
+        daily: 'Daily',
+        weekly: 'Weekly',
+        monthly: 'Monthly'
+    };
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function selectGroup(id) {
+        currentGroupId = id;
+        const group = groups.find(g => Number(g.id) === Number(id));
+        groupMembers = group ? group.members : [];
+
+        document.querySelectorAll('.group-box').forEach(box => {
+            box.classList.toggle('selected', Number(box.dataset.groupId) === Number(id));
+        });
+        updateSelectedGroupInviteButton(id);
+
+        document.getElementById('taskGroupId').value = currentGroupId;
+        document.getElementById('tasksContent').style.display = 'block';
+
+        // Populate assigned_to select
+        const assignSelect = document.getElementById('assigned_to_id');
+        assignSelect.innerHTML = '<option value="">Anyone</option>' +
+            groupMembers.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join('');
+
+        fetchTasks();
+    }
+
+    async function fetchTasks() {
+        const response = await fetch(`/tasks/api/group/${currentGroupId}`);
+        currentTasks = await response.json();
+
+        renderCalendar();
+        renderTasksList();
+    }
+
+    function renderCalendar() {
+        const calendar = document.getElementById('calendar');
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+
+        document.getElementById('currentMonth').textContent =
+            currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        let html = dayNames.map(d => `<div class="calendar-header">${d}</div>`).join('');
+
+        // Empty cells before first day
+        for (let i = 0; i < firstDay; i++) {
+            html += '<div class="calendar-day empty"></div>';
+        }
+
+        // Days of month
+        const today = new Date();
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const tasksOnDay = currentTasks.filter(t => t.due_date.startsWith(dateStr));
+            const hasOverdueTask = tasksOnDay.some(t => isTaskOverdue(t));
+
+            const isToday = today.getFullYear() === year &&
+                today.getMonth() === month &&
+                today.getDate() === day;
+
+            html += `
+            <div class="calendar-day ${isToday ? 'today' : ''} ${tasksOnDay.length ? 'has-tasks' : ''} ${hasOverdueTask ? 'has-overdue' : ''}">
+                <span class="day-number">${day}</span>
+                ${tasksOnDay.length ? `<span class="task-dot">${tasksOnDay.length}</span>` : ''}
+            </div>
+        `;
+        }
+
+        calendar.innerHTML = html;
+    }
+
+    function changeMonth(delta) {
+        currentDate.setMonth(currentDate.getMonth() + delta);
+        renderCalendar();
+    }
+
+    function renderTasksList() {
+        const container = document.getElementById('tasksList');
+
+        const sortedTasks = [...currentTasks].sort((a, b) => {
+            const completedDiff = Number(a.is_completed) - Number(b.is_completed);
+            if (completedDiff) return completedDiff;
+
+            const overdueDiff = Number(!isTaskOverdue(a)) - Number(!isTaskOverdue(b));
+            if (overdueDiff) return overdueDiff;
+
+            const priorityDiff = priorityValue(a.priority) - priorityValue(b.priority);
+            if (priorityDiff) return priorityDiff;
+
+            return new Date(a.due_date) - new Date(b.due_date);
+        });
+
+        if (sortedTasks.length === 0) {
+            container.innerHTML = '<p class="empty-state">No tasks scheduled</p>';
+            return;
+        }
+
+        container.innerHTML = sortedTasks.map(t => {
+            const priority = normalizedPriority(t.priority);
+            const recurrence = normalizedRecurrence(t.recurrence);
+            const overdue = isTaskOverdue(t);
+            return `
+        <div class="task-item priority-${priority} ${overdue ? 'overdue' : ''} ${t.is_completed ? 'completed' : ''}">
+            <div class="task-checkbox" onclick="toggleTask(${t.id})">
+                ${t.is_completed ? '&check;' : ''}
+            </div>
+            <div class="task-content">
+                <div class="task-title-row">
+                    <span class="task-title">${escapeHtml(t.title)}</span>
+                    <span class="task-badge task-priority priority-${priority}">${priorityLabels[priority]}</span>
+                    ${overdue ? '<span class="task-badge task-overdue">Overdue</span>' : ''}
+                </div>
+                ${t.description ? `<span class="task-description">${escapeHtml(t.description)}</span>` : ''}
+                <span class="task-meta">
+                    Due ${new Date(t.due_date).toLocaleString()}
+                    ${t.assigned_to ? ` &bull; Assigned to ${escapeHtml(t.assigned_to)}` : ''}
+                    ${recurrence !== 'none' ? ` &bull; Repeats ${recurrenceLabels[recurrence].toLowerCase()}` : ''}
+                    ${t.reminder_time ? ` &bull; Reminder ${new Date(t.reminder_time).toLocaleString()}` : ''}
+                </span>
+            </div>
+            <form method="POST" action="/tasks/delete/${t.id}">
+                <button type="submit" class="btn btn-xs btn-ghost" aria-label="Delete task">&times;</button>
+            </form>
+        </div>
+    `;
+        }).join('');
+    }
+
+    function normalizedPriority(value) {
+        return ['low', 'medium', 'high'].includes(value) ? value : 'medium';
+    }
+
+    function normalizedRecurrence(value) {
+        return ['none', 'daily', 'weekly', 'monthly'].includes(value) ? value : 'none';
+    }
+
+    function priorityValue(value) {
+        return priorityRank[normalizedPriority(value)];
+    }
+
+    function isTaskOverdue(task) {
+        return !task.is_completed && new Date(task.due_date) < new Date();
+    }
+
+    async function toggleTask(taskId) {
+        await fetch(`/tasks/complete/${taskId}`, { method: 'POST' });
+        fetchTasks();
+    }
+
+    const notifiedTaskReminders = new Set();
+
+    async function checkTaskReminders() {
+        if (!window.splitmateCanShowTaskNotifications || !window.splitmateCanShowTaskNotifications()) {
+            return;
+        }
+
+        let upcoming = [];
+        try {
+            const response = await fetch('/tasks/api/upcoming');
+            upcoming = await response.json();
+        } catch (error) {
+            return;
+        }
+
+        const now = new Date();
+        upcoming.forEach(task => {
+            const reminderTime = new Date(task.reminder_time);
+            const diff = Math.abs(reminderTime - now);
+            const reminderKey = `${task.id}:${task.reminder_time}`;
+
+            // If within 1 minute of reminder time, show notification
+            if (diff < 60000 && !notifiedTaskReminders.has(reminderKey)) {
+                notifiedTaskReminders.add(reminderKey);
+                new Notification(`Reminder: ${task.title}`, {
+                    body: `Due: ${new Date(task.due_date).toLocaleString()}\nGroup: ${task.group_name}`
+                });
+            }
+        });
+    }
+
+    setInterval(checkTaskReminders, 60000); // Check every minute
+    checkTaskReminders();
+
+    document.addEventListener('splitmate:notification-setting-changed', event => {
+        if (event.detail && event.detail.enabled) {
+            checkTaskReminders();
+        }
+    });
+</script>
+{% endblock %}
