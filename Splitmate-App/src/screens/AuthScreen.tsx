@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import type { ApiError } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
 import { AppText as Text } from '@/components/AppText';
 import { BrandMark } from '@/components/BrandMark';
@@ -126,6 +127,13 @@ export function AuthScreen() {
         await auth.verifyEmail(email, otp);
       }
     } catch (err) {
+      if (mode === 'login' && (err as ApiError).status === 403 && /verification/i.test((err as Error).message)) {
+        // Signed up but never verified: go to the code screen and send a fresh code.
+        setPassword('');
+        setMode('verify');
+        await resendOtp();
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
       setLoading(false);
