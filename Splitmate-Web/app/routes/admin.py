@@ -246,6 +246,7 @@ def user_row(user, now, metrics=None, month_start=None, inactive_cutoff=None,
         'is_suspended': getattr(user, 'is_suspended', False),
         'is_email_verified': user.is_email_verified,
         'is_admin': is_app_admin(user),
+        'is_deleted': is_deleted_user(user),
         'member_group_count': metrics.get('member_groups', {}).get(user.id, 0),
         'admin_group_count': metrics.get('admin_groups', {}).get(user.id, 0),
         'expense_count': metrics.get('expenses_paid', {}).get(user.id, 0),
@@ -669,12 +670,17 @@ def delete_user(user_id):
         flash("Type the user's email address exactly to confirm deleting the account.", 'error')
         return admin_users_redirect(user.id, tab)
 
-    if user_has_history(user):
-        flash(f'{user.name} belongs to groups or has expenses, payments, notes or tasks. '
-              'Suspend the account instead so shared records stay intact.', 'error')
-        return admin_users_redirect(user.id, tab)
-
     detail = f'{user.name} <{user.email}>'
+    if user_has_history(user):
+        # Shared expenses, splits and payments still point at this user, so keep the row
+        # (other members' balances depend on it) and strip everything personal instead.
+        anonymize_user(user)
+        audit('user.delete_anonymized', 'user', user_id, detail)
+        db.session.commit()
+        flash(f'Deleted the account {detail}. Their shared expenses stay as "Deleted user" '
+              'so group balances are unchanged.', 'success')
+        return admin_users_redirect(tab=tab)
+
     RewardTransaction.query.filter_by(user_id=user.id).delete()
     MobileDevice.query.filter_by(user_id=user.id).delete()
     db.session.delete(user)
@@ -682,6 +688,39 @@ def delete_user(user_id):
     db.session.commit()
     flash(f'Deleted the account {detail}.', 'success')
     return admin_users_redirect(tab=tab)
+
+
+DELETED_USER_NAME = 'Deleted user'
+DELETED_EMAIL_DOMAIN = 'deleted.splitmate.invalid'
+
+
+def anonymize_user(user):
+    user.name = DELETED_USER_NAME
+    user.email = f'deleted-{user.id}@{DELETED_EMAIL_DOMAIN}'
+    # A random password nobody knows, plus suspension and a token bump, locks the account for good.
+    user.set_password(secrets.token_urlsafe(32))
+    user.is_suspended = True
+    user.is_email_verified = False
+    user.clear_email_otp()
+    user.revoke_sessions()
+    user.interac_email = None
+    user.paypal_username = None
+    user.upi_id = None
+    user.stripe_account_id = None
+    user.last_inactivity_email_sent_at = None
+    db.session.execute(
+        group_members.update().where(group_members.c.user_id == user.id).values(nickname=None)
+    )
+    GroupInvite.query.filter(
+        GroupInvite.invited_by_id == user.id,
+        GroupInvite.accepted_at.is_(None),
+        GroupInvite.revoked_at.is_(None),
+    ).update({'revoked_at': datetime.utcnow()}, synchronize_session=False)
+    MobileDevice.query.filter_by(user_id=user.id).delete()
+
+
+def is_deleted_user(user):
+    return (user.email or '').endswith('@' + DELETED_EMAIL_DOMAIN)
 
 
 @admin_bp.route('/users/export.csv')

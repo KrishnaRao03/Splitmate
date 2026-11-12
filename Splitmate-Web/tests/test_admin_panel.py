@@ -113,14 +113,43 @@ class AdminPanelTests(unittest.TestCase):
             self.assertIsNone(db.session.get(User, self.unused_id))
         self.assertIn('user.delete', self.audit_actions())
 
-    def test_accounts_with_history_and_admins_cannot_be_deleted(self):
+    def test_admin_account_cannot_be_deleted(self):
         self.admin_login()
-        self.client.post(f'/admin/users/{self.member_id}/delete', data={'confirm_email': 'member@example.com'})
         self.client.post(f'/admin/users/{self.owner_id}/delete', data={'confirm_email': 'owner@example.com'})
         with self.app.app_context():
-            self.assertIsNotNone(db.session.get(User, self.member_id))
-            self.assertIsNotNone(db.session.get(User, self.owner_id))
+            owner = db.session.get(User, self.owner_id)
+            self.assertEqual(owner.email, 'owner@example.com')
+            self.assertFalse(owner.is_suspended)
         self.assertNotIn('user.delete', self.audit_actions())
+        self.assertNotIn('user.delete_anonymized', self.audit_actions())
+
+    def test_account_with_history_is_anonymized_and_shared_records_kept(self):
+        with self.app.app_context():
+            token_version_before = db.session.get(User, self.member_id).token_version or 0
+        self.admin_login()
+        self.client.post(f'/admin/users/{self.member_id}/delete', data={'confirm_email': 'member@example.com'})
+
+        with self.app.app_context():
+            member = db.session.get(User, self.member_id)
+            self.assertIsNotNone(member)
+            self.assertEqual(member.name, 'Deleted user')
+            self.assertNotIn('member@example.com', member.email)
+            self.assertTrue(member.is_suspended)
+            self.assertFalse(member.check_password('member-password'))
+            self.assertGreater(member.token_version, token_version_before)
+            self.assertIsNone(member.interac_email)
+            # Shared records stay, so the group's balances don't change.
+            self.assertEqual(Expense.query.filter_by(paid_by_id=self.member_id).count(), 1)
+            self.assertEqual(ExpenseSplit.query.filter_by(user_id=self.member_id).count(), 1)
+            self.assertEqual(Payment.query.filter_by(payer_id=self.member_id).count(), 1)
+            self.assertIn(member, db.session.get(Group, self.group_id).members)
+            self.assertIsNotNone(db.session.get(GroupInvite, self.invite_id).revoked_at)
+        self.assertIn('user.delete_anonymized', self.audit_actions())
+
+        # The old credentials no longer work anywhere.
+        response = self.client.post('/api/mobile/auth/login',
+                                    json={'email': 'member@example.com', 'password': 'member-password'})
+        self.assertEqual(response.status_code, 401)
 
     def test_sign_out_everywhere_revokes_tokens(self):
         self.admin_login()

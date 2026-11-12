@@ -2659,6 +2659,57 @@ html[data-theme="dark"] .admin-datatable .admin-table th {
     background: var(--primary-soft);
 }
 
+.admin-row-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 220px;
+}
+
+/* Keep Edit/Delete in view while the wide users table scrolls sideways. */
+.admin-user-table th:last-child,
+.admin-user-table td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background: var(--bg-secondary);
+    box-shadow: -8px 0 12px -10px rgba(0, 0, 0, 0.25);
+}
+
+.admin-datatable .admin-user-table th:last-child {
+    background: linear-gradient(rgba(224, 242, 254, 0.62), rgba(224, 242, 254, 0.62)), var(--bg-secondary);
+}
+
+html[data-theme="dark"] .admin-datatable .admin-user-table th:last-child {
+    background: linear-gradient(rgba(96, 165, 250, 0.1), rgba(96, 165, 250, 0.1)), var(--bg-secondary);
+}
+
+.admin-user-table td:last-child:has(details[open]) {
+    z-index: 3;
+}
+
+.admin-row-actions .admin-user-actions {
+    min-width: 0;
+}
+
+.admin-user-delete summary {
+    color: var(--danger, #dc2626);
+}
+
+.admin-user-delete summary:hover,
+.admin-user-delete[open] summary {
+    border-color: var(--danger, #dc2626);
+    background: transparent;
+}
+
+.admin-delete-note {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
 .admin-action-panel {
     display: grid;
     gap: 12px;

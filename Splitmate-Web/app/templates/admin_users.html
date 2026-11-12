@@ -52,7 +52,7 @@
                 <th><button type="button" class="sort-button" data-sort-index="8" data-sort-type="number">Expenses</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="9" data-sort-type="number">Payments</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="10" data-sort-type="number">Last Reminder</button></th>
-                <th>Manage</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -104,8 +104,9 @@
                     {% endif %}
                 </td>
                 <td>
+                    <div class="admin-row-actions">
                     <details class="admin-user-actions">
-                        <summary>Manage</summary>
+                        <summary>Edit</summary>
                         <div class="admin-action-panel">
                             <form method="POST" action="{{ url_for('admin.update_user_profile', user_id=user.id) }}" class="admin-action-form">
                                 <input type="hidden" name="tab" value="{{ tab_id }}">
@@ -145,18 +146,32 @@
                                 <button type="submit" class="btn btn-outline btn-sm">Sign Out Everywhere</button>
                             </form>
 
-                            {% if not user.is_admin %}
+                        </div>
+                    </details>
+                    {% if not user.is_admin and not user.is_deleted %}
+                    <details class="admin-user-actions admin-user-delete">
+                        <summary>Delete</summary>
+                        <div class="admin-action-panel">
                             <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" class="admin-action-form">
                                 <input type="hidden" name="tab" value="{{ tab_id }}">
+                                <p class="admin-delete-note">
+                                    {% if user.member_group_count or user.admin_group_count or user.expense_count or user.split_count or user.payment_count %}
+                                    {{ user.name }} has shared groups or expenses. Deleting removes their name, email and payment details and locks the account; their expenses stay as "Deleted user" so balances don't change.
+                                    {% else %}
+                                    {{ user.name }} has no shared history, so the account is removed completely.
+                                    {% endif %}
+                                    This can't be undone.
+                                </p>
                                 <label>
-                                    <span>Delete account: type {{ user.email }} to confirm. Only for accounts with no groups or history; suspend the others.</span>
+                                    <span>Type {{ user.email }} to confirm</span>
                                     <input type="email" name="confirm_email" maxlength="120" autocomplete="off" required>
                                 </label>
                                 <button type="submit" class="btn btn-danger btn-sm">Delete Account</button>
                             </form>
-                            {% endif %}
                         </div>
                     </details>
+                    {% endif %}
+                    </div>
                 </td>
             </tr>
             {% endfor %}
