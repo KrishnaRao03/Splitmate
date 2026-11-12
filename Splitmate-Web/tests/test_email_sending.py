@@ -22,6 +22,21 @@ class EmailSendingTests(unittest.TestCase):
         app.config.update(config)
         return app
 
+
+    def test_brevo_rejection_reason_is_remembered(self):
+        import io
+        import urllib.error
+        app = self.make_app(BREVO_API_KEY='brevo-key')
+        error = urllib.error.HTTPError(
+            email_utils.BREVO_SEND_URL, 400, 'Bad Request', {}, io.BytesIO(b'{"message":"sender not valid"}')
+        )
+        with app.app_context(), patch('app.email_utils.urllib.request.urlopen', side_effect=error):
+            with self.assertRaises(urllib.error.HTTPError):
+                email_utils.send_email('to@example.com', 'Subject', 'Body')
+        self.assertEqual(email_utils.last_email_error, 'HTTP 400: {"message":"sender not valid"}')
+        with app.app_context(), patch('app.email_utils.urllib.request.urlopen'):
+            email_utils.send_email('to@example.com', 'Subject', 'Body')
+        self.assertIsNone(email_utils.last_email_error)
     def test_brevo_api_is_used_when_key_is_set(self):
         app = self.make_app(BREVO_API_KEY='brevo-key')
         with app.app_context(), \

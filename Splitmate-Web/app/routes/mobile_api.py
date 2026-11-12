@@ -347,7 +347,13 @@ def health():
         email_provider = 'smtp'
     else:
         email_provider = 'none'
-    return jsonify({'ok': True, 'service': 'Splitmate mobile API', 'email_provider': email_provider})
+    from app import email_utils
+    return jsonify({
+        'ok': True,
+        'service': 'Splitmate mobile API',
+        'email_provider': email_provider,
+        'last_email_error': email_utils.last_email_error,
+    })
 
 
 @mobile_api_bp.route('/auth/login', methods=['POST'])

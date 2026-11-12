@@ -8,6 +8,9 @@ from flask import current_app
 
 BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email'
 
+# Brevo's reason for the most recent rejected email (no secrets), shown by /api/mobile/health.
+last_email_error = None
+
 
 def _send_with_brevo(api_key, sender, recipient, subject, body):
     # HTTPS email API, for hosts that block outbound SMTP (e.g. Render's free plan).
@@ -23,6 +26,7 @@ def _send_with_brevo(api_key, sender, recipient, subject, body):
         headers={'api-key': api_key, 'Content-Type': 'application/json', 'Accept': 'application/json'},
         method='POST',
     )
+    global last_email_error
     try:
         with urllib.request.urlopen(request, timeout=15):
             pass
@@ -30,7 +34,9 @@ def _send_with_brevo(api_key, sender, recipient, subject, body):
         # Brevo explains rejections (unverified sender, blocked IP, bad key) in the body; log it.
         detail = exc.read().decode('utf-8', 'replace')[:500]
         current_app.logger.error('Brevo rejected the email (HTTP %s): %s', exc.code, detail)
+        last_email_error = f'HTTP {exc.code}: {detail}'
         raise
+    last_email_error = None
     return True
 
 
