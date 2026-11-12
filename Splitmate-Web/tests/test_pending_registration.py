@@ -102,6 +102,21 @@ class PendingRegistrationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(self.counts(), (1, 0))
 
+    def test_an_old_unverified_account_without_groups_can_sign_up_again(self):
+        with self.app.app_context():
+            stale = User(email='new@example.com', name='Old Attempt', is_email_verified=False)
+            stale.set_password('Old-pass-123')
+            db.session.add(stale)
+            db.session.commit()
+        response = self.client.post('/api/mobile/auth/register', json=SIGNUP)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.counts(), (0, 1))
+        self.client.post('/api/mobile/auth/verify-email', json={'email': 'new@example.com', 'otp': self.sent_codes[-1]})
+        with self.app.app_context():
+            user = User.query.filter_by(email='new@example.com').one()
+            self.assertTrue(user.is_email_verified)
+            self.assertEqual(user.name, 'New Person')
+
     def test_website_signup_creates_the_user_only_after_the_code_is_verified(self):
         response = self.client.post('/register', data=SIGNUP)
         self.assertEqual(response.status_code, 302)

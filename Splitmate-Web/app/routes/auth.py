@@ -75,6 +75,21 @@ def send_user_otp(user):
 PENDING_REGISTRATION_TTL = timedelta(days=7)
 
 
+def registered_account(email):
+    """The account that blocks signing up with this email, if any.
+
+    Accounts created before sign-ups waited for verification may be unverified; one that never
+    joined a group is removed here so the person can sign up again (it never held any data).
+    """
+    user = User.query.filter_by(email=email).first() if email else None
+    if user and not user.is_email_verified and user.groups.count() == 0 \
+            and user.administered_groups.count() == 0 and user.expenses.count() == 0:
+        db.session.delete(user)
+        db.session.commit()
+        return None
+    return user
+
+
 def start_pending_registration(email, name, password):
     """Save the sign-up (not a User yet) and email its code. Returns (pending, sent)."""
     PendingRegistration.query.filter(
@@ -277,7 +292,7 @@ def register():
             errors.append(new_password_error)
         if password != confirm_password:
             errors.append('Passwords do not match')
-        if email and User.query.filter_by(email=email).first():
+        if email and registered_account(email):
             errors.append('Email already registered')
 
         if errors:

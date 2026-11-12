@@ -31,8 +31,8 @@ from app.models import (
 from app.rewards import MEMBERSHIP_PLANS, POINTS_EARNING_PAUSED, REWARD_TIERS, reward_progress
 from app.email_utils import send_password_reset_email, send_splitmate_invite_email
 from app.routes.auth import (
-    OTP_LOCKED_MESSAGE, complete_pending_registration, generate_password_reset_token, send_user_otp,
-    start_pending_registration,
+    OTP_LOCKED_MESSAGE, complete_pending_registration, generate_password_reset_token, registered_account,
+    send_user_otp, start_pending_registration,
 )
 from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload
 from app.receipt_scan import ReceiptScanError, scan_receipt_image
@@ -405,7 +405,7 @@ def register():
         return json_error(new_password_error)
     if password != confirm_password:
         return json_error('Passwords do not match.')
-    if User.query.filter_by(email=email).first():
+    if registered_account(email):
         return json_error('Email already registered.', 409)
 
     # The account is created only after the emailed code is verified.
