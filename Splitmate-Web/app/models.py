@@ -14,7 +14,35 @@ group_members = db.Table('group_members',
                          db.Column('nickname', db.String(100))
                          )
 
-class User(UserMixin, db.Model):
+class EmailOtpMixin:
+    """Emailed one-time code handling, shared by users and pending sign-ups."""
+
+    def set_email_otp(self, otp, expires_at):
+        self.email_otp_hash = generate_password_hash(otp)
+        self.email_otp_expires_at = expires_at
+        self.email_otp_sent_at = datetime.utcnow()
+        self.email_otp_attempts = 0
+
+    def otp_attempts_exhausted(self):
+        return (self.email_otp_attempts or 0) >= MAX_OTP_ATTEMPTS
+
+    def check_email_otp(self, otp):
+        """Checks the code and counts wrong guesses; after MAX_OTP_ATTEMPTS the code is dead."""
+        if not self.email_otp_hash or not otp or self.otp_attempts_exhausted():
+            return False
+        if check_password_hash(self.email_otp_hash, otp):
+            return True
+        self.email_otp_attempts = (self.email_otp_attempts or 0) + 1
+        return False
+
+    def clear_email_otp(self):
+        self.email_otp_hash = None
+        self.email_otp_expires_at = None
+        self.email_otp_sent_at = None
+        self.email_otp_attempts = 0
+
+
+class User(EmailOtpMixin, UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
@@ -60,29 +88,6 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
-    def set_email_otp(self, otp, expires_at):
-        self.email_otp_hash = generate_password_hash(otp)
-        self.email_otp_expires_at = expires_at
-        self.email_otp_sent_at = datetime.utcnow()
-        self.email_otp_attempts = 0
-
-    def otp_attempts_exhausted(self):
-        return (self.email_otp_attempts or 0) >= MAX_OTP_ATTEMPTS
-
-    def check_email_otp(self, otp):
-        """Checks the code and counts wrong guesses; after MAX_OTP_ATTEMPTS the code is dead."""
-        if not self.email_otp_hash or not otp or self.otp_attempts_exhausted():
-            return False
-        if check_password_hash(self.email_otp_hash, otp):
-            return True
-        self.email_otp_attempts = (self.email_otp_attempts or 0) + 1
-        return False
-
-    def clear_email_otp(self):
-        self.email_otp_hash = None
-        self.email_otp_expires_at = None
-        self.email_otp_sent_at = None
-        self.email_otp_attempts = 0
 
 @login_manager.user_loader
 def load_user(id):
@@ -241,3 +246,26 @@ class AdminAuditLog(db.Model):
     target_id = db.Column(db.Integer)
     detail = db.Column(db.String(500))
     ip_address = db.Column(db.String(64))
+
+
+class PendingRegistration(EmailOtpMixin, db.Model):
+    """A sign-up waiting for its email code. The User row is created only once the code is verified."""
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    email_otp_hash = db.Column(db.String(256))
+    email_otp_expires_at = db.Column(db.DateTime)
+    email_otp_sent_at = db.Column(db.DateTime)
+    email_otp_attempts = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def create_user(self):
+        """The verified account. The caller deletes this pending row and commits."""
+        return User(email=self.email, name=self.name, password_hash=self.password_hash, is_email_verified=True)

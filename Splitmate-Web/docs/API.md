@@ -45,8 +45,8 @@ The JSON API the Expo app (`Splitmate-App`) uses. Source: [`app/routes/mobile_ap
 | --- | --- | --- | --- |
 | GET | `/health` | | `{"ok": true, "service": "Splitmate mobile API"}`. No auth. |
 | POST | `/auth/login` | `email`, `password` | Returns `{token, user, currency_code}`. `403` if the email is unverified or the account is suspended. |
-| POST | `/auth/register` | `name`, `email`, `password`, `confirm_password` | Creates the account and emails a verification code. |
-| POST | `/auth/verify-email` | `email`, `otp` | Verifies the code and returns `{token, user, currency_code}`. An already-verified email gets `{already_verified: true, message}` and no token; sign in normally. Too many wrong codes return `429`. |
+| POST | `/auth/register` | `name`, `email`, `password`, `confirm_password` | Saves the sign-up as pending and emails a verification code. No account exists until the code is verified; registering the same email again replaces the pending sign-up. Returns `{user: {email, name}, verification_required, otp_sent}` with `201`. |
+| POST | `/auth/verify-email` | `email`, `otp` | Verifies the code, creates the account (for a pending sign-up) and returns `{token, user, currency_code}`. An already-verified email gets `{already_verified: true, message}` and no token; sign in normally. Too many wrong codes return `429`. |
 | POST | `/auth/resend-otp` | `email` | Sends a new code (cooldown `OTP_RESEND_COOLDOWN_SECONDS`). |
 | POST | `/auth/forgot-password` | `email` | Emails a reset link. The response is the same whether or not the account exists. |
 

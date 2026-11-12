@@ -15,6 +15,7 @@ from app.email_validation import normalize_email
 from app.grocery_compare import compare_grocery_note, note_allows_grocery_comparison
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows, set_member_nickname
 from app.models import (
+    PendingRegistration,
     Expense,
     ExpenseHistory,
     ExpenseSplit,
@@ -29,7 +30,10 @@ from app.models import (
 )
 from app.rewards import MEMBERSHIP_PLANS, POINTS_EARNING_PAUSED, REWARD_TIERS, reward_progress
 from app.email_utils import send_password_reset_email, send_splitmate_invite_email
-from app.routes.auth import OTP_LOCKED_MESSAGE, generate_password_reset_token, send_user_otp
+from app.routes.auth import (
+    OTP_LOCKED_MESSAGE, complete_pending_registration, generate_password_reset_token, send_user_otp,
+    start_pending_registration,
+)
 from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload
 from app.receipt_scan import ReceiptScanError, scan_receipt_image
 from app.routes import split as split_routes
@@ -365,6 +369,10 @@ def login():
     password = data.get('password') or ''
     user = User.query.filter_by(email=email).first() if email else None
 
+    if not user:
+        pending = PendingRegistration.query.filter_by(email=email).first() if email else None
+        if pending and pending.check_password(password):
+            return json_error('Email verification is required before signing in.', 403)
     if not user or not user.check_password(password):
         return json_error('Invalid email or password.', 401)
     if getattr(user, 'is_suspended', False):
@@ -400,20 +408,10 @@ def register():
     if User.query.filter_by(email=email).first():
         return json_error('Email already registered.', 409)
 
-    user = User(email=email, name=name, is_email_verified=False)
-    user.set_password(password)
-    db.session.add(user)
-    db.session.flush()
-
-    try:
-        otp_sent = send_user_otp(user)
-    except Exception as exc:
-        current_app.logger.exception('Failed to send mobile verification OTP: %s', exc)
-        otp_sent = False
-
-    db.session.commit()
+    # The account is created only after the emailed code is verified.
+    pending, otp_sent = start_pending_registration(email, name, password)
     return jsonify({
-        'user': user_payload(user),
+        'user': {'email': pending.email, 'name': pending.name},
         'verification_required': True,
         'otp_sent': bool(otp_sent),
     }), 201
@@ -428,7 +426,23 @@ def verify_email():
     user = User.query.filter_by(email=email).first() if email else None
 
     if not user:
-        return json_error('Invalid OTP.')
+        pending = PendingRegistration.query.filter_by(email=email).first() if email else None
+        if not pending:
+            return json_error('Invalid OTP.')
+        if pending.email_otp_expires_at and pending.email_otp_expires_at < datetime.utcnow():
+            return json_error('That OTP has expired. Please request a new code.')
+        if pending.otp_attempts_exhausted():
+            return json_error(OTP_LOCKED_MESSAGE, 429)
+        if not pending.check_email_otp(otp):
+            db.session.commit()
+            return json_error(OTP_LOCKED_MESSAGE if pending.otp_attempts_exhausted() else 'Invalid OTP.')
+        user = complete_pending_registration(pending)
+        if not user:
+            return json_error('That email is already registered. Sign in with your password.', 409)
+        user.last_login_at = datetime.utcnow()
+        user.last_activity_at = user.last_login_at
+        db.session.commit()
+        return jsonify(auth_payload(user))
     if user.is_email_verified:
         # Never hand out a token here without a correct code: that would let anyone sign in by email alone.
         return jsonify({'already_verified': True, 'message': 'This email is already verified. Sign in with your password.'})
@@ -455,8 +469,11 @@ def verify_email():
 def resend_otp():
     email = normalize_email(json_body().get('email'))
     user = User.query.filter_by(email=email).first() if email else None
+    if not user and email:
+        # A sign-up that hasn't been verified yet lives in PendingRegistration until its code is entered.
+        user = PendingRegistration.query.filter_by(email=email).first()
     # Unknown and already-verified emails get the same reply, so this can't be used to look up accounts.
-    if not user or user.is_email_verified:
+    if not user or getattr(user, 'is_email_verified', False):
         return jsonify({'sent': True})
 
     if user.email_otp_sent_at:

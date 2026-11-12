@@ -7,7 +7,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from app import db, limiter
 from app.email_utils import send_password_reset_email, send_verification_otp
 from app.email_validation import normalize_email
-from app.models import User
+from app.models import PendingRegistration, User
 from app.security import display_name_error, password_error
 
 auth_bp = Blueprint('auth', __name__)
@@ -71,6 +71,58 @@ def send_user_otp(user):
 
     return sent
 
+# Sign-ups that never verify are cleared out after this long.
+PENDING_REGISTRATION_TTL = timedelta(days=7)
+
+
+def start_pending_registration(email, name, password):
+    """Save the sign-up (not a User yet) and email its code. Returns (pending, sent)."""
+    PendingRegistration.query.filter(
+        PendingRegistration.created_at < datetime.utcnow() - PENDING_REGISTRATION_TTL
+    ).delete(synchronize_session=False)
+
+    pending = PendingRegistration.query.filter_by(email=email).first()
+    if not pending:
+        pending = PendingRegistration(email=email)
+        db.session.add(pending)
+    pending.name = name
+    pending.set_password(password)
+    pending.created_at = datetime.utcnow()
+    db.session.flush()
+
+    try:
+        sent = send_user_otp(pending)
+    except Exception as exc:
+        current_app.logger.exception('Failed to send verification OTP: %s', exc)
+        sent = False
+    db.session.commit()
+    return pending, sent
+
+
+def complete_pending_registration(pending):
+    """Create the verified User for a sign-up whose code matched. Returns None if the email was taken meanwhile."""
+    if User.query.filter_by(email=pending.email).first():
+        db.session.delete(pending)
+        db.session.commit()
+        return None
+    user = pending.create_user()
+    db.session.add(user)
+    db.session.delete(pending)
+    db.session.commit()
+    return user
+
+
+def set_pending_registration(pending):
+    session.pop('pending_verification_user_id', None)
+    session['pending_registration_id'] = pending.id
+    session['pending_verification_email'] = pending.email
+
+
+def clear_pending_session():
+    for key in ('pending_registration_id', 'pending_verification_user_id', 'pending_verification_email'):
+        session.pop(key, None)
+
+
 def set_pending_verification(user):
     session['pending_verification_user_id'] = user.id
     session['pending_verification_email'] = user.email
@@ -94,6 +146,13 @@ def login():
         password = request.form.get('password', '')
 
         user = User.query.filter_by(email=email).first() if email else None
+
+        pending = PendingRegistration.query.filter_by(email=email).first() if email and not user else None
+        if pending and pending.check_password(password):
+            # Signed up but never entered the code: there is no account yet, so finish verification first.
+            set_pending_registration(pending)
+            flash('Enter the code we emailed you to finish creating your account.', 'info')
+            return redirect(url_for('auth.verify_email'))
 
         if user and user.check_password(password):
             if getattr(user, 'is_suspended', False):
@@ -226,28 +285,17 @@ def register():
                 flash(error, 'error')
             return render_template('register.html')
 
-        # Create user
-        user = User(email=email, name=name, is_email_verified=False)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.flush()
-
-        try:
-            sent = send_user_otp(user)
-        except Exception as exc:
-            current_app.logger.exception('Failed to send verification OTP: %s', exc)
-            sent = False
-
-        db.session.commit()
-        set_pending_verification(user)
+        # The account is created only after the emailed code is verified.
+        pending, sent = start_pending_registration(email, name, password)
+        set_pending_registration(pending)
         next_page = safe_next_url()
         if next_page:
             session['post_verify_redirect'] = next_page
 
         if sent:
-            flash('Registration successful. We sent a 6-digit OTP to your email.', 'success')
+            flash('We sent a 6-digit code to your email. Enter it to finish creating your account.', 'success')
         else:
-            flash('Account created, but the OTP email could not be sent. Check MAIL_PASSWORD and resend the code.', 'error')
+            flash('We could not send the verification email. Wait a minute and tap Resend OTP.', 'error')
         return redirect(url_for('auth.verify_email'))
 
     return render_template('register.html')
@@ -255,6 +303,10 @@ def register():
 @auth_bp.route('/verify-email', methods=['GET', 'POST'])
 @limiter.limit('10 per minute', methods=['POST'])
 def verify_email():
+    pending_id = session.get('pending_registration_id')
+    if pending_id and not current_user.is_authenticated:
+        return verify_pending_registration(pending_id)
+
     user_id = session.get('pending_verification_user_id')
     verifying_authenticated_user = False
 
@@ -313,9 +365,74 @@ def verify_email():
 
     return render_template('verify_email.html', email=user.email)
 
+def verify_pending_registration(pending_id):
+    pending = db.session.get(PendingRegistration, pending_id)
+    if not pending:
+        clear_pending_session()
+        flash('Verification session expired. Please register again.', 'error')
+        return redirect(url_for('auth.register'))
+
+    if request.method == 'POST':
+        otp = request.form.get('otp', '').strip()
+
+        if pending.email_otp_expires_at and pending.email_otp_expires_at < datetime.utcnow():
+            flash('That OTP has expired. Please request a new code.', 'error')
+            return render_template('verify_email.html', email=pending.email)
+
+        if pending.otp_attempts_exhausted():
+            flash(OTP_LOCKED_MESSAGE, 'error')
+            return render_template('verify_email.html', email=pending.email)
+
+        if pending.check_email_otp(otp):
+            user = complete_pending_registration(pending)
+            clear_pending_session()
+            if not user:
+                flash('That email is already registered. Please log in.', 'error')
+                return redirect(url_for('auth.login'))
+            login_user(user, remember=True)
+            mark_user_logged_in(user)
+            flash('Email verified. Your account is ready.', 'success')
+            return redirect(session.pop('post_verify_redirect', None) or url_for('main.home'))
+
+        db.session.commit()
+        flash(OTP_LOCKED_MESSAGE if pending.otp_attempts_exhausted() else 'Invalid OTP. Please try again.', 'error')
+
+    return render_template('verify_email.html', email=pending.email)
+
+
+def resend_pending_registration_otp(pending_id):
+    pending = db.session.get(PendingRegistration, pending_id)
+    if not pending:
+        clear_pending_session()
+        flash('Verification session expired. Please register again.', 'error')
+        return redirect(url_for('auth.register'))
+
+    if pending.email_otp_sent_at:
+        cooldown_until = pending.email_otp_sent_at + timedelta(seconds=current_app.config['OTP_RESEND_COOLDOWN_SECONDS'])
+        if cooldown_until > datetime.utcnow():
+            flash('Please wait a moment before requesting another OTP.', 'info')
+            return redirect(url_for('auth.verify_email'))
+
+    try:
+        sent = send_user_otp(pending)
+    except Exception as exc:
+        current_app.logger.exception('Failed to resend verification OTP: %s', exc)
+        sent = False
+
+    if sent:
+        flash('A new OTP was sent to your email.', 'success')
+    else:
+        flash('We could not send the verification email. Wait a minute and try again.', 'error')
+    return redirect(url_for('auth.verify_email'))
+
+
 @auth_bp.route('/resend-otp', methods=['POST'])
 @limiter.limit('10 per hour')
 def resend_otp():
+    pending_id = session.get('pending_registration_id')
+    if pending_id and not current_user.is_authenticated:
+        return resend_pending_registration_otp(pending_id)
+
     user_id = session.get('pending_verification_user_id')
     if current_user.is_authenticated and not user_id and not current_user.is_email_verified:
         set_pending_verification(current_user)
@@ -353,7 +470,6 @@ def resend_otp():
 @login_required
 def logout():
     logout_user()
-    session.pop('pending_verification_user_id', None)
-    session.pop('pending_verification_email', None)
+    clear_pending_session()
     session.pop('post_verify_redirect', None)
     return redirect(url_for('auth.login'))

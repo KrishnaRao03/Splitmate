@@ -4,6 +4,9 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Changed
+- Sign-ups are stored in a new `pending_registration` table until the emailed code is verified; the `user` row is created only after verification (website and mobile API). Unverified sign-ups older than 7 days are cleared out.
+
 ### Added
 - Admin panel: Groups (with group detail and invite revoking), Activity (expenses and payments), Audit Log and System pages.
 - Admin user actions: sign out everywhere, delete never-used accounts (typed confirmation), CSV export.
