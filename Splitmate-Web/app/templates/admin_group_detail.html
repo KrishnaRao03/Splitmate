@@ -1,0 +1,152 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ group.name }} - Splitmate Admin{% endblock %}
+
+{% macro date_label(value) -%}
+    {{ value.strftime('%b %d, %Y %H:%M') if value else 'Never' }}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-header page-header-action">
+    <div>
+        <h1>{{ group.name }}</h1>
+        <p>
+            Created {{ date_label(group.created_at) }} UTC.
+            Group admin: {{ group_admin.name if group_admin else 'Unknown' }}{% if group_admin %} ({{ group_admin.email }}){% endif %}.
+        </p>
+    </div>
+    <a href="{{ url_for('admin.groups') }}" class="btn btn-outline btn-sm">All Groups</a>
+</div>
+
+<div class="admin-report-summary">
+    <div><span class="stat-label">Members</span><strong>{{ members|length }}</strong></div>
+    <div><span class="stat-label">Recent expenses</span><strong>{{ expenses|length }}</strong></div>
+    <div><span class="stat-label">Recent payments</span><strong>{{ payments|length }}</strong></div>
+    <div><span class="stat-label">Open tasks</span><strong>{{ open_task_count }}</strong></div>
+    <div><span class="stat-label">Notes</span><strong>{{ note_count }}</strong></div>
+</div>
+
+<div class="content-grid admin-content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2>Members</h2>
+            <span class="badge">{{ members|length }}</span>
+        </div>
+        <div class="card-body">
+            {% if members %}
+            <div class="table-scroll">
+                <table class="admin-table">
+                    <thead><tr><th>Member</th><th>Status</th></tr></thead>
+                    <tbody>
+                        {% for member in members %}
+                        <tr>
+                            <td>
+                                <span class="table-primary">{{ member.name }}</span>
+                                <span class="table-secondary">{{ member.email }}</span>
+                            </td>
+                            <td>
+                                {% if group_admin and member.id == group_admin.id %}<span class="badge badge-admin">Group admin</span>{% endif %}
+                                {% if member.is_suspended %}<span class="badge badge-danger">Suspended</span>{% endif %}
+                                {% if not member.is_email_verified %}<span class="badge">Unverified</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty-state">This group has no members.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Pending Invites</h2>
+            <span class="badge">{{ invites|length }}</span>
+        </div>
+        <div class="card-body">
+            {% if invites %}
+            <div class="table-scroll">
+                <table class="admin-table">
+                    <thead><tr><th>Email</th><th>Expires</th><th></th></tr></thead>
+                    <tbody>
+                        {% for invite in invites %}
+                        <tr>
+                            <td>{{ invite.email }}</td>
+                            <td>{{ date_label(invite.expires_at) }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('admin.revoke_group_invite', group_id=group.id, invite_id=invite.id) }}">
+                                    <button type="submit" class="btn btn-outline btn-sm">Revoke</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty-state">No pending invites.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Recent Expenses</h2>
+        <span class="badge">Latest {{ expenses|length }}</span>
+    </div>
+    <div class="card-body">
+        {% if expenses %}
+        <div class="table-scroll">
+            <table class="admin-table">
+                <thead><tr><th>Date (UTC)</th><th>Description</th><th>Category</th><th>Paid by</th><th>Amount ({{ currency }})</th></tr></thead>
+                <tbody>
+                    {% for expense in expenses %}
+                    <tr>
+                        <td>{{ date_label(expense.date) }}</td>
+                        <td>{{ expense.description }}</td>
+                        <td>{{ expense.category }}</td>
+                        <td>{{ names.get(expense.paid_by_id, expense.paid_by_id) }}</td>
+                        <td>{{ "%.2f"|format(expense.amount) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="empty-state">No expenses in this group.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Recent Payments</h2>
+        <span class="badge">Latest {{ payments|length }}</span>
+    </div>
+    <div class="card-body">
+        {% if payments %}
+        <div class="table-scroll">
+            <table class="admin-table">
+                <thead><tr><th>Date (UTC)</th><th>From</th><th>To</th><th>Method</th><th>Status</th><th>Amount ({{ currency }})</th></tr></thead>
+                <tbody>
+                    {% for payment in payments %}
+                    <tr>
+                        <td>{{ date_label(payment.date) }}</td>
+                        <td>{{ payment.payer.name if payment.payer else payment.payer_id }}</td>
+                        <td>{{ payment.receiver.name if payment.receiver else payment.receiver_id }}</td>
+                        <td>{{ payment.method }}</td>
+                        <td><span class="badge">{{ payment.status }}</span></td>
+                        <td>{{ "%.2f"|format(payment.amount) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="empty-state">No payments in this group.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

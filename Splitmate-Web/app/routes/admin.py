@@ -1,19 +1,43 @@
+import csv
+import io
+import platform
+import secrets
 from datetime import datetime, timedelta
 from functools import wraps
-import secrets
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
-from sqlalchemy import func
+from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for
+from sqlalchemy import func, text
 
 from app import db, limiter
 from app.admin_utils import core_activity_user_ids, is_app_admin, month_sequence, split_user_ids_since, user_last_usage_at
 from app.email_utils import send_password_reset_email
 from app.email_validation import normalize_email
 from app.inactivity_reminders import inactive_reminder_candidates, send_inactivity_reminders
-from app.models import Expense, ExpenseSplit, Group, Payment, User, group_members
+from app.models import (
+    AdminAuditLog, Expense, ExpenseHistory, ExpenseSplit, Group, GroupInvite, MobileDevice, Note, Payment,
+    RewardTransaction, Task, User, group_members,
+)
+from app.receipt_scan import scanning_configured
 from app.routes.auth import generate_password_reset_token
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+# An admin session ends after this long without a request, so a forgotten tab doesn't stay signed in.
+ADMIN_IDLE_TIMEOUT = timedelta(minutes=30)
+
+
+def audit(action, target_type=None, target_id=None, detail=None, admin=None):
+    """Record an admin action. The caller commits."""
+    admin = admin or admin_user()
+    db.session.add(AdminAuditLog(
+        admin_id=admin.id if admin else None,
+        admin_email=admin.email if admin else None,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        detail=(detail or '')[:500] or None,
+        ip_address=(request.remote_addr or '')[:64] or None,
+    ))
 
 
 def admin_user():
@@ -21,12 +45,21 @@ def admin_user():
     if not user_id:
         return None
 
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user or not is_app_admin(user) or getattr(user, 'is_suspended', False):
         session.pop('admin_user_id', None)
         return None
 
     return user
+
+
+def admin_session_expired():
+    seen_at = session.get('admin_seen_at')
+    now = datetime.utcnow().timestamp()
+    if seen_at and now - seen_at > ADMIN_IDLE_TIMEOUT.total_seconds():
+        return True
+    session['admin_seen_at'] = now
+    return False
 
 
 def render_admin_template(template_name, active_page, **context):
@@ -54,6 +87,12 @@ def protect_admin_area():
         return None
 
     if not admin_user():
+        return redirect(url_for('admin.login', next=request.path))
+
+    if admin_session_expired():
+        session.pop('admin_user_id', None)
+        session.pop('admin_seen_at', None)
+        flash('Your admin session timed out. Sign in again.', 'info')
         return redirect(url_for('admin.login', next=request.path))
 
     return None
@@ -88,9 +127,14 @@ def login():
                 return render_admin_template('admin_login.html', 'login')
 
             session['admin_user_id'] = user.id
+            session['admin_seen_at'] = datetime.utcnow().timestamp()
+            audit('admin.login', 'user', user.id, admin=user)
+            db.session.commit()
             flash('Admin sign in successful.', 'success')
             return redirect(safe_admin_redirect())
 
+        audit('admin.login_failed', detail=f'email={email or "(blank)"}', admin=None)
+        db.session.commit()
         flash('Invalid admin email or password.', 'error')
 
     return render_admin_template('admin_login.html', 'login')
@@ -98,7 +142,12 @@ def login():
 
 @admin_bp.route('/logout', methods=['POST'])
 def logout():
+    admin = admin_user()
+    if admin:
+        audit('admin.logout', 'user', admin.id, admin=admin)
+        db.session.commit()
     session.pop('admin_user_id', None)
+    session.pop('admin_seen_at', None)
     flash('Signed out of admin.', 'info')
     return redirect(url_for('admin.login'))
 
@@ -422,6 +471,8 @@ def create_user():
     user = User(email=email, name=name, is_email_verified=is_email_verified)
     user.set_password(secrets.token_urlsafe(24))
     db.session.add(user)
+    db.session.flush()
+    audit('user.create', 'user', user.id, f'{name} <{email}>')
     db.session.commit()
 
     if should_send_reset:
@@ -491,8 +542,14 @@ def update_user_profile(user_id):
         flash('Another user already has that email.', 'error')
         return admin_users_redirect(user.id, tab)
 
+    changes = []
+    if user.name != name:
+        changes.append(f'name: {user.name} -> {name}')
+    if user.email != email:
+        changes.append(f'email: {user.email} -> {email}')
     user.name = name
     user.email = email
+    audit('user.update_profile', 'user', user.id, '; '.join(changes) or 'no changes')
     db.session.commit()
     flash(f'Updated {user.name}.', 'success')
     return admin_users_redirect(user.id, tab)
@@ -516,6 +573,8 @@ def update_user_status(user_id):
     if not user.is_email_verified:
         user.clear_email_otp()
 
+    audit('user.update_status', 'user', user.id,
+          f'verified={user.is_email_verified}, suspended={user.is_suspended}')
     db.session.commit()
     flash(f'Updated account status for {user.name}.', 'success')
     return admin_users_redirect(user.id, tab)
@@ -535,6 +594,8 @@ def send_user_password_reset(user_id):
         current_app.logger.exception('Failed to send admin password reset to %s: %s', user.email, exc)
         sent = False
 
+    audit('user.password_reset_sent' if sent else 'user.password_reset_failed', 'user', user.id, user.email)
+    db.session.commit()
     if sent:
         flash(f'Sent password reset email to {user.email}.', 'success')
     else:
@@ -547,6 +608,8 @@ def send_user_password_reset(user_id):
 @admin_required
 def send_inactivity_reminders_now():
     result = send_inactivity_reminders()
+    audit('emails.inactivity_reminders', detail=f'sent={result["sent"]}, failed={result["failed"]}')
+    db.session.commit()
     redirect_target = request.form.get('next') or url_for('admin.emails')
     if not redirect_target.startswith('/admin') or redirect_target.startswith('//'):
         redirect_target = url_for('admin.emails')
@@ -562,3 +625,264 @@ def send_inactivity_reminders_now():
         flash(f'{result["failed"]} reminder email(s) failed. Check the app logs.', 'error')
 
     return redirect(redirect_target)
+
+
+def user_has_history(user):
+    """True when deleting the user would break shared records, so suspending is the safe option."""
+    return any((
+        user.groups.count(),
+        Group.query.filter_by(admin_id=user.id).count(),
+        Expense.query.filter_by(paid_by_id=user.id).count(),
+        ExpenseSplit.query.filter_by(user_id=user.id).count(),
+        ExpenseHistory.query.filter_by(paid_by_id=user.id).count(),
+        Payment.query.filter((Payment.payer_id == user.id) | (Payment.receiver_id == user.id)).count(),
+        Note.query.filter_by(created_by_id=user.id).count(),
+        Task.query.filter((Task.created_by_id == user.id) | (Task.assigned_to_id == user.id)).count(),
+        GroupInvite.query.filter((GroupInvite.invited_by_id == user.id) | (GroupInvite.accepted_by_id == user.id)).count(),
+    ))
+
+
+@admin_bp.route('/users/<int:user_id>/sign-out', methods=['POST'])
+@admin_required
+def sign_out_user_everywhere(user_id):
+    user = db.get_or_404(User, user_id)
+    tab = request.form.get('tab') or 'all'
+    # Bumping token_version invalidates every mobile token and web session for this user.
+    user.token_version = (user.token_version or 0) + 1
+    audit('user.sign_out_everywhere', 'user', user.id, user.email)
+    db.session.commit()
+    flash(f'Signed {user.name} out on every device.', 'success')
+    return admin_users_redirect(user.id, tab)
+
+
+@admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
+@admin_required
+def delete_user(user_id):
+    user = db.get_or_404(User, user_id)
+    tab = request.form.get('tab') or 'all'
+
+    if is_app_admin(user):
+        flash('Admin accounts cannot be deleted here.', 'error')
+        return admin_users_redirect(user.id, tab)
+
+    if request.form.get('confirm_email', '').strip().lower() != user.email.lower():
+        flash("Type the user's email address exactly to confirm deleting the account.", 'error')
+        return admin_users_redirect(user.id, tab)
+
+    if user_has_history(user):
+        flash(f'{user.name} belongs to groups or has expenses, payments, notes or tasks. '
+              'Suspend the account instead so shared records stay intact.', 'error')
+        return admin_users_redirect(user.id, tab)
+
+    detail = f'{user.name} <{user.email}>'
+    RewardTransaction.query.filter_by(user_id=user.id).delete()
+    MobileDevice.query.filter_by(user_id=user.id).delete()
+    db.session.delete(user)
+    audit('user.delete', 'user', user_id, detail)
+    db.session.commit()
+    flash(f'Deleted the account {detail}.', 'success')
+    return admin_users_redirect(tab=tab)
+
+
+@admin_bp.route('/users/export.csv')
+@admin_required
+def export_users_csv():
+    snapshot = admin_report_snapshot()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        'id', 'name', 'email', 'verified', 'suspended', 'admin', 'created_at', 'last_login_at', 'last_usage_at',
+        'days_idle', 'groups', 'expenses_paid', 'splits_owed', 'payments',
+    ])
+    for row in snapshot['users']:
+        writer.writerow([
+            row['id'], row['name'], row['email'], row['is_email_verified'], row['is_suspended'], row['is_admin'],
+            row['created_at'].isoformat() if row['created_at'] else '',
+            row['last_login_at'].isoformat() if row['last_login_at'] else '',
+            row['last_usage_at'].isoformat() if row['last_usage_at'] else '',
+            '' if row['days_idle'] is None else row['days_idle'],
+            row['member_group_count'], row['expense_count'], row['split_count'], row['payment_count'],
+        ])
+    audit('users.export_csv', detail=f'{len(snapshot["users"])} users')
+    db.session.commit()
+    filename = f'splitmate-users-{datetime.utcnow():%Y%m%d}.csv'
+    return Response(output.getvalue(), mimetype='text/csv',
+                    headers={'Content-Disposition': f'attachment; filename={filename}'})
+
+
+def display_currency():
+    return (current_app.config.get('STRIPE_CURRENCY') or 'cad').upper()
+
+
+def payer_names(expenses):
+    ids = {expense.paid_by_id for expense in expenses}
+    return {user.id: user.name for user in User.query.filter(User.id.in_(ids)).all()} if ids else {}
+
+
+def group_rows():
+    member_counts = count_map(
+        db.session.query(group_members.c.group_id, func.count(group_members.c.user_id)).group_by(group_members.c.group_id)
+    )
+    expense_counts = count_map(db.session.query(Expense.group_id, func.count(Expense.id)).group_by(Expense.group_id))
+    expense_totals = count_map(db.session.query(Expense.group_id, func.sum(Expense.amount)).group_by(Expense.group_id))
+    payment_counts = count_map(db.session.query(Payment.group_id, func.count(Payment.id)).group_by(Payment.group_id))
+    last_expense = max_date_map(db.session.query(Expense.group_id, func.max(Expense.date)).group_by(Expense.group_id))
+    last_payment = max_date_map(db.session.query(Payment.group_id, func.max(Payment.date)).group_by(Payment.group_id))
+    admins = {user.id: user for user in User.query.filter(User.id.in_(db.session.query(Group.admin_id))).all()}
+
+    rows = []
+    for group in Group.query.order_by(Group.created_at.desc()).all():
+        activity_dates = [value for value in (last_expense.get(group.id), last_payment.get(group.id), group.created_at) if value]
+        rows.append({
+            'id': group.id,
+            'name': group.name,
+            'admin': admins.get(group.admin_id),
+            'created_at': group.created_at,
+            'member_count': member_counts.get(group.id, 0),
+            'expense_count': expense_counts.get(group.id, 0),
+            'expense_total': float(expense_totals.get(group.id) or 0),
+            'payment_count': payment_counts.get(group.id, 0),
+            'last_activity_at': max(activity_dates) if activity_dates else None,
+        })
+    return rows
+
+
+@admin_bp.route('/groups')
+@admin_required
+def groups():
+    rows = group_rows()
+    return render_admin_template(
+        'admin_groups.html', 'groups',
+        groups=rows,
+        total_tracked=sum(row['expense_total'] for row in rows),
+        currency=display_currency(),
+    )
+
+
+@admin_bp.route('/groups/<int:group_id>')
+@admin_required
+def group_detail(group_id):
+    group = db.get_or_404(Group, group_id)
+    now = datetime.utcnow()
+    expenses = group.expenses.order_by(Expense.date.desc()).limit(50).all()
+    return render_admin_template(
+        'admin_group_detail.html', 'groups',
+        group=group,
+        group_admin=db.session.get(User, group.admin_id),
+        members=sorted(group.members, key=lambda member: member.name.lower()),
+        expenses=expenses,
+        names=payer_names(expenses),
+        payments=group.payments.order_by(Payment.date.desc()).limit(50).all(),
+        invites=group.invites.filter(
+            GroupInvite.accepted_at.is_(None), GroupInvite.revoked_at.is_(None), GroupInvite.expires_at > now
+        ).all(),
+        open_task_count=group.tasks.filter_by(is_completed=False).count(),
+        note_count=group.notes.count(),
+        currency=display_currency(),
+    )
+
+
+@admin_bp.route('/groups/<int:group_id>/invites/<int:invite_id>/revoke', methods=['POST'])
+@admin_required
+def revoke_group_invite(group_id, invite_id):
+    invite = GroupInvite.query.filter_by(id=invite_id, group_id=group_id).first_or_404()
+    if not invite.revoked_at and not invite.accepted_at:
+        invite.revoked_at = datetime.utcnow()
+        audit('group.revoke_invite', 'group', group_id, invite.email)
+        db.session.commit()
+        flash(f'Revoked the invite for {invite.email}.', 'success')
+    return redirect(url_for('admin.group_detail', group_id=group_id))
+
+
+@admin_bp.route('/activity')
+@admin_required
+def activity():
+    now = datetime.utcnow()
+    month_start = datetime(now.year, now.month, 1)
+    status = request.args.get('status', 'all')
+    payments_query = Payment.query.order_by(Payment.date.desc())
+    if status != 'all':
+        payments_query = payments_query.filter(Payment.status == status)
+
+    def total(query):
+        return float(query.scalar() or 0)
+
+    expenses = Expense.query.order_by(Expense.date.desc()).limit(100).all()
+    return render_admin_template(
+        'admin_activity.html', 'activity',
+        expenses=expenses,
+        names=payer_names(expenses),
+        payments=payments_query.limit(100).all(),
+        payment_status=status,
+        payment_statuses=[row[0] for row in db.session.query(Payment.status).distinct().order_by(Payment.status)],
+        stats={
+            'expenses_total': total(db.session.query(func.sum(Expense.amount))),
+            'expenses_this_month': total(db.session.query(func.sum(Expense.amount)).filter(Expense.date >= month_start)),
+            'expense_count': Expense.query.count(),
+            'payments_total': total(db.session.query(func.sum(Payment.amount))),
+            'pending_payments': Payment.query.filter(Payment.status == 'pending').count(),
+            'open_splits': ExpenseSplit.query.filter_by(is_settled=False).count(),
+        },
+        currency=display_currency(),
+    )
+
+
+@admin_bp.route('/audit')
+@admin_required
+def audit_log():
+    action = request.args.get('action', '').strip()
+    query = AdminAuditLog.query.order_by(AdminAuditLog.created_at.desc())
+    if action:
+        query = query.filter(AdminAuditLog.action == action)
+    return render_admin_template(
+        'admin_audit.html', 'audit',
+        entries=query.limit(300).all(),
+        actions=[row[0] for row in db.session.query(AdminAuditLog.action).distinct().order_by(AdminAuditLog.action)],
+        selected_action=action,
+    )
+
+
+@admin_bp.route('/system')
+@admin_required
+def system():
+    try:
+        db.session.execute(text('SELECT 1'))
+        database_ok = True
+    except Exception as exc:
+        current_app.logger.exception('Admin system check could not reach the database: %s', exc)
+        db.session.rollback()
+        database_ok = False
+
+    config = current_app.config
+    if config.get('BREVO_API_KEY'):
+        email_provider = 'Brevo API'
+    elif config.get('MAIL_PASSWORD'):
+        email_provider = f'SMTP ({config.get("MAIL_SERVER")})'
+    else:
+        email_provider = 'Not configured'
+
+    tables = [
+        ('Users', User), ('Groups', Group), ('Expenses', Expense), ('Expense splits', ExpenseSplit),
+        ('Payments', Payment), ('Notes', Note), ('Tasks', Task), ('Group invites', GroupInvite),
+        ('Mobile devices', MobileDevice), ('Admin audit entries', AdminAuditLog),
+    ]
+    admin_emails = ', '.join(sorted(config.get('ADMIN_EMAILS') or []))
+    return render_admin_template(
+        'admin_system.html', 'system',
+        database_ok=database_ok,
+        database_engine=db.engine.dialect.name,
+        table_counts=[(label, model.query.count()) for label, model in tables] if database_ok else [],
+        checks=[
+            ('Email sending', email_provider, email_provider != 'Not configured'),
+            ('Email sender', config.get('MAIL_DEFAULT_SENDER') or 'Not set', bool(config.get('MAIL_DEFAULT_SENDER'))),
+            ('Receipt scanning (Gemini)', 'Configured' if scanning_configured() else 'Off', True),
+            ('Inactivity reminder emails', 'On' if config.get('INACTIVITY_EMAILS_ENABLED') else 'Off', True),
+            ('Rate limiting', 'On' if config.get('RATELIMIT_ENABLED') else 'Off', bool(config.get('RATELIMIT_ENABLED'))),
+            ('Secure cookies (HTTPS only)', 'On' if config.get('SESSION_COOKIE_SECURE') else 'Off', True),
+            ('Admin accounts', admin_emails or 'None', bool(admin_emails)),
+            ('Admin idle timeout', f'{int(ADMIN_IDLE_TIMEOUT.total_seconds() // 60)} minutes', True),
+            ('Mobile login lifetime', f'{config.get("MOBILE_TOKEN_EXPIRY_DAYS")} days', True),
+        ],
+        python_version=platform.python_version(),
+        server_time=datetime.utcnow(),
+    )

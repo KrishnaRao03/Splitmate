@@ -4,13 +4,17 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- Admin panel: Groups (with group detail and invite revoking), Activity (expenses and payments), Audit Log and System pages.
+- Admin user actions: sign out everywhere, delete never-used accounts (typed confirmation), CSV export.
+- Every admin action and sign-in attempt is recorded in a new `admin_audit_log` table.
+- Admin sessions end after 30 minutes of inactivity.
+- `cryptography` dependency (pinned).
+
 ### Security
 - Interac e-mail, PayPal username and UPI ID are encrypted in the database with `FIELD_ENCRYPTION_KEY` (Fernet). Existing rows are encrypted at start-up.
 - `scripts/protect_env.py` encrypts secrets in `.env` with Windows DPAPI, and `config.py` decrypts them at start-up.
 - `config.py` no longer falls back to a personal Gmail address.
-
-### Added
-- `cryptography` dependency (pinned).
 
 ## [0.1.0] - 2026-11-11
 

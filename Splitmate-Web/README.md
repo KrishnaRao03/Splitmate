@@ -3,7 +3,7 @@
 The Flask backend for Splitmate. It serves:
 
 - **the website**: sign-up, groups, expense splitting, payments, notes, tasks, profile;
-- **the admin dashboard** at `/admin`: user growth, user management, inactivity reminder emails;
+- **the admin panel** at `/admin`: growth, users, groups, money activity, reminder emails, an audit log and system health (see [Admin panel](#admin-panel));
 - **the mobile API** at `/api/mobile`: the JSON API used by [`../Splitmate-App`](../Splitmate-App/README.md). It is documented in [`docs/API.md`](docs/API.md).
 
 ## Features
@@ -224,7 +224,23 @@ See [`docs/API.md`](docs/API.md) for every endpoint.
 | `/split` | `split.py` | Add expenses, pay, settle, confirm/decline payments, plus JSON helpers under `/split/api/...` used by the page scripts |
 | `/notes` | `notes.py` | Notes and grocery comparison |
 | `/tasks` | `tasks.py` | Tasks and upcoming reminders |
-| `/admin` | `admin.py` | Admin login, dashboard, users, emails, inactivity reminders |
+| `/admin` | `admin.py` | Admin login, overview, users, emails, groups, activity, audit log, system |
+
+## Admin panel
+
+Open `/admin` and sign in with an account whose email is listed in `ADMIN_EMAILS`. Nobody else can sign in, even with a valid Splitmate password. The admin account must exist in that server's database and have a verified email. Failed sign-ins are rate limited, and the session ends after 30 minutes without activity.
+
+| Page | What it's for |
+| --- | --- |
+| Overview | Sign-ups per month, verified, suspended and inactive users |
+| Users | Every user in segments (new, no split this month, never used, inactive, suspended). Edit name/email, verify or suspend, send a password reset, sign the user out on every device, delete an account that was never used, export everything as CSV |
+| Email Reminders | Who is due an inactivity reminder, and a button to send them now |
+| Groups | Every group with its admin, members, expense count and total. Open a group to see members, recent expenses and payments, and revoke pending invites |
+| Activity | Latest expenses and payments across all groups, totals, payments waiting for confirmation, filter by payment status |
+| Audit Log | Every admin sign-in, failed attempt and change, with time, IP address and details. Entries can't be edited |
+| System | Database connection, email setup, receipt scanning, security settings and row counts |
+
+Accounts that belong to a group or have expenses, payments, notes or tasks can't be deleted, because other people's balances depend on them. Suspend them instead. Admin accounts can't be suspended or deleted from the panel; change `ADMIN_EMAILS` instead.
 
 ## Deploying to Render
 

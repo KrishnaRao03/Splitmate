@@ -139,6 +139,22 @@
                                 <input type="hidden" name="tab" value="{{ tab_id }}">
                                 <button type="submit" class="btn btn-outline btn-sm">Send Password Reset</button>
                             </form>
+
+                            <form method="POST" action="{{ url_for('admin.sign_out_user_everywhere', user_id=user.id) }}" class="admin-action-form">
+                                <input type="hidden" name="tab" value="{{ tab_id }}">
+                                <button type="submit" class="btn btn-outline btn-sm">Sign Out Everywhere</button>
+                            </form>
+
+                            {% if not user.is_admin %}
+                            <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" class="admin-action-form">
+                                <input type="hidden" name="tab" value="{{ tab_id }}">
+                                <label>
+                                    <span>Delete account: type {{ user.email }} to confirm. Only for accounts with no groups or history; suspend the others.</span>
+                                    <input type="email" name="confirm_email" maxlength="120" autocomplete="off" required>
+                                </label>
+                                <button type="submit" class="btn btn-danger btn-sm">Delete Account</button>
+                            </form>
+                            {% endif %}
                         </div>
                     </details>
                 </td>
@@ -163,7 +179,10 @@
         <h1>Users Report</h1>
         <p>Detailed user data, split activity, reminders, and account status.</p>
     </div>
-    <a href="{{ url_for('admin.emails') }}" class="btn btn-outline btn-sm">Email Report</a>
+    <div>
+        <a href="{{ url_for('admin.export_users_csv') }}" class="btn btn-outline btn-sm">Export CSV</a>
+        <a href="{{ url_for('admin.emails') }}" class="btn btn-outline btn-sm">Email Report</a>
+    </div>
 </div>
 
 <div class="admin-report-summary">

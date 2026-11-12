@@ -100,6 +100,34 @@
                         <small>Inactive user outreach</small>
                     </span>
                 </a>
+                <a class="admin-nav-link {% if active_admin_page == 'groups' %}active{% endif %}" href="{{ url_for('admin.groups') }}">
+                    <span class="admin-nav-icon">G</span>
+                    <span>
+                        <strong>Groups</strong>
+                        <small>Members, spending, invites</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'activity' %}active{% endif %}" href="{{ url_for('admin.activity') }}">
+                    <span class="admin-nav-icon">$</span>
+                    <span>
+                        <strong>Activity</strong>
+                        <small>Expenses and payments</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'audit' %}active{% endif %}" href="{{ url_for('admin.audit_log') }}">
+                    <span class="admin-nav-icon">L</span>
+                    <span>
+                        <strong>Audit Log</strong>
+                        <small>Every admin action</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'system' %}active{% endif %}" href="{{ url_for('admin.system') }}">
+                    <span class="admin-nav-icon">S</span>
+                    <span>
+                        <strong>System</strong>
+                        <small>Health and settings</small>
+                    </span>
+                </a>
             </nav>
             <div class="admin-sidebar-footer">
                 <a href="{{ url_for('main.home') }}" class="btn btn-outline btn-sm btn-full">Open Splitmate</a>

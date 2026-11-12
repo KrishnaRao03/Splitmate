@@ -229,3 +229,15 @@ class MobileDevice(db.Model):
     last_seen_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref='mobile_devices')
+
+class AdminAuditLog(db.Model):
+    """Who did what in the admin panel. Rows are only ever added."""
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    admin_email = db.Column(db.String(120))
+    action = db.Column(db.String(60), nullable=False)
+    target_type = db.Column(db.String(30))
+    target_id = db.Column(db.Integer)
+    detail = db.Column(db.String(500))
+    ip_address = db.Column(db.String(64))

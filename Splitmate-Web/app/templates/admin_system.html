@@ -1,0 +1,78 @@
+{% extends "admin_base.html" %}
+{% block title %}System - Splitmate Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>System</h1>
+        <p>Is everything connected and set up? Settings are read from the server's environment; change them there, not here.</p>
+    </div>
+</div>
+
+<div class="stats-grid admin-stats-grid">
+    <div class="stat-card {% if database_ok %}stat-positive{% else %}stat-negative{% endif %}">
+        <div class="stat-icon">D</div>
+        <div class="stat-content">
+            <span class="stat-label">Database</span>
+            <span class="stat-value">{{ 'Connected' if database_ok else 'Unreachable' }}</span>
+            <span class="stat-subvalue">{{ database_engine }}</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">P</div>
+        <div class="stat-content">
+            <span class="stat-label">Python</span>
+            <span class="stat-value">{{ python_version }}</span>
+            <span class="stat-subvalue">Server time {{ server_time.strftime('%H:%M') }} UTC</span>
+        </div>
+    </div>
+</div>
+
+<div class="content-grid admin-content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2>Checks</h2>
+        </div>
+        <div class="card-body">
+            <div class="table-scroll">
+                <table class="admin-table">
+                    <thead><tr><th>Setting</th><th>Value</th><th>Status</th></tr></thead>
+                    <tbody>
+                        {% for label, value, ok in checks %}
+                        <tr>
+                            <td>{{ label }}</td>
+                            <td>{{ value }}</td>
+                            <td>
+                                {% if ok %}<span class="badge badge-success">OK</span>{% else %}<span class="badge badge-danger">Needs attention</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Records</h2>
+        </div>
+        <div class="card-body">
+            {% if table_counts %}
+            <div class="table-scroll">
+                <table class="admin-table">
+                    <thead><tr><th>Table</th><th>Rows</th></tr></thead>
+                    <tbody>
+                        {% for label, count in table_counts %}
+                        <tr><td>{{ label }}</td><td>{{ count }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty-state">The database could not be reached.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

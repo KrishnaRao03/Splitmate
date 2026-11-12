@@ -1,0 +1,90 @@
+{% extends "admin_base.html" %}
+{% block title %}Groups - Splitmate Admin{% endblock %}
+
+{% macro date_label(value) -%}
+    {{ value.strftime('%b %d, %Y') if value else 'Never' }}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Groups</h1>
+        <p>Every group, who runs it, how many people are in it and how much it has tracked.</p>
+    </div>
+</div>
+
+<div class="stats-grid admin-stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">G</div>
+        <div class="stat-content">
+            <span class="stat-label">Groups</span>
+            <span class="stat-value">{{ groups|length }}</span>
+            <span class="stat-subvalue">All time</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">$</div>
+        <div class="stat-content">
+            <span class="stat-label">Spending Tracked</span>
+            <span class="stat-value">{{ "%.2f"|format(total_tracked) }}</span>
+            <span class="stat-subvalue">{{ currency }}, current expenses</span>
+        </div>
+    </div>
+    <div class="stat-card stat-negative">
+        <div class="stat-icon">0</div>
+        <div class="stat-content">
+            <span class="stat-label">Empty Groups</span>
+            <span class="stat-value">{{ groups|selectattr('expense_count', 'equalto', 0)|list|length }}</span>
+            <span class="stat-subvalue">No expenses yet</span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>All Groups</h2>
+        <span class="badge">{{ groups|length }}</span>
+    </div>
+    <div class="card-body">
+        {% if groups %}
+        <div class="table-scroll">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Group</th>
+                        <th>Group admin</th>
+                        <th>Members</th>
+                        <th>Expenses</th>
+                        <th>Total</th>
+                        <th>Payments</th>
+                        <th>Last activity</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group in groups %}
+                    <tr>
+                        <td><a class="table-primary" href="{{ url_for('admin.group_detail', group_id=group.id) }}">{{ group.name }}</a></td>
+                        <td>
+                            {% if group.admin %}
+                            <span class="table-primary">{{ group.admin.name }}</span>
+                            <span class="table-secondary">{{ group.admin.email }}</span>
+                            {% else %}Unknown{% endif %}
+                        </td>
+                        <td>{{ group.member_count }}</td>
+                        <td>{{ group.expense_count }}</td>
+                        <td>{{ "%.2f"|format(group.expense_total) }}</td>
+                        <td>{{ group.payment_count }}</td>
+                        <td>{{ date_label(group.last_activity_at) }}</td>
+                        <td>{{ date_label(group.created_at) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="empty-state">No groups have been created yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
