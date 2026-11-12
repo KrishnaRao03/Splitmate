@@ -14,8 +14,8 @@
         <div class="stat-icon">D</div>
         <div class="stat-content">
             <span class="stat-label">Database</span>
-            <span class="stat-value">{{ 'Connected' if database_ok else 'Unreachable' }}</span>
-            <span class="stat-subvalue">{{ database_engine }}</span>
+            <span class="stat-value">{{ 'OK' if database_ok else 'Down' }}</span>
+            <span class="stat-subvalue">{{ 'Connected' if database_ok else 'Unreachable' }} ({{ database_engine }})</span>
         </div>
     </div>
     <div class="stat-card">
