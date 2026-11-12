@@ -4,6 +4,7 @@
 services:
   - type: web
     name: splitmate-web
+    autoDeploy: true
     runtime: python
     rootDir: Splitmate-Web
     plan: free
@@ -44,6 +45,7 @@ services:
   # Web build of the Expo app, for using Splitmate in a phone browser (Safari: Share > Add to Home Screen).
   - type: web
     name: splitmate-app
+    autoDeploy: true
     runtime: static
     buildCommand: cd Splitmate-App && npm ci && npx expo export --platform web
     staticPublishPath: Splitmate-App/dist
