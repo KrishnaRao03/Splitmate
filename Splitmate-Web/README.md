@@ -154,7 +154,7 @@ All settings are read in `config.py` from the process environment, then from `.e
 | `INACTIVITY_EMAILS_ENABLED` | `true` | Run the daily reminder job |
 | `INACTIVITY_EMAIL_HOUR_UTC` | `14` | Hour (UTC) the job runs |
 | `MOBILE_TOKEN_EXPIRY_DAYS` | `30` | Mobile login lifetime |
-| `MOBILE_API_CORS_ORIGINS` | `http://localhost:8082,http://127.0.0.1:8082` | Browser origins allowed to call `/api/mobile` (Expo web) |
+| `MOBILE_API_CORS_ORIGINS` | `http://localhost:8081,http://127.0.0.1:8081,http://localhost:8082,http://127.0.0.1:8082` | Browser origins allowed to call `/api/mobile` (Expo web) |
 | `GROUP_INVITE_EXPIRY_DAYS` | `7` | Invite link lifetime |
 | `STRIPE_CURRENCY` | `cad` | Display currency for the whole app. The name is historical; Stripe itself is no longer used. |
 | `GEMINI_API_KEY` | none | Enables receipt scanning |
