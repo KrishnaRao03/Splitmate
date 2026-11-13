@@ -4,7 +4,7 @@ const EMAIL_PATTERN = /^[^\s@]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9]
 const SINGLE_DOMAIN_PROVIDERS: Record<string, string> = { gmail: 'gmail.com', googlemail: 'googlemail.com', icloud: 'icloud.com' };
 const REGIONAL_PROVIDERS = new Set(['yahoo', 'hotmail', 'outlook', 'live', 'aol', 'msn']);
 const MISTYPED_PROVIDERS: Record<string, string> = {
-  gmial: 'gmail.com', gmai: 'gmail.com', gamil: 'gmail.com', gnail: 'gmail.com', gmaill: 'gmail.com',
+  gmial: 'gmail.com', gmai: 'gmail.com', gamail: 'gmail.com', gamil: 'gmail.com', gnail: 'gmail.com', gmaill: 'gmail.com',
   gmal: 'gmail.com', gmeil: 'gmail.com', gmali: 'gmail.com', hotmial: 'hotmail.com', hotmal: 'hotmail.com',
   hotmil: 'hotmail.com', outlok: 'outlook.com', outllok: 'outlook.com', yaho: 'yahoo.com',
   yahooo: 'yahoo.com', yhoo: 'yahoo.com', iclod: 'icloud.com', icoud: 'icloud.com'
@@ -44,6 +44,24 @@ export function emailError(value: string) {
   const tld = email.slice(email.lastIndexOf('.') + 1);
   if (email.length > 120 || !EMAIL_PATTERN.test(email) || !/^[A-Za-z]{2,}$/.test(tld)) {
     return 'Enter a valid email address, like name@gmail.com.';
+  }
+  return '';
+}
+
+/** The corrected address when the domain looks mistyped (name@gnail.com -> name@gmail.com), else ''. */
+export function suggestedEmail(value: string) {
+  const email = value.trim();
+  const at = email.lastIndexOf('@');
+  const suggestion = at > 0 ? suggestedDomain(email.slice(at + 1)) : null;
+  return suggestion ? `${email.slice(0, at)}@${suggestion}` : '';
+}
+
+/** Mirrors normalize_phone on the server: 10 to 15 digits, with spaces, dashes, dots or brackets allowed. */
+export function phoneError(value: string) {
+  const phone = value.trim();
+  const digits = phone.replace(/\D/g, '');
+  if (!/^\+?[\d\s().-]+$/.test(phone) || digits.length < 10 || digits.length > 15) {
+    return `"${phone}" is not a valid email or phone number. Use a full email like name@gmail.com or a phone number like 416 555 0123.`;
   }
   return '';
 }

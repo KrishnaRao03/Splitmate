@@ -14,6 +14,16 @@ import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import type { RootStackParamList } from '@/types';
 import { formatMoney, parseAmount } from '@/utils/money';
+import { emailError, phoneError, suggestedEmail } from '@/utils/validation';
+
+function splitContacts(value: string) {
+  return value.split(/[,;\n]+/).map(part => part.trim()).filter(Boolean);
+}
+
+/** Why this contact can't be used, or '' when it looks like a real email or phone number. */
+function contactError(value: string) {
+  return value.includes('@') ? emailError(value) : phoneError(value);
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'QuickSplit'>;
 
@@ -25,37 +35,68 @@ export function QuickSplitScreen({ navigation }: Props) {
   const [description, setDescription] = useState('');
   const [amountText, setAmountText] = useState('');
   const [error, setError] = useState('');
-  const [notFound, setNotFound] = useState<string[]>([]);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
+  const [suggestion, setSuggestion] = useState('');
 
   const amount = parseAmount(amountText);
   const people = contacts.length + 1;
   const share = amount ? Math.floor((amount / people) * 100) / 100 : null;
 
   function addContact() {
-    const parts = contact.split(/[,;\n]+/).map(part => part.trim()).filter(Boolean);
+    const parts = splitContacts(contact);
     if (!parts.length) {
+      return;
+    }
+    const bad = parts.find(part => contactError(part));
+    if (bad) {
+      setError(contactError(bad));
+      setSuggestion(suggestedEmail(bad));
       return;
     }
     setContacts(current => [...current, ...parts.filter(part => !current.includes(part))]);
     setContact('');
     setError('');
+    setSuggestion('');
   }
 
-  async function invite(email: string) {
-    try {
-      const result = await api.inviteSplitmate(email);
-      setNotice(result.message);
-    } catch (inviteError) {
-      setError(inviteError instanceof Error ? inviteError.message : 'Could not send the invite.');
+  /** People who aren't on Splitmate yet get an invite email straight away. */
+  async function inviteMissing(missing: string[]) {
+    const emails = missing.filter(item => item.includes('@'));
+    const phones = missing.filter(item => !item.includes('@'));
+    const invited: string[] = [];
+    for (const email of emails) {
+      try {
+        await api.inviteSplitmate(email);
+        invited.push(email);
+      } catch {
+        // Reported below as not invited.
+      }
     }
+    const parts: string[] = [];
+    if (invited.length) {
+      parts.push(`${invited.join(', ')} ${invited.length === 1 ? 'is' : 'are'} not on Splitmate yet, so we emailed ${invited.length === 1 ? 'them' : 'each of them'} an invite. Split again once they've joined, or remove them to split with the others now.`);
+    }
+    const failed = emails.filter(email => !invited.includes(email));
+    if (failed.length) {
+      parts.push(`We couldn't send an invite to ${failed.join(', ')}. Try again in a little while.`);
+    }
+    if (phones.length) {
+      parts.push(`No account has the number ${phones.join(', ')}. Add them by email instead and we'll invite them.`);
+    }
+    setNotice(parts.join(' '));
   }
 
   async function split() {
-    const all = contact.trim() ? [...contacts, ...contact.split(/[,;\n]+/).map(part => part.trim()).filter(Boolean)] : contacts;
-    setNotFound([]);
+    const all = [...contacts, ...splitContacts(contact).filter(part => !contacts.includes(part))];
     setNotice('');
+    setSuggestion('');
+    const bad = all.find(part => contactError(part));
+    if (bad) {
+      setError(contactError(bad));
+      setSuggestion(suggestedEmail(bad));
+      return;
+    }
     if (!all.length) {
       setError('Add at least one friend by email or phone number.');
       return;
@@ -75,9 +116,13 @@ export function QuickSplitScreen({ navigation }: Props) {
       navigation.replace('GroupDetail', { groupId: result.group.id, groupName: result.group.name });
     } catch (splitError) {
       const apiError = splitError as ApiError;
-      setError(apiError.message || 'Could not split this. Try again.');
       const missing = apiError.data?.not_found;
-      setNotFound(Array.isArray(missing) ? missing.map(String) : []);
+      if (Array.isArray(missing) && missing.length) {
+        setError('');
+        await inviteMissing(missing.map(String));
+      } else {
+        setError(apiError.message || 'Could not split this. Try again.');
+      }
     } finally {
       setSaving(false);
     }
@@ -125,10 +170,24 @@ export function QuickSplitScreen({ navigation }: Props) {
           </Text>
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {suggestion ? (
+          <AppButton
+            icon="checkmark-outline"
+            variant="outline"
+            onPress={() => {
+              setContacts(current => {
+                const fixed = current.map(item => (suggestedEmail(item) === suggestion ? suggestion : item));
+                return fixed.includes(suggestion) ? fixed : [...fixed, suggestion];
+              });
+              setContact(splitContacts(contact).filter(part => suggestedEmail(part) !== suggestion).join(', '));
+              setError('');
+              setSuggestion('');
+            }}
+          >
+            {`Use ${suggestion}`}
+          </AppButton>
+        ) : null}
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-        {notFound.filter(item => item.includes('@')).map(email => (
-          <AppButton key={email} icon="mail-outline" variant="outline" onPress={() => invite(email)}>{`Invite ${email} to Splitmate`}</AppButton>
-        ))}
 
         <AppButton icon="flash-outline" loading={saving} onPress={split}>Split it</AppButton>
       </Card>

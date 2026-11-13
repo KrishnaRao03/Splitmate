@@ -25,7 +25,7 @@ def has_realistic_email_domain(email):
 SINGLE_DOMAIN_PROVIDERS = {'gmail': 'gmail.com', 'googlemail': 'googlemail.com', 'icloud': 'icloud.com'}
 REGIONAL_PROVIDERS = {'yahoo', 'hotmail', 'outlook', 'live', 'aol', 'msn'}
 MISTYPED_PROVIDERS = {
-    'gmial': 'gmail.com', 'gmai': 'gmail.com', 'gamil': 'gmail.com', 'gnail': 'gmail.com', 'gmaill': 'gmail.com',
+    'gmial': 'gmail.com', 'gmai': 'gmail.com', 'gamail': 'gmail.com', 'gamil': 'gmail.com', 'gnail': 'gmail.com', 'gmaill': 'gmail.com',
     'gmal': 'gmail.com', 'gmeil': 'gmail.com', 'gmali': 'gmail.com', 'hotmial': 'hotmail.com', 'hotmal': 'hotmail.com',
     'hotmil': 'hotmail.com', 'outlok': 'outlook.com', 'outllok': 'outlook.com', 'yaho': 'yahoo.com',
     'yahooo': 'yahoo.com', 'yhoo': 'yahoo.com', 'iclod': 'icloud.com', 'icoud': 'icloud.com',

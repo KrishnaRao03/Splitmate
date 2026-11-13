@@ -29,7 +29,7 @@ class PasswordRuleTests(unittest.TestCase):
 
 class EmailRuleTests(unittest.TestCase):
     def test_cut_short_or_mistyped_provider_domains_are_rejected(self):
-        for bad in ('a@gmail.c', 'a@gmail.co', 'a@gmail.con', 'a@gmial.com', 'a@yahoo.co', 'a@hotmail.cm', 'a@icloud.co'):
+        for bad in ('a@gmail.c', 'a@gmail.co', 'a@gmail.con', 'a@gmial.com', 'a@gamail.com', 'a@gamail', 'a@yahoo.co', 'a@hotmail.cm', 'a@icloud.co'):
             self.assertIsNone(normalize_email(bad), bad)
 
     def test_real_addresses_still_work(self):
