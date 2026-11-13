@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ApiError } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
 import { AppText as Text } from '@/components/AppText';
-import { BrandMark } from '@/components/BrandMark';
+import { BrandLogo } from '@/components/BrandMark';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
@@ -144,8 +144,7 @@ export function AuthScreen() {
   return (
     <Screen contentStyle={styles.authContent}>
       <View style={styles.hero}>
-        <BrandMark size={44} />
-        <Text style={styles.title}>Splitmate</Text>
+        <BrandLogo size={200} />
       </View>
 
       <Card>
@@ -254,10 +253,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     paddingTop: spacing.lg
-  },
-  title: {
-    color: colors.ink,
-    ...typography.h1
   },
   cardTitle: {
     color: colors.ink,

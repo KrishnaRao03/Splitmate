@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
@@ -11,7 +12,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, spacing } from '@/theme/colors';
+import { activeColorScheme, colors, spacing } from '@/theme/colors';
+
+// Same background as the website: the blue artwork under a soft overlay so text stays readable.
+const BACKGROUND = require('../../assets/images/background.jpg');
+const OVERLAY = activeColorScheme() === 'dark' ? 'rgba(17, 20, 24, 0.88)' : 'rgba(245, 247, 250, 0.86)';
 
 type ScreenProps = {
   children: ReactNode;
@@ -38,21 +43,41 @@ export function Screen({ children, scroll = true, contentStyle, onRefresh, refre
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
-        {content}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    <View style={styles.background}>
+      <Image source={BACKGROUND} resizeMode="cover" style={styles.backgroundImage} />
+      <View style={styles.overlay}>
+        <SafeAreaView style={styles.safeArea}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.flex}
+          >
+            {content}
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  background: {
     flex: 1,
     backgroundColor: colors.bg
+  },
+  // Explicit size: on the web an Image keeps its own height unless told to fill.
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%'
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: OVERLAY
+  },
+  safeArea: {
+    flex: 1
   },
   flex: {
     flex: 1

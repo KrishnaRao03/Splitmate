@@ -1,42 +1,36 @@
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { Image, ImageStyle, StyleProp } from 'react-native';
 
-import { AppText as Text } from '@/components/AppText';
-import { colors, radius } from '@/theme/colors';
+import { activeColorScheme } from '@/theme/colors';
+
+// The same artwork as the website (Splitmate-Web/app/static/images), with dark-mode versions.
+const MARK = { light: require('../../assets/images/logo-mark.png'), dark: require('../../assets/images/logo-mark-dark.png') };
+const WORDMARK = { light: require('../../assets/images/logo.png'), dark: require('../../assets/images/logo-dark.png') };
 
 type Props = {
   size?: number;
-  style?: ViewStyle;
+  style?: StyleProp<ImageStyle>;
 };
 
+/** The "SM" logo mark, as used in the website's header. */
 export function BrandMark({ size = 40, style }: Props) {
   return (
-    <View style={[styles.mark, { width: size, height: size, borderRadius: radius.md }, style]}>
-      <View style={styles.accentLine} />
-      <Text style={[styles.letter, { fontSize: Math.round(size * 0.43) }]}>S</Text>
-    </View>
+    <Image
+      source={MARK[activeColorScheme()]}
+      style={[{ width: size, height: size }, style]}
+      resizeMode="contain"
+      accessibilityLabel="Splitmate"
+    />
   );
 }
 
-const styles = StyleSheet.create({
-  mark: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    backgroundColor: colors.primary
-  },
-  accentLine: {
-    position: 'absolute',
-    right: -6,
-    bottom: -10,
-    width: 26,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: colors.accent,
-    opacity: 0.95,
-    transform: [{ rotate: '35deg' }]
-  },
-  letter: {
-    color: colors.white,
-    fontWeight: '900'
-  }
-});
+/** The full Splitmate logo with the wordmark, as on the website's sign-in page. */
+export function BrandLogo({ size = 180, style }: Props) {
+  return (
+    <Image
+      source={WORDMARK[activeColorScheme()]}
+      style={[{ width: size, height: size * 0.62 }, style]}
+      resizeMode="cover"
+      accessibilityLabel="Splitmate"
+    />
+  );
+}

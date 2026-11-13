@@ -13,7 +13,8 @@
     "android": {
       "package": "com.splitmate.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#0f4f7f"
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#ffffff"
       }
     },
     "plugins": [
@@ -37,6 +38,15 @@
         "projectId": "dc469888-57ee-404d-97d8-689e3d8b83c4"
       }
     },
-    "owner": "rk011s-team"
+    "owner": "rk011s-team",
+    "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "web": {
+      "favicon": "./assets/images/logo-mark.png"
+    }
   }
 }
