@@ -247,18 +247,21 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="profileEmailPassword">Current Password <span class="text-subtle">(only needed to change your email)</span></label>
+                        <label for="profileEmailPassword">Current Password <span class="text-subtle">(needed to change your email or payment details)</span></label>
                         <input type="password" id="profileEmailPassword" name="current_password"
                                autocomplete="current-password">
                     </div>
 
                     <h3>How people can pay you</h3>
-                    <p class="text-subtle">Shown to members who owe you money. Splitmate never handles the money itself.</p>
+                    <p class="text-subtle">Shown to members who owe you money. Splitmate never handles the money itself. Changes need your current password and we email you about them.</p>
                     <div class="form-group">
                         <label for="profileInterac">Interac e-Transfer email</label>
                         <input type="email" id="profileInterac" name="interac_email" maxlength="120"
                                value="{{ current_user.interac_email or '' }}">
                     </div>
+                    {% if current_user.interac_email %}
+                    <p class="text-subtle">{% if current_user.interac_email_verified %}Verified: {{ current_user.interac_email }}{% else %}Not verified yet, so hidden from others: {{ current_user.interac_email }}{% endif %}</p>
+                    {% endif %}
                     <div class="form-group">
                         <label for="profilePaypal">PayPal.Me username</label>
                         <input type="text" id="profilePaypal" name="paypal_username" maxlength="40"
@@ -272,6 +275,22 @@
 
                     <button type="submit" class="btn btn-primary">Save Details</button>
                 </form>
+                {% if current_user.pending_interac_email %}
+                <h3>Confirm your new Interac email</h3>
+                <p class="text-subtle">Enter the code we sent to {{ current_user.pending_interac_email }}. Others keep seeing your old Interac email until you do.</p>
+                <form method="POST" class="profile-form">
+                    <input type="hidden" name="form_type" value="interac_verify">
+                    <div class="form-group">
+                        <label for="interacOtp">6-digit code</label>
+                        <input type="text" id="interacOtp" name="otp" inputmode="numeric" maxlength="6" required autocomplete="one-time-code">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Confirm Interac Email</button>
+                </form>
+                <form method="POST" class="profile-form">
+                    <input type="hidden" name="form_type" value="interac_resend">
+                    <button type="submit" class="btn btn-outline">Resend code</button>
+                </form>
+                {% endif %}
             </div>
         </section>
 

@@ -284,7 +284,23 @@ export function GroupDetailScreen({ navigation, route }: Props) {
   const settleUpCard = (
     <Card>
       <Text style={styles.cardLabel}>Settle up</Text>
-      <Text style={styles.itemTitle}>You owe</Text>
+      {detail.requests_for_me.length ? (
+        <>
+          <Text style={styles.itemTitle}>Asking you to pay</Text>
+          <Text style={styles.muted}>Approve to let them see your Interac email so they can send a request from their bank. Only approve people you know.</Text>
+          {detail.requests_for_me.map(item => (
+            <View key={`ask-${item.id}`} style={styles.settleRow}>
+              <View style={styles.headerText}>
+                <Text style={styles.itemTitle}>{item.requester}</Text>
+                <Text style={[styles.amountNeutral, styles.negative]}>{money(item.amount)}</Text>
+              </View>
+              <AppButton icon="checkmark-outline" variant="outline" onPress={() => runAction(() => api.answerMoneyRequest(item.id, 'approve'), 'Could not approve')}>Approve</AppButton>
+              <AppButton icon="close-outline" variant="ghost" onPress={() => runAction(() => api.answerMoneyRequest(item.id, 'decline'), 'Could not decline')}>Decline</AppButton>
+            </View>
+          ))}
+        </>
+      ) : null}
+      <Text style={[styles.itemTitle, detail.requests_for_me.length ? styles.settleHeading : null]}>You owe</Text>
       {detail.payment_options.length ? detail.payment_options.map(option => (
         <View key={`owe-${option.receiver_id}`} style={styles.settleRow}>
           <View style={styles.headerText}>
@@ -610,6 +626,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                             mode="pay"
                             person={option.receiver}
                             email={method.handle}
+                            masked={method.masked}
                             amountText={(parseAmount(paymentAmount) ?? option.max_amount).toFixed(2)}
                             amountLabel={money(parseAmount(paymentAmount) ?? option.max_amount)}
                             note={`Splitmate - ${detail.group.name}`}
@@ -634,7 +651,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
           {detail.money_requests.length ? (
             <Card>
               <Text style={styles.cardLabel}>Request Money</Text>
-              <Text style={styles.muted}>Ask someone who owes you to pay, with an Interac request from your own bank.</Text>
+              <Text style={styles.muted}>Ask someone who owes you to pay. They approve it in Splitmate first, then you see their Interac email and send a request from your own bank.</Text>
               <ChoiceChips<number>
                 label="Request from"
                 value={requestPayerId}
@@ -643,16 +660,33 @@ export function GroupDetailScreen({ navigation, route }: Props) {
               />
               {(() => {
                 const request = detail.money_requests.find(item => item.payer_id === requestPayerId);
-                return request ? (
-                  <InteracShortcut
-                    mode="request"
-                    person={request.payer}
-                    email={request.email}
-                    amountText={request.amount.toFixed(2)}
-                    amountLabel={money(request.amount)}
-                    note={`Splitmate - ${detail.group.name}`}
-                  />
-                ) : null;
+                if (!request) {
+                  return null;
+                }
+                if (request.request_status === 'approved' && request.email) {
+                  return (
+                    <InteracShortcut
+                      mode="request"
+                      person={request.payer}
+                      email={request.email}
+                      masked={request.masked_email || undefined}
+                      amountText={request.amount.toFixed(2)}
+                      amountLabel={money(request.amount)}
+                      note={`Splitmate - ${detail.group.name}`}
+                    />
+                  );
+                }
+                if (request.request_status === 'pending') {
+                  return <Text style={styles.hint}>Waiting for {request.payer} to approve your request. We emailed them about it.</Text>;
+                }
+                return (
+                  <>
+                    {request.request_status === 'declined' ? <Text style={styles.hint}>{request.payer} declined your last request.</Text> : null}
+                    <AppButton icon="mail-outline" onPress={() => runAction(() => api.requestMoney(groupId, request.payer_id), 'Could not send request')}>
+                      {`Ask ${request.payer} for ${money(request.amount)}`}
+                    </AppButton>
+                  </>
+                );
               })()}
             </Card>
           ) : null}

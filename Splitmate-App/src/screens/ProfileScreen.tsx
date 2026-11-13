@@ -33,6 +33,8 @@ export function ProfileScreen({ navigation }: Props) {
   const [upiId, setUpiId] = useState(auth.user?.upi_id || '');
   const [phone, setPhone] = useState(auth.user?.phone || '');
   const [otp, setOtp] = useState('');
+  const [interacOtp, setInteracOtp] = useState('');
+  const [interacMessage, setInteracMessage] = useState<string | null>(null);
   const [verificationRequired, setVerificationRequired] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -86,6 +88,12 @@ export function ProfileScreen({ navigation }: Props) {
   }
 
   const emailChanged = email.trim().toLowerCase() !== (auth.user?.email || '').toLowerCase();
+  const typedInterac = interacEmail.trim().toLowerCase();
+  const paymentChanged =
+    (typedInterac !== (auth.user?.interac_email || '').toLowerCase() && typedInterac !== (auth.user?.pending_interac_email || '').toLowerCase())
+    || paypalUsername.trim() !== (auth.user?.paypal_username || '')
+    || upiId.trim() !== (auth.user?.upi_id || '');
+  const pendingInterac = auth.user?.pending_interac_email || '';
 
   async function saveDetails() {
     setSavingDetails(true);
@@ -93,7 +101,7 @@ export function ProfileScreen({ navigation }: Props) {
       const result = await auth.updateProfile({
         name,
         email,
-        currentPassword: emailChanged ? emailPassword : undefined,
+        currentPassword: emailChanged || paymentChanged ? emailPassword : undefined,
         interac_email: interacEmail.trim(),
         paypal_username: paypalUsername.trim(),
         upi_id: upiId.trim(),
@@ -101,6 +109,9 @@ export function ProfileScreen({ navigation }: Props) {
       });
       setEmailPassword('');
       setVerificationRequired(result.verificationRequired);
+      if (result.interacCodeSent) {
+        setInteracMessage('We emailed a 6-digit code to your new Interac email. Enter it below to start using it.');
+      }
       Alert.alert(
         'Profile updated',
         result.verificationRequired
@@ -111,6 +122,7 @@ export function ProfileScreen({ navigation }: Props) {
       );
     } catch (error) {
       Alert.alert('Could not update profile', error instanceof Error ? error.message : 'Try again.');
+      setInteracMessage(error instanceof Error ? error.message : 'Could not update profile.');
     } finally {
       setSavingDetails(false);
     }
@@ -124,6 +136,26 @@ export function ProfileScreen({ navigation }: Props) {
       Alert.alert('Email verified', 'Your new email is ready to use.');
     } catch (error) {
       Alert.alert('Could not verify email', error instanceof Error ? error.message : 'Try again.');
+    }
+  }
+
+  async function verifyInterac() {
+    try {
+      await api.verifyInterac(interacOtp.trim());
+      await auth.reloadUser();
+      setInteracOtp('');
+      setInteracMessage('Interac email confirmed. Members who owe you can now see it.');
+    } catch (error) {
+      setInteracMessage(error instanceof Error ? error.message : 'Could not check the code. Try again.');
+    }
+  }
+
+  async function resendInteracCode() {
+    try {
+      const result = await api.resendInteracCode();
+      setInteracMessage(result.sent ? 'A new code is on its way.' : 'The code email could not be sent. Try again in a minute.');
+    } catch (error) {
+      setInteracMessage(error instanceof Error ? error.message : 'Could not resend the code.');
     }
   }
 
@@ -212,14 +244,28 @@ export function ProfileScreen({ navigation }: Props) {
             <TextField label="Full name" value={name} onChangeText={setName} autoCapitalize="words" />
             <TextField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
             <TextField label="Phone number (optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="416 555 0123" />
-            {emailChanged ? (
-              <TextField label="Current password (needed to change email)" value={emailPassword} onChangeText={setEmailPassword} secureTextEntry />
-            ) : null}
             <Text style={styles.subSectionTitle}>How people can pay you</Text>
-            <Text style={styles.help}>Shown to members who owe you. Splitmate never handles the money.</Text>
+            <Text style={styles.help}>Shown to members who owe you. Splitmate never handles the money. Changes need your password and we email you about them.</Text>
             <TextField label="Interac e-Transfer email" value={interacEmail} onChangeText={setInteracEmail} keyboardType="email-address" autoCapitalize="none" />
+            {auth.user?.interac_email ? (
+              <Text style={styles.status}>
+                {auth.user.interac_email_verified ? `Verified: ${auth.user.interac_email}` : `Not verified yet: ${auth.user.interac_email} (hidden from others)`}
+              </Text>
+            ) : null}
+            {pendingInterac ? (
+              <View style={styles.panel}>
+                <Text style={styles.help}>Waiting for the code sent to {pendingInterac}. Others keep seeing your old Interac email until you enter it.</Text>
+                <TextField label="Interac code" value={interacOtp} onChangeText={setInteracOtp} keyboardType="number-pad" maxLength={6} />
+                <AppButton icon="checkmark-outline" onPress={verifyInterac}>Confirm Interac email</AppButton>
+                <AppButton icon="refresh-outline" variant="outline" onPress={resendInteracCode}>Resend code</AppButton>
+              </View>
+            ) : null}
+            {interacMessage ? <Text style={styles.help}>{interacMessage}</Text> : null}
             <TextField label="PayPal.Me username" value={paypalUsername} onChangeText={setPaypalUsername} autoCapitalize="none" />
             <TextField label="UPI ID" value={upiId} onChangeText={setUpiId} autoCapitalize="none" placeholder="name@bank" />
+            {emailChanged || paymentChanged ? (
+              <TextField label="Current password (needed for these changes)" value={emailPassword} onChangeText={setEmailPassword} secureTextEntry />
+            ) : null}
             <AppButton icon="save-outline" loading={savingDetails} onPress={saveDetails}>Save details</AppButton>
           </View>
         ) : null}

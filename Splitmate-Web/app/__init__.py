@@ -75,6 +75,17 @@ def ensure_user_email_schema():
         if column not in columns:
             db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN {column} VARCHAR(120)'))
 
+    if 'interac_email_verified' not in columns:
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN interac_email_verified {false_boolean_default()}'))
+    if 'pending_interac_email' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN pending_interac_email VARCHAR(512)'))
+    if 'interac_otp_hash' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN interac_otp_hash VARCHAR(256)'))
+    if 'interac_otp_expires_at' not in columns:
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN interac_otp_expires_at {datetime_column_type()}'))
+    if 'interac_otp_attempts' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN interac_otp_attempts INTEGER DEFAULT 0 NOT NULL'))
+
     db.session.commit()
 
 def ensure_user_activity_schema():

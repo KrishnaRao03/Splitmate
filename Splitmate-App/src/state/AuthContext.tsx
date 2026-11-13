@@ -18,8 +18,10 @@ type AuthState = {
   verifyEmail: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<boolean>;
   requestPasswordReset: (email: string) => Promise<void>;
-  updateProfile: (details: { name: string; email: string; currentPassword?: string; phone?: string } & PaymentHandles) => Promise<{ verificationRequired: boolean; otpSent: boolean }>;
+  updateProfile: (details: { name: string; email: string; currentPassword?: string; phone?: string } & PaymentHandles) => Promise<{ verificationRequired: boolean; otpSent: boolean; interacCodeSent: boolean }>;
   updatePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
+  /** Re-reads the signed-in user, e.g. after the Interac email is confirmed. */
+  reloadUser: () => Promise<void>;
   signOut: () => Promise<void>;
   signOutEverywhere: () => Promise<void>;
 };
@@ -173,13 +175,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applySession(response.token, response.user, response.currency_code);
       return {
         verificationRequired: response.verification_required,
-        otpSent: response.otp_sent
+        otpSent: response.otp_sent,
+        interacCodeSent: Boolean(response.interac_code_sent)
       };
     },
     updatePassword: async (currentPassword: string, newPassword: string, confirmPassword: string) => {
       // The server revokes every old token on a password change and returns a new one for this device.
       const response = await api.updatePassword(currentPassword, newPassword, confirmPassword);
       await applySession(response.token, response.user, response.currency_code);
+    },
+    reloadUser: async () => {
+      const profile = await api.me();
+      setUser(profile.user);
     },
     signOut: clearSession,
     signOutEverywhere: async () => {

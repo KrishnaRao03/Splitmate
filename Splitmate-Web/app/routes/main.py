@@ -17,6 +17,7 @@ from app.routes.auth import send_user_otp, set_pending_verification
 from app.group_utils import group_member_payload, group_pending_invite_payload, set_member_nickname
 from app.rewards import MEMBERSHIP_PLANS, REWARD_TIERS, reward_progress
 from app.routes import split as split_routes
+from app.payment_security import apply_payment_handle_changes, send_interac_code, verify_interac_code
 from app.security import clean_payment_handles, display_name_error, password_error
 
 main_bp = Blueprint('main', __name__)
@@ -343,9 +344,17 @@ def profile():
                     flash(error, 'error')
                 return redirect(url_for('main.profile'))
 
+            # Payment details need the password too, and the owner is emailed about any change.
+            payment_result, payment_error = apply_payment_handle_changes(
+                current_user, handles, request.form.get('current_password', '')
+            )
+            if payment_error:
+                db.session.rollback()
+                flash(payment_error, 'error')
+                return redirect(url_for('main.profile'))
+            if payment_result['interac_code_sent']:
+                flash('We emailed a 6-digit code to your new Interac email. Enter it below to start using it.', 'info')
             current_user.name = name
-            for field, value in handles.items():
-                setattr(current_user, field, value)
 
             if email_changed:
                 current_user.email = email
@@ -368,6 +377,22 @@ def profile():
 
             db.session.commit()
             flash('Profile details updated.', 'success')
+            return redirect(url_for('main.profile'))
+
+        if form_type == 'interac_verify':
+            error = verify_interac_code(current_user, request.form.get('otp'))
+            db.session.commit()
+            flash(error or 'Interac email confirmed. Members who owe you can now see it.', 'error' if error else 'success')
+            return redirect(url_for('main.profile'))
+
+        if form_type == 'interac_resend':
+            if not current_user.pending_interac_email:
+                flash('There is no Interac email waiting for a code.', 'error')
+            elif send_interac_code(current_user):
+                flash('A new code is on its way.', 'success')
+            else:
+                flash('The code email could not be sent. Try again in a minute.', 'error')
+            db.session.commit()
             return redirect(url_for('main.profile'))
 
         if form_type == 'password':

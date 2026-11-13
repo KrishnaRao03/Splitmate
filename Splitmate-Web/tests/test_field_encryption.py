@@ -55,6 +55,7 @@ class PaymentHandleEncryptionTests(unittest.TestCase):
             json={
                 'name': 'Payee',
                 'email': 'payee@example.com',
+                'current_password': 'password123',
                 'interac_email': 'pay@example.com',
                 'paypal_username': 'payee',
                 'upi_id': 'payee@upi',
@@ -62,7 +63,15 @@ class PaymentHandleEncryptionTests(unittest.TestCase):
             headers={'Authorization': f'Bearer {self.token}'},
         )
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
-        self.assertEqual(response.get_json()['user']['interac_email'], 'pay@example.com')
+        # A new Interac email waits (encrypted) for its emailed code before it becomes the real one.
+        self.assertEqual(response.get_json()['user']['pending_interac_email'], 'pay@example.com')
+        with self.app.app_context():
+            user = db.session.get(User, self.user_id)
+            user.interac_email, user.interac_email_verified = user.pending_interac_email, True
+            db.session.commit()
+            pending_raw = db.session.execute(
+                text('SELECT pending_interac_email FROM "user" WHERE id = :id'), {'id': self.user_id}).scalar()
+            self.assertTrue(pending_raw.startswith('enc:'))
 
         with self.app.app_context():
             for value in raw_handles(self.user_id):

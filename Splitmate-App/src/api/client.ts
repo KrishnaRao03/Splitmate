@@ -174,10 +174,33 @@ export class SplitmateApi {
   /** `currentPassword` is required by the server only when the email changes. */
   updateProfile(details: { name: string; email: string; currentPassword?: string; phone?: string } & PaymentHandles) {
     const { currentPassword, ...rest } = details;
-    return this.request<AuthResponse & { verification_required: boolean; otp_sent: boolean }>('/me', {
+    return this.request<AuthResponse & { verification_required: boolean; otp_sent: boolean; interac_code_sent?: boolean }>('/me', {
       method: 'PATCH',
       body: JSON.stringify({ ...rest, current_password: currentPassword })
     });
+  }
+
+  verifyInterac(otp: string) {
+    return this.request<{ user: AuthResponse['user'] }>('/me/interac/verify', {
+      method: 'POST',
+      body: JSON.stringify({ otp })
+    });
+  }
+
+  resendInteracCode() {
+    return this.request<{ sent: boolean }>('/me/interac/resend', { method: 'POST' });
+  }
+
+  /** Asks someone who owes you to approve sharing their Interac email; they get an email about it. */
+  requestMoney(groupId: number, payerId: number) {
+    return this.request<{ id: number; status: string }>(`/groups/${groupId}/money-requests`, {
+      method: 'POST',
+      body: JSON.stringify({ payer_id: payerId })
+    });
+  }
+
+  answerMoneyRequest(requestId: number, answer: 'approve' | 'decline') {
+    return this.request<{ status: string }>(`/money-requests/${requestId}/${answer}`, { method: 'POST' });
   }
 
   /** Changing the password revokes every token, so the reply carries a fresh one for this device. */

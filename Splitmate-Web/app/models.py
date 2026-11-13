@@ -66,6 +66,12 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     interac_email = db.Column(EncryptedString)
     paypal_username = db.Column(EncryptedString)
     upi_id = db.Column(EncryptedString)
+    # Payers only see the Interac email once its owner proved it's theirs with an emailed code.
+    interac_email_verified = db.Column(db.Boolean, default=False, nullable=False)
+    pending_interac_email = db.Column(EncryptedString)
+    interac_otp_hash = db.Column(db.String(256))
+    interac_otp_expires_at = db.Column(db.DateTime)
+    interac_otp_attempts = db.Column(db.Integer, default=0, nullable=False)
     stripe_account_id = db.Column(db.String(255))
     stripe_charges_enabled = db.Column(db.Boolean, default=False, nullable=False)
     stripe_payouts_enabled = db.Column(db.Boolean, default=False, nullable=False)
@@ -173,6 +179,22 @@ class Payment(db.Model):
 
     payer = db.relationship('User', foreign_keys=[payer_id], backref='payments_sent')
     receiver = db.relationship('User', foreign_keys=[receiver_id], backref='payments_received')
+
+class MoneyRequest(db.Model):
+    """An in-app request to be paid back. The payer approves it before the requester sees their Interac email."""
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False, index=True)
+    requester_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    payer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='pending', nullable=False)  # pending, approved, declined
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    decided_at = db.Column(db.DateTime)
+
+    requester = db.relationship('User', foreign_keys=[requester_id])
+    payer = db.relationship('User', foreign_keys=[payer_id])
+    group = db.relationship('Group', backref=db.backref('money_requests', lazy='dynamic', cascade='all, delete-orphan'))
+
 
 class RewardTransaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)

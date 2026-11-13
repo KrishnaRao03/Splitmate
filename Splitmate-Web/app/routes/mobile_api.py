@@ -17,6 +17,7 @@ from app.grocery_compare import (
 )
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows, set_member_nickname
 from app.models import (
+    MoneyRequest,
     PendingRegistration,
     Expense,
     ExpenseHistory,
@@ -31,7 +32,10 @@ from app.models import (
     User,
 )
 from app.rewards import MEMBERSHIP_PLANS, POINTS_EARNING_PAUSED, REWARD_TIERS, reward_progress
-from app.email_utils import send_password_reset_email, send_splitmate_invite_email
+from app.email_utils import send_money_request_email, send_password_reset_email, send_splitmate_invite_email
+from app.payment_security import (
+    apply_payment_handle_changes, payment_status_payload, send_interac_code, verify_interac_code,
+)
 from app.routes.auth import (
     OTP_LOCKED_MESSAGE, complete_pending_registration, generate_password_reset_token, registered_account,
     send_user_otp, start_pending_registration,
@@ -96,6 +100,7 @@ def user_payload(user):
         'interac_email': user.interac_email or '',
         'paypal_username': user.paypal_username or '',
         'upi_id': user.upi_id or '',
+        **payment_status_payload(user),
     }
 
 
@@ -550,6 +555,11 @@ def me():
     handles, handle_error = clean_payment_handles(data)
     if handle_error:
         return json_error(handle_error)
+    # Payment details need the current password and trigger an alert; a new Interac email waits for its code.
+    handle_result, handle_change_error = apply_payment_handle_changes(user, handles, data.get('current_password'))
+    if handle_change_error:
+        db.session.rollback()
+        return json_error(handle_change_error, 403)
 
     if 'phone' in data:
         raw_phone = str(data.get('phone') or '').strip()
@@ -561,8 +571,6 @@ def me():
         user.phone = phone
 
     user.name = name
-    for field, value in handles.items():
-        setattr(user, field, value)
     otp_sent = False
     if email_changed:
         user.email = email
@@ -580,8 +588,33 @@ def me():
     payload.update({
         'verification_required': email_changed,
         'otp_sent': bool(otp_sent),
+        'interac_code_sent': bool(handle_result.get('interac_code_sent')),
     })
     return jsonify(payload)
+
+
+@mobile_api_bp.route('/me/interac/verify', methods=['POST'])
+@mobile_login_required
+@limiter.limit('10 per 10 minutes')
+def verify_interac():
+    user = request.mobile_user
+    error = verify_interac_code(user, json_body().get('otp'))
+    db.session.commit()
+    if error:
+        return json_error(error)
+    return jsonify({'user': user_payload(user)})
+
+
+@mobile_api_bp.route('/me/interac/resend', methods=['POST'])
+@mobile_login_required
+@limiter.limit('3 per 10 minutes')
+def resend_interac_code():
+    user = request.mobile_user
+    if not user.pending_interac_email:
+        return json_error('There is no Interac email waiting for a code.')
+    sent = send_interac_code(user)
+    db.session.commit()
+    return jsonify({'sent': sent})
 
 
 @mobile_api_bp.route('/me/password', methods=['POST'])
@@ -744,6 +777,53 @@ def invite_splitmate():
         'email': email,
         'invite_url': join_url,
     })
+
+
+@mobile_api_bp.route('/groups/<int:group_id>/money-requests', methods=['POST'])
+@mobile_login_required
+@limiter.limit('20 per hour')
+def create_money_request(group_id):
+    """Ask a member who owes you to pay. They approve it in Splitmate before you see their Interac email."""
+    group, error = require_group_member(group_id)
+    if error:
+        return error
+    try:
+        payer_id = int(json_body().get('payer_id'))
+    except (TypeError, ValueError):
+        return json_error('Choose who to request money from.')
+    owed = next((item for item in split_routes.money_requests(group, request.mobile_user) if item['payer_id'] == payer_id), None)
+    if not owed:
+        return json_error('That person does not owe you anything in this group.')
+    if owed['request_status'] == 'pending':
+        return json_error('You already asked them. Wait for them to approve it.', 409)
+
+    money_request = MoneyRequest(group_id=group.id, requester_id=request.mobile_user.id, payer_id=payer_id,
+                                 amount=owed['amount'])
+    db.session.add(money_request)
+    db.session.commit()
+    payer = db.session.get(User, payer_id)
+    try:
+        send_money_request_email(payer, request.mobile_user, group, owed['amount'])
+    except Exception as exc:
+        current_app.logger.exception('Failed to send money request email: %s', exc)
+    return jsonify({'id': money_request.id, 'status': 'pending'}), 201
+
+
+@mobile_api_bp.route('/money-requests/<int:request_id>/<action>', methods=['POST'])
+@mobile_login_required
+def decide_money_request(request_id, action):
+    """Only the person asked to pay can approve (share their Interac email) or decline."""
+    if action not in {'approve', 'decline'}:
+        return json_error('Unknown action.', 404)
+    money_request = db.session.get(MoneyRequest, request_id)
+    if not money_request or money_request.payer_id != request.mobile_user.id:
+        return json_error('Request not found.', 404)
+    if money_request.status != 'pending':
+        return json_error('This request was already answered.', 409)
+    money_request.status = 'approved' if action == 'approve' else 'declined'
+    money_request.decided_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'id': money_request.id, 'status': money_request.status})
 
 
 QUICK_SPLIT_MAX_PEOPLE = 10
@@ -1061,6 +1141,7 @@ def group_detail(group_id):
         'payments': [split_routes.payment_row(payment, nicknames, request.mobile_user) for payment in payments],
         'payment_options': split_routes.payment_options(group, request.mobile_user, nicknames),
         'money_requests': split_routes.money_requests(group, request.mobile_user, nicknames),
+        'requests_for_me': split_routes.requests_for_payer(group, request.mobile_user, nicknames),
     })
 
 

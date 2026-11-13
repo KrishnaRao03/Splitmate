@@ -247,3 +247,58 @@ def send_splitmate_invite_email(recipient, inviter, join_url):
             button=('Join Splitmate', join_url),
         ),
     )
+
+
+def send_interac_verification_code(user, interac_email, otp):
+    expiry = current_app.config['OTP_EXPIRY_MINUTES']
+    return send_email(
+        interac_email,
+        f'{otp} is your Splitmate Interac code',
+        f'Hi {user.name},\n\n'
+        f'Enter {otp} in Splitmate to confirm {interac_email} as your Interac e-Transfer email.\n'
+        f'This code expires in {expiry} minutes.\n\n'
+        'If you did not ask for this, ignore this email; nothing changes.\n',
+        render_email(
+            f'Your code is {otp}. It expires in {expiry} minutes.',
+            'Confirm your Interac email',
+            [f'Enter this code in Splitmate to confirm {interac_email} as the email your friends send Interac '
+             'e-Transfers to. Until you do, nobody sees it.'],
+            code=otp,
+            footnote=f'The code expires in {expiry} minutes. If you did not ask for this, ignore this email; nothing changes.',
+        ),
+    )
+
+
+def send_payment_details_changed_email(user, changes):
+    """Security alert to the account email whenever payment details change. `changes` are short plain phrases."""
+    lines = '\n'.join(f'- {change}' for change in changes)
+    return send_email(
+        user.email,
+        'Your Splitmate payment details changed',
+        f'Hi {user.name},\n\nThese payment details on your Splitmate account just changed:\n{lines}\n\n'
+        'If this was not you, change your password right away and check your Profile.\n',
+        render_email(
+            'Your payment details changed.',
+            'Payment details changed',
+            ['These payment details on your Splitmate account just changed:', *changes,
+             'If this was not you, change your password right away and check your Profile.'],
+            footnote='We send this alert every time payment details change, so nobody can redirect your money quietly.',
+        ),
+    )
+
+
+def send_money_request_email(payer, requester, group, amount):
+    amount_text = f'${amount:,.2f}'
+    return send_email(
+        payer.email,
+        f'{requester.name} asked you to pay {amount_text} on Splitmate',
+        f'Hi {payer.name},\n\n{requester.name} asked you to pay {amount_text} for "{group.name}".\n'
+        'Open Splitmate to approve or decline. Splitmate never sends payment links; only pay from your own bank app.\n',
+        render_email(
+            f'{requester.name} asked you to pay {amount_text}.',
+            'Payment request',
+            [f'{requester.name} asked you to pay {amount_text} for "{group.name}".',
+             'Open Splitmate, check the amount matches what you owe, then approve or decline.'],
+            footnote='Splitmate never sends payment links. Only send money from your own bank app.',
+        ),
+    )

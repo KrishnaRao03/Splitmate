@@ -321,7 +321,13 @@ def payment_options(group, payer, nicknames=None):
     return options
 
 def money_requests(group, receiver, nicknames=None):
-    """Who owes `receiver` in this group, and the email to send an Interac "Request money" to."""
+    """Who owes `receiver` in this group, and the state of receiver's request to each of them.
+
+    A payer's Interac email is only included once they approved the request in Splitmate.
+    """
+    from app.models import MoneyRequest
+    from app.payment_security import mask_email
+
     nicknames = nicknames if nicknames is not None else member_nickname_rows(group.id)
     requests = []
     for payer in group.members:
@@ -331,15 +337,41 @@ def money_requests(group, receiver, nicknames=None):
         requestable = total_owed - pending_payment_total(group, payer, receiver)
         if requestable <= 0:
             continue
+        latest = MoneyRequest.query.filter_by(group_id=group.id, requester_id=receiver.id, payer_id=payer.id) \
+            .order_by(MoneyRequest.created_at.desc(), MoneyRequest.id.desc()).first()
+        approved = bool(latest and latest.status == 'approved')
+        email = None
+        if approved:
+            verified = payer.interac_email and getattr(payer, 'interac_email_verified', False)
+            email = payer.interac_email if verified else payer.email
         requests.append({
             'payer_id': payer.id,
             'payer': nicknames.get(payer.id) or payer.name,
             'amount': float(requestable),
-            # Their e-Transfer email if they've shared one, else their account email (already visible to the group).
-            'email': payer.interac_email or payer.email,
+            'request_id': latest.id if latest else None,
+            'request_status': latest.status if latest else 'none',
+            'email': email,
+            'masked_email': mask_email(email) if email else None,
         })
     requests.sort(key=lambda item: item['payer'].lower())
     return requests
+
+
+def requests_for_payer(group, payer, nicknames=None):
+    """Pending requests asking `payer` to pay someone in this group, for them to approve or decline."""
+    from app.models import MoneyRequest
+
+    nicknames = nicknames if nicknames is not None else member_nickname_rows(group.id)
+    pending = MoneyRequest.query.filter_by(group_id=group.id, payer_id=payer.id, status='pending') \
+        .order_by(MoneyRequest.created_at.desc()).all()
+    return [{
+        'id': item.id,
+        'requester_id': item.requester_id,
+        'requester': nicknames.get(item.requester_id) or item.requester.name,
+        'amount': float(item.amount),
+        'created_at': item.created_at.isoformat() if item.created_at else None,
+    } for item in pending]
+
 
 def outstanding_splits_for(group, payer, receiver):
     splits = ExpenseSplit.query.join(Expense).filter(

@@ -14,6 +14,8 @@ type Props = {
   mode: 'pay' | 'request';
   person: string;
   email: string;
+  /** Shown instead of the full email; Copy still uses the full one. */
+  masked?: string;
   amountText: string;
   amountLabel: string;
   note: string;
@@ -23,7 +25,7 @@ type Props = {
  * Interac has no universal "pay this person" link, so this copies the details and opens the user's own
  * banking app. Splitmate never touches the money.
  */
-export function InteracShortcut({ mode, person, email, amountText, amountLabel, note }: Props) {
+export function InteracShortcut({ mode, person, email, masked, amountText, amountLabel, note }: Props) {
   const [bankId, setBankId] = useState<string | null>(null);
   const bank = CANADIAN_BANKS.find(item => item.id === bankId) ?? null;
 
@@ -51,7 +53,7 @@ export function InteracShortcut({ mode, person, email, amountText, amountLabel, 
   }
 
   const rows: Array<[string, string, string]> = [
-    ['Email', email, 'Email'],
+    ['Email', masked || email, 'Email'],
     ['Amount', amountLabel, 'Amount'],
     ['Message', note, 'Message'],
   ];
@@ -64,11 +66,11 @@ export function InteracShortcut({ mode, person, email, amountText, amountLabel, 
           key={label}
           style={styles.row}
           accessibilityLabel={`Copy ${what.toLowerCase()}`}
-          onPress={() => copy(label === 'Amount' ? amountText : shown, what)}
+          onPress={() => copy(label === 'Amount' ? amountText : label === 'Email' ? email : shown, what)}
         >
           <View style={styles.rowText}>
             <Text style={styles.label}>{label}</Text>
-            <Text style={styles.value} selectable>{shown}</Text>
+            <Text style={styles.value} selectable={label !== 'Email'}>{shown}</Text>
           </View>
           <Ionicons name="copy-outline" size={18} color={colors.primary} />
         </Pressable>

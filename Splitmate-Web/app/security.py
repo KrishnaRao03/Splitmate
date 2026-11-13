@@ -97,11 +97,15 @@ def payment_methods_for(receiver, amount, currency_code, receiver_name=None):
     amount_text = f'{Decimal(str(amount)):.2f}'
     name = receiver_name or receiver.name
     methods = []
-    if receiver.interac_email:
+    # Only an Interac email its owner proved with an emailed code is ever shown to payers.
+    if receiver.interac_email and getattr(receiver, 'interac_email_verified', False):
+        from app.payment_security import mask_email
         methods.append({
             'type': 'interac',
             'label': 'Interac e-Transfer',
             'handle': receiver.interac_email,
+            'masked': mask_email(receiver.interac_email),
+            'verified': True,
             'url': None,
         })
     if receiver.paypal_username:

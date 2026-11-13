@@ -12,6 +12,10 @@ export type User = PaymentHandles & {
   /** Optional, unique per account (stored as +digits). */
   phone?: string;
   is_email_verified: boolean;
+  /** Others see the Interac email only once its code has been entered. */
+  interac_email_verified?: boolean;
+  /** A new Interac email waiting for its code; the old one stays in use until then. */
+  pending_interac_email?: string;
   created_at?: string | null;
 };
 
@@ -151,6 +155,8 @@ export type PaymentMethod = {
   type: 'interac' | 'paypal' | 'upi';
   label: string;
   handle: string;
+  /** Interac only: the email with most letters hidden, shown on screen while Copy uses the full one. */
+  masked?: string;
   /** null for Interac, which has no universal pay link: the payer copies the email instead. */
   url: string | null;
 };
@@ -278,13 +284,27 @@ export type GroupDetail = {
   payment_options: PaymentOption[];
   /** People who owe the current user, with the email to send an Interac "Request money" to. */
   money_requests: MoneyRequest[];
+  requests_for_me: RequestForMe[];
 };
 
 export type MoneyRequest = {
   payer_id: number;
   payer: string;
   amount: number;
-  email: string;
+  request_id: number | null;
+  request_status: 'none' | 'pending' | 'approved' | 'declined';
+  /** Only sent once the payer approves the request. */
+  email: string | null;
+  masked_email: string | null;
+};
+
+/** Someone asking the current user to pay; approving shows them where to send the Interac request. */
+export type RequestForMe = {
+  id: number;
+  requester_id: number;
+  requester: string;
+  amount: number;
+  created_at: string | null;
 };
 
 export type PersonBalance = {

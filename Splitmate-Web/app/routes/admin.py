@@ -704,6 +704,9 @@ def anonymize_user(user):
     user.clear_email_otp()
     user.revoke_sessions()
     user.interac_email = None
+    user.interac_email_verified = False
+    user.pending_interac_email = None
+    user.interac_otp_hash = None
     user.paypal_username = None
     user.upi_id = None
     user.stripe_account_id = None

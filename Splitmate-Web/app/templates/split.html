@@ -368,6 +368,20 @@
         updatePaymentAmount();
     }
 
+    // Interac emails are shown masked; Copy puts the full address on the clipboard for the bank app.
+    document.addEventListener('click', async event => {
+        const button = event.target.closest('[data-copy]');
+        if (!button) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(button.dataset.copy);
+            button.textContent = 'Copied';
+        } catch {
+            button.textContent = 'Copy failed';
+        }
+    });
+
     function renderPaymentMethods(option) {
         const container = document.getElementById('paymentMethods');
         if (!option) {
@@ -381,7 +395,8 @@
             return `
                 <div class="payment-method-row">
                     <strong>${escapeHtml(method.label)}</strong>
-                    <span class="text-subtle">${escapeHtml(method.handle)}</span>
+                    <span class="text-subtle">${escapeHtml(method.masked || method.handle)}</span>
+                    ${method.type === 'interac' ? `<button type="button" class="btn btn-outline btn-sm" data-copy="${escapeHtml(method.handle)}">Copy</button>` : ''}
                     ${safeUrl ? `<a class="btn btn-outline btn-sm" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener">Open</a>` : ''}
                 </div>
             `;
