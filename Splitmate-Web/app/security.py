@@ -23,10 +23,31 @@ def display_name_error(value, label='Name'):
     return None
 
 
+PASSWORD_RULES = (
+    f'Use at least {MIN_PASSWORD_LENGTH} characters with an uppercase letter, a lowercase letter, '
+    'a number and a special character (like ! @ # $).'
+)
+
+
 def password_error(password):
-    if len(password or '') < MIN_PASSWORD_LENGTH:
-        return f'Password must be at least {MIN_PASSWORD_LENGTH} characters.'
-    return None
+    """Rules for new passwords only; sign-in never re-checks them, so older passwords keep working."""
+    password = password or ''
+    missing = []
+    if len(password) < MIN_PASSWORD_LENGTH:
+        missing.append(f'at least {MIN_PASSWORD_LENGTH} characters')
+    if not re.search(r'[A-Z]', password):
+        missing.append('an uppercase letter')
+    if not re.search(r'[a-z]', password):
+        missing.append('a lowercase letter')
+    if not re.search(r'[0-9]', password):
+        missing.append('a number')
+    if not re.search(r'[^A-Za-z0-9]', password):
+        missing.append('a special character (like ! @ # $)')
+    if not missing:
+        return None
+    if len(missing) == 1:
+        return f'Password needs {missing[0]}.'
+    return 'Password needs ' + ', '.join(missing[:-1]) + f' and {missing[-1]}.'
 
 
 def is_safe_link(url):

@@ -11,7 +11,7 @@ import qrcode
 from sqlalchemy import func, or_
 
 from app import db, limiter
-from app.email_validation import normalize_email
+from app.email_validation import email_error_message, normalize_email
 from app.grocery_compare import compare_grocery_note, note_allows_grocery_comparison
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows, set_member_nickname
 from app.models import (
@@ -396,7 +396,7 @@ def register():
     confirm_password = data.get('confirm_password') or password
 
     if not email:
-        return json_error('A valid email is required.')
+        return json_error(email_error_message(data.get('email')))
     name_error = display_name_error(name)
     if name_error:
         return json_error(name_error)

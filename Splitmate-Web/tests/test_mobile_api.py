@@ -186,8 +186,8 @@ class MobileApiParityTests(unittest.TestCase):
 
         password = self.client.post('/api/mobile/me/password', headers=self.headers, json={
             'current_password': 'password123',
-            'new_password': 'newpassword123',
-            'confirm_password': 'newpassword123',
+            'new_password': 'NewPassword123!',
+            'confirm_password': 'NewPassword123!',
         })
         self.assertEqual(password.status_code, 200)
         # Changing the password revokes the old token; the response carries a fresh one.

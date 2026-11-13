@@ -264,15 +264,48 @@ function hasRealisticEmailDomain(email) {
     return /^[a-z]{2,}$/.test(tld) && domainLabels.some(label => /[a-z]/.test(label));
 }
 
+// Mirrors app/email_validation.py: big providers people mistype or cut short (name@gmail.c, name@gmial.com).
+const SINGLE_DOMAIN_PROVIDERS = { gmail: 'gmail.com', googlemail: 'googlemail.com', icloud: 'icloud.com' };
+const REGIONAL_PROVIDERS = ['yahoo', 'hotmail', 'outlook', 'live', 'aol', 'msn'];
+const MISTYPED_PROVIDERS = {
+    gmial: 'gmail.com', gmai: 'gmail.com', gamil: 'gmail.com', gnail: 'gmail.com', gmaill: 'gmail.com',
+    gmal: 'gmail.com', gmeil: 'gmail.com', gmali: 'gmail.com', hotmial: 'hotmail.com', hotmal: 'hotmail.com',
+    hotmil: 'hotmail.com', outlok: 'outlook.com', outllok: 'outlook.com', yaho: 'yahoo.com',
+    yahooo: 'yahoo.com', yhoo: 'yahoo.com', iclod: 'icloud.com', icoud: 'icloud.com'
+};
+const MISTYPED_COM = ['c', 'co', 'cm', 'cmo', 'con', 'om', 'comm', 'coom', 'cpm', 'xom', 'vom'];
+
+function suggestedEmailDomain(email) {
+    const parts = String(email || '').toLowerCase().split('@');
+    if (parts.length !== 2) {
+        return null;
+    }
+    const domain = parts[1];
+    const labels = domain.split('.');
+    const provider = labels[0];
+    if (SINGLE_DOMAIN_PROVIDERS[provider]) {
+        return domain !== SINGLE_DOMAIN_PROVIDERS[provider] ? SINGLE_DOMAIN_PROVIDERS[provider] : null;
+    }
+    if (MISTYPED_PROVIDERS[provider]) {
+        return MISTYPED_PROVIDERS[provider];
+    }
+    if (REGIONAL_PROVIDERS.includes(provider) && labels.length === 2 && MISTYPED_COM.includes(labels[1])) {
+        return `${provider}.com`;
+    }
+    return null;
+}
+
 function validateEmail(email) {
     const normalizedEmail = String(email || '').trim();
     return normalizedEmail.length <= EMAIL_MAX_LENGTH
         && EMAIL_PATTERN.test(normalizedEmail)
-        && hasRealisticEmailDomain(normalizedEmail);
+        && hasRealisticEmailDomain(normalizedEmail)
+        && !suggestedEmailDomain(normalizedEmail);
 }
 
 function validatePassword(password) {
-    return password.length >= 6;
+    return password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password)
+        && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
 }
 
 function ensureElementId(element, prefix) {
@@ -292,6 +325,11 @@ function emailValidationMessage(input) {
 
     if (email.length > EMAIL_MAX_LENGTH) {
         return `Email must be ${EMAIL_MAX_LENGTH} characters or fewer.`;
+    }
+
+    const suggestion = suggestedEmailDomain(email);
+    if (suggestion) {
+        return `Check the email address. Did you mean ${email.split('@')[0]}@${suggestion}?`;
     }
 
     if ((input.validity && input.validity.typeMismatch) || !validateEmail(email)) {

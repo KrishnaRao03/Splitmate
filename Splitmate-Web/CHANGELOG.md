@@ -5,6 +5,9 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Changed
+- Emails (verification code, password reset, invites, reminders) are branded HTML with a plain-text fallback.
+- New passwords need at least 8 characters with an uppercase letter, a lowercase letter, a number and a special character. Sign-in is unchanged, so existing passwords keep working.
+- Email addresses with cut-short or mistyped provider domains (name@gmail.c, name@gmail.co, name@gmial.com) are refused with a "Did you mean" suggestion.
 - Sign-ups are stored in a new `pending_registration` table until the emailed code is verified; the `user` row is created only after verification (website and mobile API). Unverified sign-ups older than 7 days are cleared out.
 
 ### Added

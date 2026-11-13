@@ -12,10 +12,9 @@ import { TextField } from '@/components/TextField';
 import { useAuth } from '@/state/AuthContext';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
+import { emailError as describeEmailError, passwordError as describePasswordError } from '@/utils/validation';
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot';
-
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const OTP_NOT_SENT = "We couldn't send the verification email. Wait a minute and tap Resend OTP.";
 
@@ -34,7 +33,8 @@ export function AuthScreen() {
   const [notice, setNotice] = useState('');
   const [showConnection, setShowConnection] = useState(false);
 
-  const emailError = email && !emailPattern.test(email.trim()) ? 'Enter a valid email address.' : '';
+  const emailError = email ? describeEmailError(email) : '';
+  const newPasswordError = mode === 'register' && password ? describePasswordError(password) : '';
   const loginTabActive = mode === 'login' || mode === 'forgot';
   const registerTabActive = mode === 'register' || mode === 'verify';
 
@@ -83,13 +83,14 @@ export function AuthScreen() {
   async function submit() {
     setError('');
     setNotice('');
-    if (!emailPattern.test(email.trim())) {
-      setError('Enter a valid email address.');
+    const emailProblem = describeEmailError(email);
+    if (emailProblem) {
+      setError(emailProblem);
       return;
     }
-    // New passwords need 8+ characters; older accounts may still have 6-character ones, so sign-in only needs one.
-    if (mode === 'register' && password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    // Only new passwords must meet the rules; older accounts can still sign in with what they have.
+    if (mode === 'register' && describePasswordError(password)) {
+      setError(describePasswordError(password));
       return;
     }
     if (mode !== 'verify' && mode !== 'forgot' && !password) {
@@ -180,6 +181,7 @@ export function AuthScreen() {
               label="Password"
               value={password}
               onChangeText={setPassword}
+              error={newPasswordError}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}

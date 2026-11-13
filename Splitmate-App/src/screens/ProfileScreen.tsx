@@ -16,6 +16,7 @@ import { useAuth } from '@/state/AuthContext';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDate } from '@/utils/dates';
+import { passwordError as describePasswordError } from '@/utils/validation';
 import type { ProfileQr, RewardsSummary, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
@@ -125,6 +126,11 @@ export function ProfileScreen({ navigation }: Props) {
   }
 
   async function changePassword() {
+    const problem = describePasswordError(newPassword);
+    if (problem) {
+      Alert.alert('Choose a stronger password', problem);
+      return;
+    }
     setSavingPassword(true);
     try {
       await auth.updatePassword(currentPassword, newPassword, confirmPassword);
@@ -227,7 +233,13 @@ export function ProfileScreen({ navigation }: Props) {
         {openSection === 'password' ? (
           <View style={styles.panel}>
             <TextField label="Current password" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
-            <TextField label="New password" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
+            <TextField
+              label="New password"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              error={newPassword ? describePasswordError(newPassword) : ''}
+            />
             <TextField label="Confirm new password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
             <AppButton icon="key-outline" variant="outline" loading={savingPassword} onPress={changePassword}>Update password</AppButton>
           </View>

@@ -247,7 +247,7 @@ class OtpLockoutFixes(SecurityFixTests):
 class MediumFixes(SecurityFixTests):
     def test_8_password_change_and_logout_all_revoke_tokens(self):
         changed = self.client.post('/api/mobile/me/password', headers=self.member_h, json={
-            'current_password': 'password123', 'new_password': 'newpassword1', 'confirm_password': 'newpassword1'})
+            'current_password': 'password123', 'new_password': 'NewPassword1!', 'confirm_password': 'NewPassword1!'})
         self.assertEqual(changed.status_code, 200)
         self.assertEqual(self.client.get('/api/mobile/me', headers=self.member_h).status_code, 401)
         fresh = {'Authorization': f'Bearer {changed.get_json()["token"]}'}
@@ -260,18 +260,18 @@ class MediumFixes(SecurityFixTests):
         self.web_login('member@example.com')
         self.assertEqual(self.client.get('/profile').status_code, 200)
         self.client.post('/api/mobile/me/password', headers=self.member_h, json={
-            'current_password': 'password123', 'new_password': 'newpassword1', 'confirm_password': 'newpassword1'})
+            'current_password': 'password123', 'new_password': 'NewPassword1!', 'confirm_password': 'NewPassword1!'})
         self.assertEqual(self.client.get('/profile').status_code, 302)
 
     def test_8_password_reset_link_works_only_once(self):
         with self.app.test_request_context():
             token = generate_password_reset_token(db.session.get(User, self.member_id))
-        first = self.client.post(f'/reset-password/{token}', data={'password': 'brandnew123', 'confirm_password': 'brandnew123'})
+        first = self.client.post(f'/reset-password/{token}', data={'password': 'Brandnew123!', 'confirm_password': 'Brandnew123!'})
         self.assertIn('/login', first.headers['Location'])
-        second = self.client.post(f'/reset-password/{token}', data={'password': 'again12345', 'confirm_password': 'again12345'})
+        second = self.client.post(f'/reset-password/{token}', data={'password': 'Again12345!', 'confirm_password': 'Again12345!'})
         self.assertIn('/forgot-password', second.headers['Location'])
         with self.app.app_context():
-            self.assertTrue(db.session.get(User, self.member_id).check_password('brandnew123'))
+            self.assertTrue(db.session.get(User, self.member_id).check_password('Brandnew123!'))
 
     def test_9_email_change_needs_the_current_password(self):
         without = self.client.patch('/api/mobile/me', headers=self.member_h, json={'name': 'Member', 'email': 'thief@example.com'})

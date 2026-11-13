@@ -6,7 +6,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from app import db, limiter
 from app.email_utils import send_password_reset_email, send_verification_otp
-from app.email_validation import normalize_email
+from app.email_validation import email_error_message, normalize_email
 from app.models import PendingRegistration, User
 from app.security import display_name_error, password_error
 
@@ -283,7 +283,7 @@ def register():
         # Validation
         errors = []
         if not email:
-            errors.append('Valid email is required')
+            errors.append(email_error_message(request.form.get('email')))
         name_error = display_name_error(name)
         if name_error:
             errors.append(name_error)
