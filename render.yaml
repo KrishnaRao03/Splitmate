@@ -53,6 +53,12 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+    # The iPhone home-screen app otherwise keeps showing an old build. Bundles have hashed names,
+    # so asking the browser to re-check costs little.
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
     envVars:
       - key: NODE_VERSION
         value: "22"
