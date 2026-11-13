@@ -1,3 +1,5 @@
+import copy
+import json
 import os
 import re
 import time
@@ -496,11 +498,12 @@ def live_grocery_catalogs():
     try:
         catalogs, source_meta = fetch_trimcart_catalogs()
     except (OSError, URLError, TimeoutError, ValueError) as exc:
-        return DEMO_GROCERY_CATALOGS, {
-            'name': 'Demo fallback',
-            'label': f'Live TrimCart prices could not be fetched, so demo prices were used. Reason: {exc}',
+        # Never fall back to made-up prices; web lookups can still fill in what they find.
+        return [{'store_id': store_id, 'store_name': store_name, 'items': []} for store_id, store_name in TRIMCART_STORES], {
+            'name': 'Weekly prices unavailable',
+            'label': f'TrimCart weekly prices could not be fetched right now ({exc}).',
             'url': TRIMCART_URL,
-            'status': 'fallback_demo',
+            'status': 'unavailable',
         }
 
     _catalog_cache['catalogs'] = catalogs
@@ -698,6 +701,8 @@ def line_result_for(requested_item, catalog_item, score):
         'unit_price': decimal_to_float(unit_price),
         'line_total': decimal_to_float(line_total) if in_stock else 0,
         'match_score': float(score.quantize(Decimal('0.01'))),
+        'source': catalog_item.get('source') or 'trimcart',
+        'source_url': catalog_item.get('source_url') or None,
     }
 
 
@@ -769,17 +774,157 @@ def compare_grocery_items(requested_items, catalogs=None):
     return store_results
 
 
+# ---------------------------------------------------------------------------
+# Live web prices from Gemini + Google Search, for items the weekly flyer data doesn't cover.
+# ---------------------------------------------------------------------------
+WEB_PRICE_MODEL = os.environ.get('GROCERY_PRICE_MODEL') or 'gemini-3.6-flash'
+WEB_PRICE_CACHE_SECONDS = 6 * 60 * 60
+WEB_PRICE_MAX_ITEMS = 12
+_web_price_cache = {}
+
+WEB_PRICE_PROMPT = """You are checking real, current grocery shelf prices in Toronto, Ontario, Canada.
+Search the stores' own websites (or flyers) for each item below at each store listed.
+
+Stores (use these exact store_id values): {stores}
+Items: {items}
+
+For each item and store, report the regular price of the most common everyday product that matches
+(e.g. "apple" -> a common apple sold per lb or per bag). Only report prices you actually found online
+in the last few weeks; never estimate or invent a price. Skip a store/item pair if you can't find it.
+
+Reply with JSON only, no prose, in exactly this shape:
+{{"prices": [{{"item": "<item as given>", "store_id": "<store_id>", "product": "<product name as listed>",
+"size": "<size or unit, e.g. per lb, 1.36 kg bag>", "price": <number in CAD>, "url": "<page where you found it>"}}]}}"""
+
+
+def web_price_lookup_configured():
+    return bool(os.environ.get('GEMINI_API_KEY'))
+
+
+def _parse_web_price_json(text):
+    """Pull the JSON object out of Gemini's reply (it may wrap it in a code fence)."""
+    text = (text or '').strip()
+    start, end = text.find('{'), text.rfind('}')
+    if start == -1 or end <= start:
+        return []
+    try:
+        data = json.loads(text[start:end + 1])
+    except ValueError:
+        return []
+    return data.get('prices') if isinstance(data, dict) and isinstance(data.get('prices'), list) else []
+
+
+def fetch_web_prices(item_names, client=None):
+    """{store_id: [catalog items]} with real prices found online for item_names. Cached for 6 hours per item."""
+    store_ids = {store_id for store_id, _ in TRIMCART_STORES}
+    now = time.time()
+    found = {store_id: [] for store_id in store_ids}
+    to_lookup = []
+    for name in item_names[:WEB_PRICE_MAX_ITEMS]:
+        cached = _web_price_cache.get(name.lower())
+        if cached and cached['expires_at'] > now:
+            for store_id, entries in cached['prices'].items():
+                found[store_id].extend(entries)
+        else:
+            to_lookup.append(name)
+
+    if not to_lookup:
+        return found
+    if client is None:
+        if not web_price_lookup_configured():
+            return found
+        from google import genai
+        client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+
+    from google.genai import types
+    prompt = WEB_PRICE_PROMPT.format(
+        stores=', '.join(f'{store_id} ({store_name})' for store_id, store_name in TRIMCART_STORES),
+        items=', '.join(to_lookup),
+    )
+    try:
+        response = client.models.generate_content(
+            model=WEB_PRICE_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())]),
+        )
+        rows = _parse_web_price_json(response.text)
+    except Exception:  # Any failure just means no web prices this time; flyer prices still show.
+        return found
+
+    fresh = {name.lower(): {store_id: [] for store_id in store_ids} for name in to_lookup}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        item = str(row.get('item') or '').strip()
+        store_id = str(row.get('store_id') or '').strip().lower()
+        try:
+            price = money(row.get('price'))
+        except Exception:
+            continue
+        if item.lower() not in fresh or store_id not in store_ids or price <= 0:
+            continue
+        product = str(row.get('product') or item).strip()[:120]
+        url = str(row.get('url') or '').strip()
+        fresh[item.lower()][store_id].append({
+            'name': product,
+            'brand': None,
+            'generic_name': item.lower(),
+            'size': str(row.get('size') or '').strip()[:40],
+            'price': str(price),
+            'in_stock': True,
+            'aliases': [item, item.lower(), product],
+            'source': 'web',
+            'source_url': url if url.startswith(('http://', 'https://')) else None,
+        })
+
+    for name, prices in fresh.items():
+        _web_price_cache[name] = {'prices': prices, 'expires_at': now + WEB_PRICE_CACHE_SECONDS}
+        for store_id, entries in prices.items():
+            found[store_id].extend(entries)
+    return found
+
+
+def compare_grocery_list(requested_items, client=None):
+    """Compare requested items across stores with real prices: weekly flyer data first, then a web lookup for the rest."""
+    catalogs, source_meta = live_grocery_catalogs()
+    catalogs = copy.deepcopy(catalogs)
+
+    uncovered = [
+        item['name'] for item in requested_items
+        if not any(best_match_for_store(item, store['items'])[0] for store in catalogs)
+    ]
+    web_used = False
+    if uncovered and source_meta.get('status') != 'demo':
+        web_prices = fetch_web_prices(uncovered, client=client)
+        for store in catalogs:
+            extra = web_prices.get(store['store_id']) or []
+            if extra:
+                web_used = True
+                store['items'] = list(store['items']) + extra
+
+    stores = compare_grocery_items(requested_items, catalogs)
+    labels = [source_meta.get('label')] if source_meta.get('label') else []
+    if web_used:
+        labels.append('Items not in the weekly flyer data were priced from the stores\' websites via Google Search '
+                      f'on {datetime.now().strftime("%b %d, %Y")}. Prices can change; check in store.')
+    elif uncovered and not web_price_lookup_configured() and source_meta.get('status') != 'demo':
+        labels.append('Some items have no weekly price yet. Add GEMINI_API_KEY on the server to look up any item online.')
+
+    return {
+        'currency': CURRENCY_CODE,
+        'catalog_source': ' '.join(labels),
+        'catalog_source_meta': {**source_meta, 'web_lookup': web_used},
+        'requested_items': requested_items,
+        'top_store': stores[0] if stores and any(store['available_count'] for store in stores) else None,
+        'stores': stores,
+    }
+
+
 def compare_grocery_note(note):
     requested_items = parse_grocery_items_from_note(note)
-    catalogs, source_meta = live_grocery_catalogs()
-    stores = compare_grocery_items(requested_items, catalogs)
+    result = compare_grocery_list(requested_items)
     return {
         'note_id': note.id,
         'note_title': getattr(note, 'title', None) or getattr(note, 'content', None) or '',
-        'currency': CURRENCY_CODE,
-        'catalog_source': source_meta.get('label'),
-        'catalog_source_meta': source_meta,
-        'requested_items': requested_items,
-        'top_store': stores[0] if stores else None,
-        'stores': stores,
+        **result,
     }

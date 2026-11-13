@@ -338,8 +338,17 @@ export class SplitmateApi {
     });
   }
 
+  // Price lookups can search store websites, so they get more time than other requests.
   compareGroceries(noteId: number) {
-    return this.request<GroceryComparison>(`/notes/${noteId}/grocery-comparison`);
+    return this.request<GroceryComparison>(`/notes/${noteId}/grocery-comparison`, {}, 60000);
+  }
+
+  /** Real store prices for a typed list like "apple, banana, 2 milk", cheapest store first. */
+  compareGroceryList(items: string) {
+    return this.request<GroceryComparison>('/grocery/compare', {
+      method: 'POST',
+      body: JSON.stringify({ items })
+    }, 60000);
   }
 
   /** Creates (or reuses) an email invite; the reply carries the link and a QR code of it. */

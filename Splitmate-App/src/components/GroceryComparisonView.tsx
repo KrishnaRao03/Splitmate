@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AppText as Text } from '@/components/AppText';
@@ -55,6 +55,14 @@ export function GroceryComparisonView({ comparison }: { comparison: GroceryCompa
                       ? 'Not found'
                       : `${line.matched_item || ''}${line.size ? ` (${line.size})` : ''}${line.status === 'unavailable' ? ' - out of stock' : ''}`}
                   </Text>
+                  {line.source === 'web' && line.status !== 'missing' ? (
+                    <Text
+                      style={[styles.groceryMatch, line.source_url ? styles.sourceLink : null]}
+                      onPress={line.source_url ? () => Linking.openURL(line.source_url as string) : undefined}
+                    >
+                      Online price{line.source_url ? ' - view' : ''}
+                    </Text>
+                  ) : null}
                 </View>
                 {line.status === 'available' ? <Text style={styles.memberLine}>{formatMoney(line.line_total, comparison.currency)}</Text> : null}
               </View>
@@ -68,6 +76,10 @@ export function GroceryComparisonView({ comparison }: { comparison: GroceryCompa
 }
 
 const styles = StyleSheet.create({
+  sourceLink: {
+    color: colors.primary,
+    textDecorationLine: 'underline'
+  },
   comparison: {
     gap: spacing.sm,
     borderTopWidth: 1,

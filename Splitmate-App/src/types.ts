@@ -232,6 +232,9 @@ export type GroceryLine = {
   size?: string;
   unit_price: number | null;
   line_total: number;
+  /** 'trimcart' = weekly flyer price, 'web' = found on the store's website via Google Search. */
+  source?: 'trimcart' | 'web';
+  source_url?: string | null;
 };
 
 export type GroceryStore = {
@@ -247,7 +250,7 @@ export type GroceryStore = {
 };
 
 export type GroceryComparison = {
-  note_id: number;
+  note_id?: number;
   currency: string;
   catalog_source?: string;
   requested_items: Array<{ name?: string; raw?: string; quantity?: number; unit?: string }>;

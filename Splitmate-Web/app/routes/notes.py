@@ -1,7 +1,9 @@
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify
 from flask_login import login_required, current_user
-from app import db
-from app.grocery_compare import compare_grocery_note, note_allows_grocery_comparison
+from app import db, limiter
+from app.grocery_compare import (
+    compare_grocery_list, compare_grocery_note, note_allows_grocery_comparison, parse_grocery_items_from_text,
+)
 from app.models import Group, Note
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows
 
@@ -129,6 +131,17 @@ def get_group_notes(group_id):
         'created_by': nicknames.get(n.created_by_id) or n.created_by.name,
         'can_compare_prices': note_allows_grocery_comparison(n)
     } for n in notes])
+
+@notes_bp.route('/api/grocery-compare', methods=['POST'])
+@login_required
+@limiter.limit('30 per hour')
+def compare_grocery_prices():
+    """Compare real store prices for a typed list like "apple, banana, 2 milk"."""
+    data = request.get_json(silent=True) or {}
+    requested_items = parse_grocery_items_from_text(str(data.get('items') or '')[:1000])
+    if not requested_items:
+        return jsonify({'error': 'Type at least one item, separated by commas or new lines.'}), 400
+    return jsonify(compare_grocery_list(requested_items))
 
 @notes_bp.route('/api/<int:note_id>/grocery-comparison')
 @login_required

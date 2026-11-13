@@ -20,6 +20,10 @@ import type { GroceryComparison, Group, Note, RootStackParamList } from '@/types
 export function NotesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [comparisons, setComparisons] = useState<Record<number, GroceryComparison>>({});
+  const [priceItems, setPriceItems] = useState('');
+  const [priceResult, setPriceResult] = useState<GroceryComparison | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState('');
   const [notes, setNotes] = useState<Note[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [adding, setAdding] = useState(false);
@@ -127,6 +131,24 @@ export function NotesScreen() {
     }
   }
 
+  // Type a list, get real prices from Toronto grocery stores, cheapest store first.
+  async function comparePrices() {
+    if (!priceItems.trim()) {
+      setPriceError('Type a few items, like: apple, banana, milk');
+      return;
+    }
+    setPriceError('');
+    setPriceLoading(true);
+    try {
+      setPriceResult(await api.compareGroceryList(priceItems));
+    } catch (error) {
+      setPriceResult(null);
+      setPriceError(error instanceof Error ? error.message : 'Could not compare prices. Try again.');
+    } finally {
+      setPriceLoading(false);
+    }
+  }
+
   function confirmDeleteNote(note: Note) {
     Alert.alert('Delete note?', note.title, [
       { text: 'Cancel', style: 'cancel' },
@@ -173,6 +195,23 @@ export function NotesScreen() {
           <AppButton icon="add-outline" onPress={() => setAdding(true)}>Add Note</AppButton>
         ) : null}
       </View>
+
+      <Card style={styles.filterCard}>
+        <Text style={styles.title}>Compare grocery prices</Text>
+        <Text style={styles.muted}>Type what you need and see which store is cheapest right now.</Text>
+        <TextField
+          label="Items"
+          value={priceItems}
+          onChangeText={setPriceItems}
+          placeholder="apple, banana, 2 milk, bread"
+          multiline
+          error={priceError}
+        />
+        <AppButton icon="pricetags-outline" loading={priceLoading} onPress={comparePrices}>
+          {priceLoading ? 'Checking store prices...' : 'Compare prices'}
+        </AppButton>
+        {priceResult ? <GroceryComparisonView comparison={priceResult} /> : null}
+      </Card>
 
       {!groups.length ? (
         <Card style={styles.filterCard}>

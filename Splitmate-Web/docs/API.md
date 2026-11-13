@@ -158,7 +158,8 @@ Expense body fields (JSON, or multipart with a `payload` JSON field plus an opti
 | PATCH | `/notes/<note_id>` | `title`, `description` | Edit |
 | DELETE | `/notes/<note_id>` | | Delete |
 | POST | `/notes/<note_id>/toggle` | | Mark done / not done |
-| GET | `/notes/<note_id>/grocery-comparison` | | Compares the note's items across grocery stores (`GROCERY_PRICE_SOURCE`) |
+| GET | `/notes/<note_id>/grocery-comparison` | | Compares the note's items across grocery stores, same result shape as `POST /grocery/compare` |
+| POST | `/grocery/compare` | `items` (text: "apple, banana, 2 milk") | Real prices from 6 Toronto stores: weekly flyer data first, then a Gemini + Google Search lookup for items it lacks. Stores sorted cheapest-complete first. Each line has `source` (`trimcart` or `web`) and `source_url`. 30/hour per IP. |
 
 ## Example
 

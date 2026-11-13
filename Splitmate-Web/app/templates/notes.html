@@ -23,6 +23,20 @@
     </div>
 </div>
 
+<div class="card">
+    <div class="card-header">
+        <h2>Compare Grocery Prices</h2>
+    </div>
+    <div class="card-body">
+        <form id="priceCompareForm" class="form-group" onsubmit="comparePriceList(event)">
+            <label for="priceCompareItems">Type what you need and see which store is cheapest right now.</label>
+            <textarea id="priceCompareItems" rows="2" maxlength="1000" placeholder="apple, banana, 2 milk, bread"></textarea>
+            <button type="submit" class="btn btn-primary btn-sm" id="priceCompareButton">Compare prices</button>
+        </form>
+        <div id="groceryComparison-list" class="grocery-comparison" hidden></div>
+    </div>
+</div>
+
 {% if groups %}
 <div class="group-grid">
     {% for group in groups %}
@@ -213,13 +227,44 @@
         }
     }
 
+    async function comparePriceList(event) {
+        event.preventDefault();
+        const items = document.getElementById('priceCompareItems').value.trim();
+        const panel = document.getElementById('groceryComparison-list');
+        const button = document.getElementById('priceCompareButton');
+        panel.hidden = false;
+        if (!items) {
+            panel.innerHTML = '<p class="grocery-status grocery-status-error">Type a few items, like: apple, banana, milk</p>';
+            return;
+        }
+        button.disabled = true;
+        panel.innerHTML = '<p class="grocery-status">Checking store prices... this can take a few seconds.</p>';
+        try {
+            const response = await fetch('/notes/api/grocery-compare', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                panel.innerHTML = `<p class="grocery-status grocery-status-error">${escapeHtml(data.error || 'Could not compare prices.')}</p>`;
+                return;
+            }
+            panel.innerHTML = renderGroceryComparison({ ...data, note_id: "'list'" });
+        } catch (error) {
+            panel.innerHTML = '<p class="grocery-status grocery-status-error">Could not compare prices right now.</p>';
+        } finally {
+            button.disabled = false;
+        }
+    }
+
     function renderGroceryComparison(data) {
         const topStore = data.top_store;
         const requestedItems = data.requested_items || [];
         const stores = data.stores || [];
         const sourceMeta = data.catalog_source_meta || {};
         const sourceText = data.catalog_source || sourceMeta.label || '';
-        const sourceClass = sourceMeta.status === 'fallback_demo'
+        const sourceClass = sourceMeta.status === 'unavailable'
             ? 'grocery-source grocery-source-warning'
             : 'grocery-source';
         const requestedList = requestedItems.map(item => `
@@ -275,9 +320,14 @@
             ? `${formatGroceryMoney(item.line_total, currency)}`
             : 'Unavailable';
 
+        const online = item.source === 'web'
+            ? (item.source_url
+                ? ` <a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener">(online price)</a>`
+                : ' (online price)')
+            : '';
         return `
             <li class="${statusClass}">
-                <span>${requested} &rarr; ${escapeHtml(matched)}</span>
+                <span>${requested} &rarr; ${escapeHtml(matched)}${online}</span>
                 <strong>${escapeHtml(priceText)}</strong>
             </li>
         `;

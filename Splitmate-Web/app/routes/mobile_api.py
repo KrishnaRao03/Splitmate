@@ -12,7 +12,9 @@ from sqlalchemy import func, or_
 
 from app import db, limiter
 from app.email_validation import email_error_message, normalize_email
-from app.grocery_compare import compare_grocery_note, note_allows_grocery_comparison
+from app.grocery_compare import (
+    compare_grocery_list, compare_grocery_note, note_allows_grocery_comparison, parse_grocery_items_from_text,
+)
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows, set_member_nickname
 from app.models import (
     PendingRegistration,
@@ -1763,6 +1765,17 @@ def toggle_note(note_id):
     note.is_completed = not note.is_completed
     db.session.commit()
     return jsonify({'is_completed': bool(note.is_completed)})
+
+
+@mobile_api_bp.route('/grocery/compare', methods=['POST'])
+@mobile_login_required
+@limiter.limit('30 per hour')
+def compare_grocery_prices():
+    """Compare real store prices for a typed list like "apple, banana, 2 milk"."""
+    requested_items = parse_grocery_items_from_text(str(json_body().get('items') or '')[:1000])
+    if not requested_items:
+        return json_error('Type at least one item, separated by commas or new lines.')
+    return jsonify(compare_grocery_list(requested_items))
 
 
 @mobile_api_bp.route('/notes/<int:note_id>/grocery-comparison')

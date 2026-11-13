@@ -1,5 +1,7 @@
 """The full notes flow the app uses, matching the website: add, edit, done/undo, delete rules, grocery compare."""
+import os
 import unittest
+from unittest.mock import patch
 
 from tests.test_security_fixes import SecurityFixTests
 
@@ -45,7 +47,9 @@ class NoteFlowTests(SecurityFixTests):
 
     def test_grocery_comparison_from_the_app(self):
         note_id = self.add_note(self.member_h).get_json()['id']
-        comparison = self.client.get(f'/api/mobile/notes/{note_id}/grocery-comparison', headers=self.member_h)
+        # The built-in sample catalogue keeps this test offline; real deployments use live prices only.
+        with patch.dict(os.environ, {'GROCERY_PRICE_SOURCE': 'demo'}):
+            comparison = self.client.get(f'/api/mobile/notes/{note_id}/grocery-comparison', headers=self.member_h)
         self.assertEqual(comparison.status_code, 200)
         data = comparison.get_json()
         self.assertEqual(len(data['requested_items']), 3)

@@ -159,7 +159,8 @@ All settings are read in `config.py` from the process environment, then from `.e
 | `STRIPE_CURRENCY` | `cad` | Display currency for the whole app. The name is historical; Stripe itself is no longer used. |
 | `GEMINI_API_KEY` | none | Enables receipt scanning |
 | `RECEIPT_SCAN_MODEL` | `gemini-3.6-flash` | Gemini model used for receipts |
-| `GROCERY_PRICE_SOURCE` | `trimcart` | `trimcart` (live prices, falls back to demo data) or `demo` |
+| `GROCERY_PRICE_SOURCE` | `trimcart` | `trimcart` (real weekly Toronto prices) or `demo` (sample prices, for offline testing only). There is no automatic fallback to sample prices. |
+| `GROCERY_PRICE_MODEL` | `gemini-3.6-flash` | Gemini model that looks up prices online (with Google Search) for items the weekly data doesn't cover. Needs `GEMINI_API_KEY`; results are cached for 6 hours per item. |
 
 ## Protecting secrets
 

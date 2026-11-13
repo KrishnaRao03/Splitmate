@@ -5,6 +5,8 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Changed
+- Grocery comparison uses real prices only: weekly TrimCart data, plus a Gemini + Google Search lookup of the stores' websites for items the weekly data lacks. The automatic fallback to sample prices is gone.
+- New "Compare grocery prices" box on the Notes screen (app and website): type a list, get stores sorted cheapest first (`POST /api/mobile/grocery/compare`).
 - Emails (verification code, password reset, invites, reminders) are branded HTML with a plain-text fallback.
 - New passwords need at least 8 characters with an uppercase letter, a lowercase letter, a number and a special character. Sign-in is unchanged, so existing passwords keep working.
 - Email addresses with cut-short or mistyped provider domains (name@gmail.c, name@gmail.co, name@gmial.com) are refused with a "Did you mean" suggestion.
