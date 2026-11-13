@@ -20,7 +20,7 @@ import { useAuth } from '@/state/AuthContext';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDate, formatDateTime } from '@/utils/dates';
-import { formatMoney, parseAmount, suggestSettlements } from '@/utils/money';
+import { formatMoney, parseAmount } from '@/utils/money';
 import type { Expense, ExpenseSearchResult, GroceryComparison, GroupDetail, Note, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupDetail'>;
@@ -265,7 +265,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
     }
   }
 
-  const settlements = useMemo(() => suggestSettlements(detail?.balances ?? []), [detail?.balances]);
 
   if (loading && !detail) {
     return <LoadingState label="Loading group..." />;
@@ -275,29 +274,36 @@ export function GroupDetailScreen({ navigation, route }: Props) {
   }
 
   function payFromSuggestion(receiver: number, amount: number) {
-    const option = detail?.payment_options.find(item => item.receiver_id === receiver);
     setReceiverId(receiver);
-    setPaymentAmount(Math.min(amount, option?.max_amount ?? amount).toFixed(2));
+    setPaymentAmount(amount.toFixed(2));
     setTab('pay');
   }
 
+  // Built from the same per-person debts as the Pay and Request sections, so amounts always match.
   const settleUpCard = (
     <Card>
       <Text style={styles.cardLabel}>Settle up</Text>
-      {settlements.length ? settlements.map(item => {
-        const mine = item.fromId === detail.current_user_id;
-        const canPay = mine && detail.payment_options.some(option => option.receiver_id === item.toId);
-        return (
-          <View key={`${item.fromId}-${item.toId}`} style={styles.settleRow}>
-            <View style={styles.headerText}>
-              <Text style={styles.itemTitle}>{mine ? 'You' : item.from} pay{mine ? '' : 's'} {item.toId === detail.current_user_id ? 'you' : item.to}</Text>
-              <Text style={styles.amountNeutral}>{money(item.amount)}</Text>
-            </View>
-            {canPay ? <AppButton icon="cash-outline" variant="outline" onPress={() => payFromSuggestion(item.toId, item.amount)}>Settle</AppButton> : null}
+      <Text style={styles.itemTitle}>You owe</Text>
+      {detail.payment_options.length ? detail.payment_options.map(option => (
+        <View key={`owe-${option.receiver_id}`} style={styles.settleRow}>
+          <View style={styles.headerText}>
+            <Text style={styles.itemTitle}>{option.receiver}</Text>
+            <Text style={[styles.amountNeutral, styles.negative]}>{money(option.owed)}</Text>
+            {option.pending_amount > 0 ? <Text style={styles.muted}>{money(option.pending_amount)} waiting for them to confirm</Text> : null}
           </View>
-        );
-      }) : <Text style={styles.muted}>Everyone is settled up.</Text>}
-      {settlements.length ? <Text style={styles.hint}>Fewest payments needed to clear every balance.</Text> : null}
+          {option.max_amount > 0 ? <AppButton icon="cash-outline" variant="outline" onPress={() => payFromSuggestion(option.receiver_id, option.max_amount)}>Pay</AppButton> : null}
+        </View>
+      )) : <Text style={styles.muted}>You don't owe anyone in this group.</Text>}
+      <Text style={[styles.itemTitle, styles.settleHeading]}>Owes you</Text>
+      {detail.money_requests.length ? detail.money_requests.map(request => (
+        <View key={`owed-${request.payer_id}`} style={styles.settleRow}>
+          <View style={styles.headerText}>
+            <Text style={styles.itemTitle}>{request.payer}</Text>
+            <Text style={[styles.amountNeutral, styles.positive]}>{money(request.amount)}</Text>
+          </View>
+          <AppButton icon="mail-outline" variant="outline" onPress={() => { setRequestPayerId(request.payer_id); setTab('pay'); }}>Request</AppButton>
+        </View>
+      )) : <Text style={styles.muted}>Nobody owes you in this group.</Text>}
     </Card>
   );
 
@@ -322,10 +328,13 @@ export function GroupDetailScreen({ navigation, route }: Props) {
               <Text style={styles.muted}>{detail.group.members.length} members</Text>
             </View>
           </View>
-          <AppButton icon="add-outline" variant="outline" onPress={navigateToExpense}>Expense</AppButton>
-          <AppButton icon="checkbox-outline" variant="outline" onPress={() => navigation.navigate('AddTask', { groupId, members: detail.group.members })}>Task</AppButton>
-          <AppButton icon="document-text-outline" variant="outline" onPress={() => setTab('notes')}>Note</AppButton>
         </View>
+        <View style={styles.actionRow}>
+          <AppButton icon="add-outline" variant="outline" style={styles.quickButton} onPress={navigateToExpense}>Expense</AppButton>
+          <AppButton icon="checkbox-outline" variant="outline" style={styles.quickButton} onPress={() => navigation.navigate('AddTask', { groupId, members: detail.group.members })}>Task</AppButton>
+          <AppButton icon="document-text-outline" variant="outline" style={styles.quickButton} onPress={() => setTab('notes')}>Note</AppButton>
+        </View>
+        <AppButton icon="swap-horizontal-outline" onPress={() => setTab('pay')}>Settle up</AppButton>
         <View style={styles.actionRow}>
           <AppButton icon="analytics-outline" variant="ghost" style={styles.actionButton} onPress={() => navigation.navigate('Insights', {
             groupId,
@@ -346,7 +355,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
           { label: 'Expenses', value: 'expenses' },
           { label: 'Tasks', value: 'tasks' },
           { label: 'Notes', value: 'notes' },
-          { label: 'Pay', value: 'pay' }
+          { label: 'Settle up', value: 'pay' }
         ]}
       />
 
@@ -723,6 +732,13 @@ const styles = StyleSheet.create({
   actionButton: {
     flexGrow: 1,
     flexBasis: 150
+  },
+  quickButton: {
+    flexGrow: 1,
+    flexBasis: 90
+  },
+  settleHeading: {
+    marginTop: spacing.md
   },
   iconActionRow: {
     flexDirection: 'row',
