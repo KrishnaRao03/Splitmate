@@ -1,10 +1,9 @@
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { useState } from 'react';
+import { createElement } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AppText as Text } from '@/components/AppText';
-import { TextField } from '@/components/TextField';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { parseLocalInput } from '@/utils/dates';
@@ -26,24 +25,43 @@ function toInputText(value: Date | null) {
     : '';
 }
 
-/** Date + time picker: native dialogs on Android, the inline compact picker on iOS, typed text on web. */
+/** Date + time picker: native dialogs on Android, the inline compact picker on iOS, the browser's picker on web. */
 export function DateTimeField({ label, value, onChange, minimumDate }: Props) {
-  const [webText, setWebText] = useState(toInputText(value));
 
   if (Platform.OS === 'web') {
+    // The browser's own picker: a date and time wheel on iPhone Safari, a calendar on desktop.
+    const minText = minimumDate ? toInputText(minimumDate).replace(' ', 'T') : undefined;
     return (
-      <TextField
-        label={label}
-        value={webText}
-        placeholder="2026-06-15 18:00"
-        onChangeText={text => {
-          setWebText(text);
-          const parsed = parseLocalInput(text);
-          if (parsed) {
-            onChange(parsed);
+      <View style={styles.field}>
+        <Text style={styles.label}>{label}</Text>
+        {createElement('input', {
+          type: 'datetime-local',
+          'aria-label': label,
+          value: toInputText(value).replace(' ', 'T'),
+          min: minText,
+          onChange: (event: { target: { value: string } }) => {
+            const parsed = parseLocalInput(event.target.value.replace('T', ' '));
+            if (parsed) {
+              onChange(parsed);
+            }
+          },
+          style: {
+            minHeight: 48,
+            boxSizing: 'border-box',
+            width: '100%',
+            padding: '0 12px',
+            borderWidth: 1,
+            borderStyle: 'solid',
+            borderColor: colors.borderStrong,
+            borderRadius: radius.md,
+            backgroundColor: colors.input,
+            color: colors.text,
+            fontSize: 16,
+            fontFamily: 'inherit',
+            colorScheme: 'light dark'
           }
-        }}
-      />
+        })}
+      </View>
     );
   }
 
