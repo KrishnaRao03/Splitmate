@@ -18,6 +18,9 @@ export function GroceryComparisonView({ comparison }: { comparison: GroceryCompa
       {comparison.top_store ? (
         <Text style={styles.memberLine}>{comparison.top_store.store_name}{comparison.top_store.location ? ` (${comparison.top_store.location})` : ''}: {formatMoney(comparison.top_store.total ?? 0, comparison.currency)}</Text>
       ) : null}
+      {comparison.usage && comparison.usage.limit !== null ? (
+        <Text style={styles.muted}>{comparison.usage.remaining} of {comparison.usage.limit} free comparisons left this month.</Text>
+      ) : null}
       {comparison.stores.map(store => {
         const open = expandedStores[store.rank];
         return (

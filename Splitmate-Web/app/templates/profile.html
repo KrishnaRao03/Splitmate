@@ -104,12 +104,33 @@
         <section class="card" id="membership-panel">
             <div class="card-header">
                 <h2>Membership</h2>
-                <span class="badge">{{ current_user.membership_plan|title }}</span>
+                <span class="badge">{{ 'Pro' if membership.membership_plan == 'pro' else 'Free' }}</span>
             </div>
             <div class="card-body">
+                {% if request.args.get('membership') == 'success' %}
+                <p class="text-subtle">Thanks! Your payment went through. Pro switches on within a minute; refresh if it still says Free.</p>
+                {% elif request.args.get('membership') == 'cancelled' %}
+                <p class="text-subtle">Checkout cancelled. You were not charged.</p>
+                {% endif %}
+                {% if membership.membership_plan == 'pro' %}
+                <p class="text-subtle">
+                    Splitmate Pro, billed {{ 'yearly' if membership.membership_interval == 'year' else 'monthly' }}.
+                    {% if membership.membership_renews_at %}{{ 'Ends' if membership.membership_cancel_at_period_end else 'Renews' }} on {{ membership.membership_renews_at[:10] }}.{% endif %}
+                    {% if membership.membership_status == 'past_due' %}Your last payment failed; update your card to keep Pro.{% endif %}
+                </p>
+                <form method="POST" action="{{ url_for('billing.portal') }}">
+                    <button type="submit" class="btn btn-outline btn-sm">Manage subscription</button>
+                </form>
+                {% endif %}
+                {% if membership.membership_plan != 'pro' %}
+                <p class="text-subtle">
+                    Left this month: {{ membership.usage.receipt_scan.remaining }} of {{ membership.usage.receipt_scan.limit }} receipt scans,
+                    {{ membership.usage.grocery_compare.remaining }} of {{ membership.usage.grocery_compare.limit }} grocery price comparisons.
+                </p>
+                {% endif %}
                 <div class="membership-plan-grid">
-                    {% for plan in membership_plans %}
-                    <div class="membership-plan {% if current_user.membership_plan == plan.id %}is-current{% endif %}">
+                    {% for plan in membership.membership_plans %}
+                    <div class="membership-plan {% if plan.is_current %}is-current{% endif %}">
                         <div class="membership-plan-head">
                             <div>
                                 <span class="membership-plan-name">{{ plan.name }}</span>
@@ -125,14 +146,20 @@
                             <li>{{ feature }}</li>
                             {% endfor %}
                         </ul>
-                        {% if current_user.membership_plan == plan.id %}
+                        {% if plan.is_current %}
                         <button type="button" class="btn btn-outline btn-sm btn-full" disabled>Current Plan</button>
-                        {% else %}
-                        <button type="button" class="btn btn-primary btn-sm btn-full" disabled>Billing Setup Needed</button>
+                        {% elif plan.checkout_interval and membership.membership_plan != 'pro' %}
+                        <form method="POST" action="{{ url_for('billing.checkout') }}">
+                            <input type="hidden" name="interval" value="{{ plan.checkout_interval }}">
+                            <button type="submit" class="btn btn-primary btn-sm btn-full" {% if not membership.billing_enabled %}disabled{% endif %}>
+                                {{ 'Upgrade' if membership.billing_enabled else 'Coming soon' }}
+                            </button>
+                        </form>
                         {% endif %}
                     </div>
                     {% endfor %}
                 </div>
+                <p class="text-subtle">Payments are handled by Stripe. Splitmate never sees your card number. Cancel any time from Manage subscription.</p>
             </div>
         </section>
 

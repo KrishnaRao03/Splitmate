@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
+import { UpgradePrompt, isLimitReached } from '@/components/UpgradePrompt';
 import { AppText as Text } from '@/components/AppText';
 import { BrandMark } from '@/components/BrandMark';
 import { Card } from '@/components/Card';
@@ -42,6 +43,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [noteLimit, setNoteLimit] = useState<{ noteId: number; message: string } | null>(null);
   const [comparisons, setComparisons] = useState<Record<number, GroceryComparison>>({});
   const [receiverId, setReceiverId] = useState<number | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -218,6 +220,10 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       const comparison = await api.compareGroceries(noteId, getGroceryLocation());
       setComparisons(current => ({ ...current, [noteId]: comparison }));
     } catch (error) {
+      if (isLimitReached(error)) {
+        setNoteLimit({ noteId, message: (error as Error).message });
+        return;
+      }
       Alert.alert('Could not compare groceries', error instanceof Error ? error.message : 'Try again.');
     }
   }
@@ -558,6 +564,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                   </View>
                 </>
               )}
+              {noteLimit?.noteId === note.id ? <UpgradePrompt message={noteLimit.message} /> : null}
               {comparisons[note.id] ? <GroceryComparisonView comparison={comparisons[note.id]} /> : null}
             </Card>
           )) : <EmptyState label="No notes yet." />}

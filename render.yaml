@@ -37,6 +37,15 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      # Splitmate Pro through Stripe. Start with test keys (sk_test_...); prices are in cents.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: PRO_PRICE_MONTHLY_CENTS
+        value: "299"
+      - key: PRO_PRICE_YEARLY_CENTS
+        value: "2499"
       # The web build of the app (splitmate-app below) calls the API from the browser.
       # If Render gives the static site a different address, update this value.
       - key: MOBILE_API_CORS_ORIGINS

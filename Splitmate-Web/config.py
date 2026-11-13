@@ -120,3 +120,11 @@ class Config:
     GROUP_INVITE_EXPIRY_DAYS = int(os.environ.get('GROUP_INVITE_EXPIRY_DAYS') or 7)
     # Display currency for the whole app (the name predates removing Stripe; kept so existing .env files still work).
     STRIPE_CURRENCY = (os.environ.get('STRIPE_CURRENCY') or 'cad').lower()
+    # Splitmate Pro through Stripe Checkout. Without a secret key the Upgrade buttons say payments aren't set up.
+    STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or None
+    STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or None
+    PRO_PRICE_MONTHLY_CENTS = int(os.environ.get('PRO_PRICE_MONTHLY_CENTS') or 299)
+    PRO_PRICE_YEARLY_CENTS = int(os.environ.get('PRO_PRICE_YEARLY_CENTS') or 2499)
+    # Free accounts get this many of the features that cost money to run (Gemini) each month; Pro is unlimited.
+    FREE_RECEIPT_SCANS_PER_MONTH = int(os.environ.get('FREE_RECEIPT_SCANS_PER_MONTH') or 5)
+    FREE_GROCERY_COMPARES_PER_MONTH = int(os.environ.get('FREE_GROCERY_COMPARES_PER_MONTH') or 5)

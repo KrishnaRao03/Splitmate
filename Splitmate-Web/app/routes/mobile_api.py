@@ -10,7 +10,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 import qrcode
 from sqlalchemy import func, or_
 
-from app import db, limiter
+from app import billing, db, limiter
 from app.email_validation import email_error_message, normalize_email
 from app.grocery_compare import (
     compare_grocery_list, compare_grocery_note, note_allows_grocery_comparison, parse_grocery_items_from_text,
@@ -31,7 +31,7 @@ from app.models import (
     Task,
     User,
 )
-from app.rewards import MEMBERSHIP_PLANS, POINTS_EARNING_PAUSED, REWARD_TIERS, reward_progress
+from app.rewards import POINTS_EARNING_PAUSED, REWARD_TIERS, reward_progress
 from app.email_utils import send_money_request_email, send_password_reset_email, send_splitmate_invite_email
 from app.payment_security import (
     apply_payment_handle_changes, payment_status_payload, send_interac_code, verify_interac_code,
@@ -94,7 +94,7 @@ def user_payload(user):
         'phone': user.phone or '',
         'is_email_verified': bool(user.is_email_verified),
         'reward_points': int(user.reward_points or 0),
-        'membership_plan': user.membership_plan or 'free',
+        'membership_plan': 'pro' if billing.is_pro(user) else 'free',
         'membership_status': user.membership_status or 'active',
         'created_at': user.created_at.isoformat() if user.created_at else None,
         'interac_email': user.interac_email or '',
@@ -161,6 +161,11 @@ def mobile_user_from_request():
         return None
 
     return user
+
+
+def limit_reached(message, user, feature):
+    """402 so the app can show its Upgrade prompt."""
+    return jsonify({'error': message, 'limit_reached': True, 'usage': billing.feature_usage(user, feature)}), 402
 
 
 def mobile_login_required(view):
@@ -366,6 +371,8 @@ def health():
         'email_provider': email_provider,
         'last_email_error': email_utils.last_email_error,
         'last_grocery_price_error': grocery_compare.last_web_price_error,
+        'billing_enabled': billing.billing_enabled(),
+        'billing_webhook_configured': bool(current_app.config.get('STRIPE_WEBHOOK_SECRET')),
     })
 
 
@@ -659,11 +666,15 @@ def scan_receipt():
     media_type = (upload.mimetype or '').lower()
     if media_type == 'image/jpg':
         media_type = 'image/jpeg'
+    user = request.mobile_user
+    limit_error = billing.feature_limit_error(user, 'receipt_scan')
+    if limit_error:
+        return limit_reached(limit_error, user, 'receipt_scan')
     try:
         result = scan_receipt_image(upload.read(), media_type)
     except ReceiptScanError as exc:
         return json_error(exc.message, exc.status)
-    return jsonify(result)
+    return jsonify({**result, 'usage': billing.record_feature_use(user, 'receipt_scan')})
 
 
 @mobile_api_bp.route('/me/qr')
@@ -1830,8 +1841,7 @@ def rewards_summary():
     return jsonify({
         'points': int(user.reward_points or 0),
         'progress': reward_progress(user.reward_points),
-        'membership_plan': user.membership_plan or 'free',
-        'membership_status': user.membership_status or 'active',
+        **billing.membership_payload(user),
         'tiers': REWARD_TIERS,
         'recent_transactions': [{
             'id': transaction.id,
@@ -1840,9 +1850,49 @@ def rewards_summary():
             'note': transaction.note or '',
             'created_at': iso_datetime(transaction.created_at),
         } for transaction in recent],
-        'membership_plans': MEMBERSHIP_PLANS,
         'earning_paused': POINTS_EARNING_PAUSED,
     })
+
+
+def billing_return_url(path=''):
+    """Where Stripe sends the person back: the app's own address when it is one we trust, else the website."""
+    origin = str(json_body().get('return_url') or '').rstrip('/')
+    if origin in current_app.config['MOBILE_API_CORS_ORIGINS'] or origin == request.host_url.rstrip('/'):
+        return f'{origin}/{path}'
+    return url_for('main.profile', _external=True) + '#membership-panel'
+
+
+@mobile_api_bp.route('/membership/checkout', methods=['POST'])
+@mobile_login_required
+@limiter.limit('10 per hour')
+def membership_checkout():
+    user = request.mobile_user
+    try:
+        url, error = billing.create_checkout_url(
+            user, json_body().get('interval'),
+            success_url=billing_return_url('?membership=success'),
+            cancel_url=billing_return_url('?membership=cancelled'),
+        )
+    except Exception as exc:  # Stripe down or misconfigured: say so instead of a 500.
+        current_app.logger.exception('Stripe checkout failed: %s', exc)
+        return json_error('Could not open the payment page. Try again in a minute.', 502)
+    if error:
+        return json_error(error)
+    return jsonify({'url': url})
+
+
+@mobile_api_bp.route('/membership/portal', methods=['POST'])
+@mobile_login_required
+@limiter.limit('10 per hour')
+def membership_portal():
+    try:
+        url, error = billing.create_portal_url(request.mobile_user, billing_return_url())
+    except Exception as exc:
+        current_app.logger.exception('Stripe portal failed: %s', exc)
+        return json_error('Could not open subscription settings. Try again in a minute.', 502)
+    if error:
+        return json_error(error)
+    return jsonify({'url': url})
 
 
 @mobile_api_bp.route('/splits/<int:split_id>/settle', methods=['POST'])
@@ -1969,7 +2019,12 @@ def compare_grocery_prices():
     requested_items = parse_grocery_items_from_text(str(data.get('items') or '')[:1000])
     if not requested_items:
         return json_error('Type at least one item, separated by commas or new lines.')
-    return jsonify(compare_grocery_list(requested_items, location=data.get('location')))
+    user = request.mobile_user
+    limit_error = billing.feature_limit_error(user, 'grocery_compare')
+    if limit_error:
+        return limit_reached(limit_error, user, 'grocery_compare')
+    comparison = compare_grocery_list(requested_items, location=data.get('location'))
+    return jsonify({**comparison, 'usage': billing.record_feature_use(user, 'grocery_compare')})
 
 
 @mobile_api_bp.route('/notes/<int:note_id>/grocery-comparison')
@@ -1982,11 +2037,15 @@ def compare_note_groceries(note_id):
     if not note_allows_grocery_comparison(note):
         return json_error('Price comparison is only available for grocery, shopping, or list notes.')
 
+    user = request.mobile_user
+    limit_error = billing.feature_limit_error(user, 'grocery_compare')
+    if limit_error:
+        return limit_reached(limit_error, user, 'grocery_compare')
     comparison = compare_grocery_note(note, location=request.args.get('location'))
     if not comparison['requested_items']:
         return json_error('No grocery items found in this note. Add one item per line or separate items with commas.')
 
-    return jsonify(comparison)
+    return jsonify({**comparison, 'usage': billing.record_feature_use(user, 'grocery_compare')})
 
 
 @mobile_api_bp.route('/notes/<int:note_id>', methods=['PATCH', 'DELETE'])

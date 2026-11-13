@@ -15,7 +15,8 @@ from app.email_utils import send_group_invite_email, send_splitmate_invite_email
 from app.models import User, Group, GroupInvite, Expense, ExpenseSplit, ExpenseHistory, Note, Payment, RewardTransaction, Task
 from app.routes.auth import send_user_otp, set_pending_verification
 from app.group_utils import group_member_payload, group_pending_invite_payload, set_member_nickname
-from app.rewards import MEMBERSHIP_PLANS, REWARD_TIERS, reward_progress
+from app import billing
+from app.rewards import REWARD_TIERS, reward_progress
 from app.routes import split as split_routes
 from app.payment_security import apply_payment_handle_changes, send_interac_code, verify_interac_code
 from app.security import clean_payment_handles, display_name_error, password_error
@@ -436,7 +437,7 @@ def profile():
         'profile.html',
         reward_progress=reward_progress(current_user.reward_points),
         reward_tiers=REWARD_TIERS,
-        membership_plans=MEMBERSHIP_PLANS,
+        membership=billing.membership_payload(current_user),
         recent_reward_transactions=recent_reward_transactions
     )
 

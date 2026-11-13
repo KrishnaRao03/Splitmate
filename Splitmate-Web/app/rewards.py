@@ -20,36 +20,6 @@ REWARD_TIERS = [
     },
 ]
 
-MEMBERSHIP_PLANS = [
-    {
-        'id': 'free',
-        'name': 'Free',
-        'price': '$0',
-        'interval': 'forever',
-        'badge': 'Current starter',
-        'features': [
-            'Split expenses, tasks, and notes',
-            'Settle up with Interac, PayPal or UPI links',
-            'Basic grocery price compare'
-        ]
-    },
-    {
-        'id': 'plus',
-        'name': 'Splitmate Plus',
-        'price': '$4.99',
-        'interval': 'month',
-        'badge': 'Recommended',
-        'features': [
-            'Ad-light experience',
-            'Live grocery price history and alerts',
-            'Advanced spending insights',
-            '2x points promos when profitable',
-            'Priority support chat'
-        ]
-    },
-]
-
-
 def next_reward_tier(points):
     balance = int(points or 0)
     for tier in REWARD_TIERS:

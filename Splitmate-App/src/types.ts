@@ -112,7 +112,11 @@ export type Note = {
 };
 
 /** Response of POST /receipts/scan: the line items read off a receipt photo. */
+/** This month's use of a feature with a free limit; limit and remaining are null on Pro (unlimited). */
+export type FeatureUsage = { used: number; limit: number | null; remaining: number | null };
+
 export type ReceiptScan = {
+  usage?: FeatureUsage;
   merchant: string;
   currency: string;
   items: Array<{ name: string; quantity: number; price: number }>;
@@ -260,6 +264,7 @@ export type GroceryStore = {
 };
 
 export type GroceryComparison = {
+  usage?: FeatureUsage;
   note_id?: number;
   currency: string;
   catalog_source?: string;
@@ -341,6 +346,9 @@ export type MembershipPlan = {
   interval: string;
   badge: string;
   features: string[];
+  /** 'month' or 'year' for a Pro plan that can be bought; null for Free. */
+  checkout_interval: 'month' | 'year' | null;
+  is_current: boolean;
 };
 
 export type ProfileQr = {
@@ -370,6 +378,12 @@ export type RewardsSummary = {
   };
   membership_plan: string;
   membership_status: string;
+  membership_interval?: string;
+  membership_renews_at?: string | null;
+  membership_cancel_at_period_end?: boolean;
+  /** False until the Stripe keys are added on the server. */
+  billing_enabled?: boolean;
+  usage?: { receipt_scan: FeatureUsage; grocery_compare: FeatureUsage };
   tiers?: RewardTier[];
   recent_transactions?: RewardTransactionRow[];
   membership_plans?: MembershipPlan[];

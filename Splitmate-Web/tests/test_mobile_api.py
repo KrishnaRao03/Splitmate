@@ -642,7 +642,7 @@ class MobileApiParityTests(unittest.TestCase):
 
         rewards = self.client.get('/api/mobile/rewards', headers=self.headers).get_json()
         self.assertEqual([tier['points'] for tier in rewards['tiers']], [500, 1000, 2500])
-        self.assertEqual([plan['id'] for plan in rewards['membership_plans']], ['free', 'plus'])
+        self.assertEqual([plan['id'] for plan in rewards['membership_plans']], ['free', 'pro_month', 'pro_year'])
         self.assertEqual(len(rewards['recent_transactions']), 5)
         # Newest first.
         self.assertEqual(rewards['recent_transactions'][0]['points'], 16)

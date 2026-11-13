@@ -78,6 +78,11 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     reward_points = db.Column(db.Integer, default=0, nullable=False)
     membership_plan = db.Column(db.String(30), default='free', nullable=False)
     membership_status = db.Column(db.String(30), default='active', nullable=False)
+    stripe_customer_id = db.Column(db.String(255), index=True)
+    stripe_subscription_id = db.Column(db.String(255))
+    membership_interval = db.Column(db.String(10))
+    membership_renews_at = db.Column(db.DateTime)
+    membership_cancel_at_period_end = db.Column(db.Boolean, default=False, nullable=False)
 
     administered_groups = db.relationship('Group', backref='admin', lazy='dynamic')
     expenses = db.relationship('Expense', backref='added_by', lazy='dynamic')
@@ -295,3 +300,14 @@ class PendingRegistration(EmailOtpMixin, db.Model):
     def create_user(self):
         """The verified account. The caller deletes this pending row and commits."""
         return User(email=self.email, name=self.name, password_hash=self.password_hash, is_email_verified=True)
+
+
+class FeatureUsage(db.Model):
+    """How often a user used a paid-to-run feature in one calendar month (UTC), for the free plan's limits."""
+    __table_args__ = (db.UniqueConstraint('user_id', 'feature', 'month', name='uq_feature_usage_month'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    feature = db.Column(db.String(30), nullable=False)
+    month = db.Column(db.String(7), nullable=False)  # 'YYYY-MM'
+    count = db.Column(db.Integer, default=0, nullable=False)

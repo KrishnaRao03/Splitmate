@@ -167,6 +167,21 @@ def ensure_rewards_schema():
         if 'membership_status' not in user_columns:
             db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN membership_status VARCHAR(30) DEFAULT 'active' NOT NULL"))
 
+        if 'stripe_customer_id' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN stripe_customer_id VARCHAR(255)'))
+
+        if 'stripe_subscription_id' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN stripe_subscription_id VARCHAR(255)'))
+
+        if 'membership_interval' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN membership_interval VARCHAR(10)'))
+
+        if 'membership_renews_at' not in user_columns:
+            db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN membership_renews_at {datetime_column_type()}'))
+
+        if 'membership_cancel_at_period_end' not in user_columns:
+            db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN membership_cancel_at_period_end {false_boolean_default()}'))
+
     if inspector.has_table('payment'):
         payment_columns = {column['name'] for column in inspector.get_columns('payment')}
 
@@ -380,6 +395,7 @@ def create_app(config_class=Config):
     from app.routes.tasks import tasks_bp
     from app.routes.admin import admin_bp
     from app.routes.mobile_api import mobile_api_bp
+    from app.routes.billing import billing_bp, stripe_webhook
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -388,10 +404,13 @@ def create_app(config_class=Config):
     app.register_blueprint(tasks_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(mobile_api_bp)
+    app.register_blueprint(billing_bp)
 
     # The mobile API authenticates with Bearer tokens, not cookies, so CSRF doesn't apply.
     csrf.init_app(app)
     csrf.exempt(mobile_api_bp)
+    # Stripe signs its webhook instead; there is no browser session to forge.
+    csrf.exempt(stripe_webhook)
 
     with app.app_context():
         db.create_all()

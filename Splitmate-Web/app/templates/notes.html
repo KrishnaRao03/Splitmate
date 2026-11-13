@@ -220,7 +220,8 @@
             const data = await response.json();
 
             if (!response.ok) {
-                panel.innerHTML = `<p class="grocery-status grocery-status-error">${escapeHtml(data.error || 'Could not compare this note.')}</p>`;
+                panel.innerHTML = `<p class="grocery-status grocery-status-error">${escapeHtml(data.error || 'Could not compare this note.')}</p>`
+                    + (data.limit_reached ? `<a class="btn btn-primary btn-sm" href="{{ url_for('main.profile') }}#membership-panel">Upgrade to Pro</a>` : '');
                 return;
             }
 
@@ -281,7 +282,8 @@
             });
             const data = await response.json();
             if (!response.ok) {
-                panel.innerHTML = `<p class="grocery-status grocery-status-error">${escapeHtml(data.error || 'Could not compare prices.')}</p>`;
+                panel.innerHTML = `<p class="grocery-status grocery-status-error">${escapeHtml(data.error || 'Could not compare prices.')}</p>`
+                    + (data.limit_reached ? `<a class="btn btn-primary btn-sm" href="{{ url_for('main.profile') }}#membership-panel">Upgrade to Pro</a>` : '');
                 return;
             }
             panel.innerHTML = renderGroceryComparison({ ...data, note_id: "'list'" });
@@ -311,6 +313,7 @@
                     <h3>Best grocery match</h3>
                     ${topStore ? `<p>${escapeHtml(topStore.store_name)}${topStore.location ? ` (${escapeHtml(topStore.location)})` : ''} has ${topStore.available_count}/${topStore.requested_count} items for ${formatGroceryMoney(topStore.total, data.currency)}.</p>` : ''}
                     ${sourceText ? `<p class="${sourceClass}">Source: ${escapeHtml(sourceText)}</p>` : ''}
+                    ${data.usage && data.usage.limit !== null ? `<p class="grocery-source">${data.usage.remaining} of ${data.usage.limit} free comparisons left this month.</p>` : ''}
                 </div>
                 <button type="button" class="btn btn-xs btn-ghost" onclick="closeGroceryComparison(${data.note_id})">Close</button>
             </div>

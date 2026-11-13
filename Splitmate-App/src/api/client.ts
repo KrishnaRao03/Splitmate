@@ -534,6 +534,22 @@ export class SplitmateApi {
     return this.request<RewardsSummary>('/rewards');
   }
 
+  /** Stripe's hosted payment page for Splitmate Pro. `returnUrl` is where Stripe sends the person back. */
+  membershipCheckout(interval: 'month' | 'year', returnUrl?: string) {
+    return this.request<{ url: string }>('/membership/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ interval, return_url: returnUrl })
+    });
+  }
+
+  /** Stripe's page for changing the card, switching plan or cancelling. */
+  membershipPortal(returnUrl?: string) {
+    return this.request<{ url: string }>('/membership/portal', {
+      method: 'POST',
+      body: JSON.stringify({ return_url: returnUrl })
+    });
+  }
+
   profileQr() {
     return this.request<ProfileQr>('/me/qr');
   }

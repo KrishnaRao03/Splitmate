@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
+import { UpgradePrompt, isLimitReached } from '@/components/UpgradePrompt';
 import { AppText as Text } from '@/components/AppText';
 import { Card } from '@/components/Card';
 import { ChoiceChips } from '@/components/ChoiceChips';
@@ -74,6 +75,8 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       Object.entries(defaultSplit.percentages).map(([memberId, value]) => [Number(memberId), value])
     ));
   const [saving, setSaving] = useState(false);
+  const [scanUsage, setScanUsage] = useState('');
+  const [scanLimit, setScanLimit] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
   const [merchant, setMerchant] = useState<string | null>(null);
@@ -165,7 +168,9 @@ export function AddExpenseScreen({ navigation, route }: Props) {
     };
     setScanning(true);
     try {
+      setScanLimit('');
       const scan = await api.scanReceipt(image);
+      setScanUsage(scan.usage?.limit != null ? `${scan.usage.remaining} of ${scan.usage.limit} free scans left this month.` : '');
       const items: ScannedItem[] = scan.items.map((item, index) => ({
         key: index, name: item.name, quantity: item.quantity, price: item.price.toFixed(2), keep: true
       }));
@@ -176,6 +181,10 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       setMerchant(scan.merchant || null);
       applyItems(items, scan.merchant || null);
     } catch (error) {
+      if (isLimitReached(error)) {
+        setScanLimit((error as Error).message);
+        return;
+      }
       Alert.alert('Could not scan receipt', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setScanning(false);
@@ -291,6 +300,8 @@ export function AddExpenseScreen({ navigation, route }: Props) {
         <AppButton icon="scan-outline" variant="outline" loading={scanning} onPress={scanReceipt}>
           {scannedItems.length ? 'Scan a Different Receipt' : 'Scan a Receipt Instead'}
         </AppButton>
+        {scanUsage ? <Text style={styles.helper}>{scanUsage}</Text> : null}
+        {scanLimit ? <UpgradePrompt message={scanLimit} /> : null}
       </Card>
 
       {scannedItems.length ? (
