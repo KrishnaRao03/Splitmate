@@ -16,12 +16,15 @@ import { TextField } from '@/components/TextField';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import type { GroceryComparison, Group, Note, RootStackParamList } from '@/types';
+import { currentPositionText, getGroceryLocation, setGroceryLocation } from '@/utils/groceryLocation';
 
 export function NotesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [comparisons, setComparisons] = useState<Record<number, GroceryComparison>>({});
   const [priceItems, setPriceItems] = useState('');
   const [priceResult, setPriceResult] = useState<GroceryComparison | null>(null);
+  const [priceLocation, setPriceLocation] = useState(getGroceryLocation);
+  const [locating, setLocating] = useState(false);
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState('');
   const [notes, setNotes] = useState<Note[]>([]);
@@ -124,7 +127,7 @@ export function NotesScreen() {
       return;
     }
     try {
-      const comparison = await api.compareGroceries(noteId);
+      const comparison = await api.compareGroceries(noteId, getGroceryLocation());
       setComparisons(current => ({ ...current, [noteId]: comparison }));
     } catch (error) {
       Alert.alert('Could not compare groceries', error instanceof Error ? error.message : 'Try again.');
@@ -140,12 +143,27 @@ export function NotesScreen() {
     setPriceError('');
     setPriceLoading(true);
     try {
-      setPriceResult(await api.compareGroceryList(priceItems));
+      setGroceryLocation(priceLocation);
+      setPriceResult(await api.compareGroceryList(priceItems, priceLocation));
     } catch (error) {
       setPriceResult(null);
       setPriceError(error instanceof Error ? error.message : 'Could not compare prices. Try again.');
     } finally {
       setPriceLoading(false);
+    }
+  }
+
+  async function locateMe() {
+    setLocating(true);
+    setPriceError('');
+    try {
+      const position = await currentPositionText();
+      setPriceLocation(position);
+      setGroceryLocation(position);
+    } catch (error) {
+      setPriceError(error instanceof Error ? error.message : 'Could not get your location.');
+    } finally {
+      setLocating(false);
     }
   }
 
@@ -207,6 +225,13 @@ export function NotesScreen() {
           multiline
           error={priceError}
         />
+        <TextField
+          label="Your location"
+          value={priceLocation}
+          onChangeText={setPriceLocation}
+          placeholder="City or postal code, e.g. M5V 2T6 (default Toronto)"
+        />
+        <AppButton icon="locate-outline" variant="outline" loading={locating} onPress={locateMe}>Use my location</AppButton>
         <AppButton icon="pricetags-outline" loading={priceLoading} onPress={comparePrices}>
           {priceLoading ? 'Checking store prices...' : 'Compare prices'}
         </AppButton>

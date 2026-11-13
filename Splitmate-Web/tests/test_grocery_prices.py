@@ -41,6 +41,7 @@ class FakeGemini:
 
     def generate_content(self, **kwargs):
         self.calls += 1
+        self.last_prompt = kwargs.get('contents')
         return SimpleNamespace(text=self.text)
 
 
@@ -95,6 +96,46 @@ class GroceryPriceTests(unittest.TestCase):
         with patch('app.grocery_compare.live_grocery_catalogs', side_effect=flyer_catalogs):
             grocery_compare.compare_grocery_list(grocery_compare.parse_grocery_items_from_text('apple'), client=fake)
         self.assertEqual(fake.calls, 1)
+
+    def test_location_is_searched_and_shown_and_items_missing_at_one_store_are_looked_up(self):
+        def catalogs_missing_walmart_milk():
+            catalogs, meta = flyer_catalogs()
+            catalogs[0]['items'].append({'name': 'Milk 2% 4L', 'generic_name': 'milk', 'size': '4L', 'price': '6.49',
+                                         'in_stock': True, 'aliases': ['milk']})
+            return catalogs, meta
+
+        reply = json.dumps({
+            'branches': [{'store_id': 'walmart', 'branch': 'Walmart Supercentre, 900 Dufferin St'}],
+            'prices': [{'item': 'milk', 'store_id': 'walmart', 'product': 'Great Value 2% Milk', 'size': '4 L',
+                        'price': 6.27, 'url': 'https://www.walmart.ca/milk'}],
+        })
+        fake = FakeGemini(reply)
+        with patch('app.grocery_compare.live_grocery_catalogs', side_effect=catalogs_missing_walmart_milk):
+            result = grocery_compare.compare_grocery_list(
+                grocery_compare.parse_grocery_items_from_text('milk'), location='M6H 4M5', client=fake)
+
+        self.assertEqual(fake.calls, 1)
+        self.assertIn('M6H 4M5', fake.last_prompt)
+        self.assertIn('closest similar product', fake.last_prompt)
+        self.assertEqual(result['location'], 'M6H 4M5')
+        by_store = {store['store_id']: store for store in result['stores']}
+        self.assertEqual(by_store['walmart']['location'], 'Walmart Supercentre, 900 Dufferin St')
+        self.assertEqual(by_store['nofrills']['location'], 'M6H 4M5')
+        self.assertEqual(by_store['walmart']['total'], 6.27)
+
+    def test_failed_online_lookup_is_reported(self):
+        class BrokenGemini(FakeGemini):
+            def generate_content(self, **kwargs):
+                raise RuntimeError('quota exceeded')
+
+        with patch('app.grocery_compare.live_grocery_catalogs', side_effect=flyer_catalogs), \
+                patch.dict(os.environ, {'GEMINI_API_KEY': 'test-key'}):
+            result = grocery_compare.compare_grocery_list(
+                grocery_compare.parse_grocery_items_from_text('apple'), client=BrokenGemini(''))
+        self.assertIn('quota exceeded', grocery_compare.last_web_price_error)
+        self.assertIn('online price lookup failed', result['catalog_source'])
+        health = self.client.get('/api/mobile/health').get_json()
+        self.assertIn('quota exceeded', health['last_grocery_price_error'])
 
     def test_no_made_up_prices_when_the_flyer_feed_is_down(self):
         with patch.dict(os.environ, {'GROCERY_PRICE_SOURCE': 'trimcart'}), \

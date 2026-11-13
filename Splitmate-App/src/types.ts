@@ -240,6 +240,8 @@ export type GroceryLine = {
 export type GroceryStore = {
   rank: number;
   store_name: string;
+  /** Nearest branch found online, or the searched location. */
+  location?: string;
   total: number;
   available_count: number;
   unavailable_count?: number;
@@ -253,6 +255,7 @@ export type GroceryComparison = {
   note_id?: number;
   currency: string;
   catalog_source?: string;
+  location?: string;
   requested_items: Array<{ name?: string; raw?: string; quantity?: number; unit?: string }>;
   top_store?: GroceryStore | null;
   stores: GroceryStore[];

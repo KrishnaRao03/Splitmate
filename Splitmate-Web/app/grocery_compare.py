@@ -1,5 +1,6 @@
 import copy
 import json
+import logging
 import os
 import re
 import time
@@ -8,6 +9,7 @@ from difflib import SequenceMatcher
 from decimal import Decimal, ROUND_HALF_UP
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+
 
 
 CENT = Decimal('0.01')
@@ -782,18 +784,24 @@ WEB_PRICE_CACHE_SECONDS = 6 * 60 * 60
 WEB_PRICE_MAX_ITEMS = 12
 _web_price_cache = {}
 
-WEB_PRICE_PROMPT = """You are checking real, current grocery shelf prices in Toronto, Ontario, Canada.
+DEFAULT_LOCATION = 'Toronto, ON'
+last_web_price_error = None  # Shown by /api/mobile/health so a failing lookup can be diagnosed without logs.
+
+WEB_PRICE_PROMPT = """You are checking real, current grocery shelf prices for a shopper near: {location} (Canada, CAD).
 Search the stores' own websites (or flyers) for each item below at each store listed.
 
 Stores (use these exact store_id values): {stores}
 Items: {items}
 
+For each store, find the branch nearest to the shopper's location.
 For each item and store, report the regular price of the most common everyday product that matches
-(e.g. "apple" -> a common apple sold per lb or per bag). Only report prices you actually found online
-in the last few weeks; never estimate or invent a price. Skip a store/item pair if you can't find it.
+(e.g. "apple" -> a common apple sold per lb or per bag). If the exact item isn't sold there, report the
+closest similar product instead and name it in "product". Only report prices you actually found online
+in the last few weeks; never estimate or invent a price.
 
 Reply with JSON only, no prose, in exactly this shape:
-{{"prices": [{{"item": "<item as given>", "store_id": "<store_id>", "product": "<product name as listed>",
+{{"branches": [{{"store_id": "<store_id>", "branch": "<branch name or street, city>"}}],
+"prices": [{{"item": "<item as given>", "store_id": "<store_id>", "product": "<product name as listed>",
 "size": "<size or unit, e.g. per lb, 1.36 kg bag>", "price": <number in CAD>, "url": "<page where you found it>"}}]}}"""
 
 
@@ -806,38 +814,50 @@ def _parse_web_price_json(text):
     text = (text or '').strip()
     start, end = text.find('{'), text.rfind('}')
     if start == -1 or end <= start:
-        return []
+        return {}
     try:
         data = json.loads(text[start:end + 1])
     except ValueError:
-        return []
-    return data.get('prices') if isinstance(data, dict) and isinstance(data.get('prices'), list) else []
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
-def fetch_web_prices(item_names, client=None):
-    """{store_id: [catalog items]} with real prices found online for item_names. Cached for 6 hours per item."""
+def clean_location(value):
+    return re.sub(r'\s+', ' ', str(value or '')).strip()[:80] or DEFAULT_LOCATION
+
+
+def fetch_web_prices(item_names, location=DEFAULT_LOCATION, client=None):
+    """({store_id: [catalog items]}, {store_id: branch}) with real prices found online near `location`.
+
+    Cached for 6 hours per item and location.
+    """
+    global last_web_price_error
     store_ids = {store_id for store_id, _ in TRIMCART_STORES}
+    location = clean_location(location)
     now = time.time()
     found = {store_id: [] for store_id in store_ids}
+    branches = {}
     to_lookup = []
     for name in item_names[:WEB_PRICE_MAX_ITEMS]:
-        cached = _web_price_cache.get(name.lower())
+        cached = _web_price_cache.get((name.lower(), location.lower()))
         if cached and cached['expires_at'] > now:
             for store_id, entries in cached['prices'].items():
                 found[store_id].extend(entries)
+            branches.update(cached['branches'])
         else:
             to_lookup.append(name)
 
     if not to_lookup:
-        return found
+        return found, branches
     if client is None:
         if not web_price_lookup_configured():
-            return found
+            return found, branches
         from google import genai
         client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
 
     from google.genai import types
     prompt = WEB_PRICE_PROMPT.format(
+        location=location,
         stores=', '.join(f'{store_id} ({store_name})' for store_id, store_name in TRIMCART_STORES),
         items=', '.join(to_lookup),
     )
@@ -847,12 +867,26 @@ def fetch_web_prices(item_names, client=None):
             contents=prompt,
             config=types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())]),
         )
-        rows = _parse_web_price_json(response.text)
-    except Exception:  # Any failure just means no web prices this time; flyer prices still show.
-        return found
+        data = _parse_web_price_json(response.text)
+    except Exception as exc:  # Any failure just means no web prices this time; flyer prices still show.
+        last_web_price_error = f'{type(exc).__name__}: {str(exc)[:300]}'
+        logging.getLogger(__name__).warning('Online grocery price lookup failed: %s', last_web_price_error)
+        return found, branches
+    if not data:
+        last_web_price_error = 'Gemini replied without usable JSON: ' + str(getattr(response, 'text', '') or '')[:200]
+        return found, branches
+    last_web_price_error = None
+
+    fresh_branches = {}
+    for row in data.get('branches') or []:
+        if isinstance(row, dict):
+            store_id = str(row.get('store_id') or '').strip().lower()
+            branch = str(row.get('branch') or '').strip()[:80]
+            if store_id in store_ids and branch:
+                fresh_branches[store_id] = branch
 
     fresh = {name.lower(): {store_id: [] for store_id in store_ids} for name in to_lookup}
-    for row in rows:
+    for row in data.get('prices') or []:
         if not isinstance(row, dict):
             continue
         item = str(row.get('item') or '').strip()
@@ -878,24 +912,30 @@ def fetch_web_prices(item_names, client=None):
         })
 
     for name, prices in fresh.items():
-        _web_price_cache[name] = {'prices': prices, 'expires_at': now + WEB_PRICE_CACHE_SECONDS}
+        _web_price_cache[(name, location.lower())] = {
+            'prices': prices, 'branches': fresh_branches, 'expires_at': now + WEB_PRICE_CACHE_SECONDS,
+        }
         for store_id, entries in prices.items():
             found[store_id].extend(entries)
-    return found
+    branches.update(fresh_branches)
+    return found, branches
 
 
-def compare_grocery_list(requested_items, client=None):
-    """Compare requested items across stores with real prices: weekly flyer data first, then a web lookup for the rest."""
+def compare_grocery_list(requested_items, location=None, client=None):
+    """Compare requested items across stores with real prices: weekly flyer data plus a web lookup near `location`."""
+    location = clean_location(location)
     catalogs, source_meta = live_grocery_catalogs()
     catalogs = copy.deepcopy(catalogs)
 
+    # Look up online every item that some store lacks, so each store gets its own real price (or closest match).
     uncovered = [
         item['name'] for item in requested_items
-        if not any(best_match_for_store(item, store['items'])[0] for store in catalogs)
+        if not all(best_match_for_store(item, store['items'])[0] for store in catalogs)
     ]
     web_used = False
+    branches = {}
     if uncovered and source_meta.get('status') != 'demo':
-        web_prices = fetch_web_prices(uncovered, client=client)
+        web_prices, branches = fetch_web_prices(uncovered, location=location, client=client)
         for store in catalogs:
             extra = web_prices.get(store['store_id']) or []
             if extra:
@@ -903,10 +943,14 @@ def compare_grocery_list(requested_items, client=None):
                 store['items'] = list(store['items']) + extra
 
     stores = compare_grocery_items(requested_items, catalogs)
+    for store in stores:
+        store['location'] = branches.get(store['store_id']) or location
     labels = [source_meta.get('label')] if source_meta.get('label') else []
     if web_used:
         labels.append('Items not in the weekly flyer data were priced from the stores\' websites via Google Search '
                       f'on {datetime.now().strftime("%b %d, %Y")}. Prices can change; check in store.')
+    elif uncovered and last_web_price_error and web_price_lookup_configured():
+        labels.append('The online price lookup failed this time, so some items show no price. Try again in a minute.')
     elif uncovered and not web_price_lookup_configured() and source_meta.get('status') != 'demo':
         labels.append('Some items have no weekly price yet. Add GEMINI_API_KEY on the server to look up any item online.')
 
@@ -914,15 +958,16 @@ def compare_grocery_list(requested_items, client=None):
         'currency': CURRENCY_CODE,
         'catalog_source': ' '.join(labels),
         'catalog_source_meta': {**source_meta, 'web_lookup': web_used},
+        'location': location,
         'requested_items': requested_items,
         'top_store': stores[0] if stores and any(store['available_count'] for store in stores) else None,
         'stores': stores,
     }
 
 
-def compare_grocery_note(note):
+def compare_grocery_note(note, location=None):
     requested_items = parse_grocery_items_from_note(note)
-    result = compare_grocery_list(requested_items)
+    result = compare_grocery_list(requested_items, location=location)
     return {
         'note_id': note.id,
         'note_title': getattr(note, 'title', None) or getattr(note, 'content', None) or '',

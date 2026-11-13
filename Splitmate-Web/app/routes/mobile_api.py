@@ -353,12 +353,13 @@ def health():
         email_provider = 'smtp'
     else:
         email_provider = 'none'
-    from app import email_utils
+    from app import email_utils, grocery_compare
     return jsonify({
         'ok': True,
         'service': 'Splitmate mobile API',
         'email_provider': email_provider,
         'last_email_error': email_utils.last_email_error,
+        'last_grocery_price_error': grocery_compare.last_web_price_error,
     })
 
 
@@ -1772,10 +1773,11 @@ def toggle_note(note_id):
 @limiter.limit('30 per hour')
 def compare_grocery_prices():
     """Compare real store prices for a typed list like "apple, banana, 2 milk"."""
-    requested_items = parse_grocery_items_from_text(str(json_body().get('items') or '')[:1000])
+    data = json_body()
+    requested_items = parse_grocery_items_from_text(str(data.get('items') or '')[:1000])
     if not requested_items:
         return json_error('Type at least one item, separated by commas or new lines.')
-    return jsonify(compare_grocery_list(requested_items))
+    return jsonify(compare_grocery_list(requested_items, location=data.get('location')))
 
 
 @mobile_api_bp.route('/notes/<int:note_id>/grocery-comparison')
@@ -1788,7 +1790,7 @@ def compare_note_groceries(note_id):
     if not note_allows_grocery_comparison(note):
         return json_error('Price comparison is only available for grocery, shopping, or list notes.')
 
-    comparison = compare_grocery_note(note)
+    comparison = compare_grocery_note(note, location=request.args.get('location'))
     if not comparison['requested_items']:
         return json_error('No grocery items found in this note. Add one item per line or separate items with commas.')
 

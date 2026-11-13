@@ -20,6 +20,7 @@ import { useAuth } from '@/state/AuthContext';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDate, formatDateTime } from '@/utils/dates';
+import { getGroceryLocation } from '@/utils/groceryLocation';
 import { formatMoney, parseAmount } from '@/utils/money';
 import type { Expense, ExpenseSearchResult, GroceryComparison, GroupDetail, Note, RootStackParamList } from '@/types';
 
@@ -214,7 +215,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
 
   async function compareNote(noteId: number) {
     try {
-      const comparison = await api.compareGroceries(noteId);
+      const comparison = await api.compareGroceries(noteId, getGroceryLocation());
       setComparisons(current => ({ ...current, [noteId]: comparison }));
     } catch (error) {
       Alert.alert('Could not compare groceries', error instanceof Error ? error.message : 'Try again.');

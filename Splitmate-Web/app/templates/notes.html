@@ -31,6 +31,9 @@
         <form id="priceCompareForm" class="form-group" onsubmit="comparePriceList(event)">
             <label for="priceCompareItems">Type what you need and see which store is cheapest right now.</label>
             <textarea id="priceCompareItems" rows="2" maxlength="1000" placeholder="apple, banana, 2 milk, bread"></textarea>
+            <label for="priceCompareLocation">Your location</label>
+            <input type="text" id="priceCompareLocation" maxlength="80" placeholder="City or postal code, e.g. M5V 2T6 (default Toronto)">
+            <button type="button" class="btn btn-outline btn-sm" onclick="useCurrentLocation(this)">Use my location</button>
             <button type="submit" class="btn btn-primary btn-sm" id="priceCompareButton">Compare prices</button>
         </form>
         <div id="groceryComparison-list" class="grocery-comparison" hidden></div>
@@ -211,7 +214,9 @@
         if (button) button.disabled = true;
 
         try {
-            const response = await fetch(`/notes/api/${noteId}/grocery-comparison`);
+            const location = groceryLocation();
+            const query = location ? `?location=${encodeURIComponent(location)}` : '';
+            const response = await fetch(`/notes/api/${noteId}/grocery-comparison${query}`);
             const data = await response.json();
 
             if (!response.ok) {
@@ -226,6 +231,35 @@
             if (button) button.disabled = false;
         }
     }
+
+    function groceryLocation() {
+        const field = document.getElementById('priceCompareLocation');
+        const value = field ? field.value.trim() : '';
+        try { localStorage.setItem('splitmate.groceryLocation', value); } catch (error) { /* only a convenience */ }
+        return value;
+    }
+
+    function useCurrentLocation(button) {
+        const field = document.getElementById('priceCompareLocation');
+        if (!navigator.geolocation) {
+            field.placeholder = 'Location is not available here. Type your city or postal code.';
+            return;
+        }
+        button.disabled = true;
+        navigator.geolocation.getCurrentPosition(position => {
+            field.value = `${position.coords.latitude.toFixed(3)}, ${position.coords.longitude.toFixed(3)}`;
+            groceryLocation();
+            button.disabled = false;
+        }, () => {
+            field.placeholder = 'Location permission was denied. Type your city or postal code.';
+            button.disabled = false;
+        }, { timeout: 15000, maximumAge: 600000 });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const field = document.getElementById('priceCompareLocation');
+        try { if (field) field.value = localStorage.getItem('splitmate.groceryLocation') || ''; } catch (error) { /* ignore */ }
+    });
 
     async function comparePriceList(event) {
         event.preventDefault();
@@ -243,7 +277,7 @@
             const response = await fetch('/notes/api/grocery-compare', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items })
+                body: JSON.stringify({ items, location: groceryLocation() })
             });
             const data = await response.json();
             if (!response.ok) {
@@ -275,7 +309,7 @@
             <div class="grocery-comparison-header">
                 <div>
                     <h3>Best grocery match</h3>
-                    ${topStore ? `<p>${escapeHtml(topStore.store_name)} has ${topStore.available_count}/${topStore.requested_count} items for ${formatGroceryMoney(topStore.total, data.currency)}.</p>` : ''}
+                    ${topStore ? `<p>${escapeHtml(topStore.store_name)}${topStore.location ? ` (${escapeHtml(topStore.location)})` : ''} has ${topStore.available_count}/${topStore.requested_count} items for ${formatGroceryMoney(topStore.total, data.currency)}.</p>` : ''}
                     ${sourceText ? `<p class="${sourceClass}">Source: ${escapeHtml(sourceText)}</p>` : ''}
                 </div>
                 <button type="button" class="btn btn-xs btn-ghost" onclick="closeGroceryComparison(${data.note_id})">Close</button>
@@ -299,6 +333,7 @@
                     <div>
                         <span class="grocery-rank">#${store.rank}</span>
                         <strong>${escapeHtml(store.store_name)}</strong>
+                        ${store.location ? `<span class="grocery-location">· ${escapeHtml(store.location)}</span>` : ''}
                     </div>
                     <div class="grocery-total">${formatGroceryMoney(store.total, currency)}</div>
                     <span class="grocery-availability">${escapeHtml(statusText)}</span>

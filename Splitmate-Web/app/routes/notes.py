@@ -141,7 +141,7 @@ def compare_grocery_prices():
     requested_items = parse_grocery_items_from_text(str(data.get('items') or '')[:1000])
     if not requested_items:
         return jsonify({'error': 'Type at least one item, separated by commas or new lines.'}), 400
-    return jsonify(compare_grocery_list(requested_items))
+    return jsonify(compare_grocery_list(requested_items, location=data.get('location')))
 
 @notes_bp.route('/api/<int:note_id>/grocery-comparison')
 @login_required
@@ -155,7 +155,7 @@ def compare_note_groceries(note_id):
             'error': 'Price comparison is only shown for grocery, shopping, or list notes.'
         }), 400
 
-    comparison = compare_grocery_note(note)
+    comparison = compare_grocery_note(note, location=request.args.get('location'))
     if not comparison['requested_items']:
         return jsonify({
             **comparison,

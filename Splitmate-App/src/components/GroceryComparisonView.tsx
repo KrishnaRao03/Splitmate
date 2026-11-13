@@ -16,7 +16,7 @@ export function GroceryComparisonView({ comparison }: { comparison: GroceryCompa
     <View style={styles.comparison}>
       <Text style={styles.cardLabel}>Best Grocery Match</Text>
       {comparison.top_store ? (
-        <Text style={styles.memberLine}>{comparison.top_store.store_name}: {formatMoney(comparison.top_store.total ?? 0, comparison.currency)}</Text>
+        <Text style={styles.memberLine}>{comparison.top_store.store_name}{comparison.top_store.location ? ` (${comparison.top_store.location})` : ''}: {formatMoney(comparison.top_store.total ?? 0, comparison.currency)}</Text>
       ) : null}
       {comparison.stores.map(store => {
         const open = expandedStores[store.rank];
@@ -29,7 +29,7 @@ export function GroceryComparisonView({ comparison }: { comparison: GroceryCompa
               style={styles.rowBetween}
             >
               <View style={styles.headerText}>
-                <Text style={styles.muted}>#{store.rank} {store.store_name}{store.all_items_available ? ' - has everything' : ''}</Text>
+                <Text style={styles.muted}>#{store.rank} {store.store_name}{store.location ? ` · ${store.location}` : ''}{store.all_items_available ? ' - has everything' : ''}</Text>
                 <Text style={styles.memberLine}>
                   {store.available_count} in stock
                   {store.unavailable_count ? `, ${store.unavailable_count} out of stock` : ''}

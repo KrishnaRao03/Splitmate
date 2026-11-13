@@ -3693,6 +3693,12 @@ input[type="file"]::file-selector-button:hover {
     font-weight: 900;
 }
 
+.grocery-location {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-left: 0.25rem;
+}
+
 .grocery-rank {
     display: inline-flex;
     min-width: 30px;
