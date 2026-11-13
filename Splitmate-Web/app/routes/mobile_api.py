@@ -39,7 +39,7 @@ from app.routes.auth import (
 from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload
 from app.receipt_scan import ReceiptScanError, scan_receipt_image
 from app.routes import split as split_routes
-from app.security import clean_payment_handles, csv_safe, display_name_error, is_safe_link, password_error
+from app.security import clean_payment_handles, csv_safe, display_name_error, is_safe_link, normalize_phone, password_error
 from app.task_utils import (
     normalize_task_priority,
     normalize_task_recurrence,
@@ -87,6 +87,7 @@ def user_payload(user):
         'id': user.id,
         'name': user.name,
         'email': user.email,
+        'phone': user.phone or '',
         'is_email_verified': bool(user.is_email_verified),
         'reward_points': int(user.reward_points or 0),
         'membership_plan': user.membership_plan or 'free',
@@ -550,6 +551,15 @@ def me():
     if handle_error:
         return json_error(handle_error)
 
+    if 'phone' in data:
+        raw_phone = str(data.get('phone') or '').strip()
+        phone = normalize_phone(raw_phone) if raw_phone else None
+        if raw_phone and not phone:
+            return json_error('Enter a valid phone number, like 416 555 0123.')
+        if phone and User.query.filter(User.phone == phone, User.id != user.id).first():
+            return json_error('That phone number is already used by another account.', 409)
+        user.phone = phone
+
     user.name = name
     for field, value in handles.items():
         setattr(user, field, value)
@@ -734,6 +744,107 @@ def invite_splitmate():
         'email': email,
         'invite_url': join_url,
     })
+
+
+QUICK_SPLIT_MAX_PEOPLE = 10
+
+
+def find_user_by_contact(contact):
+    """An email or phone number -> (User or None, cleaned contact or None if it isn't a valid email/phone)."""
+    contact = str(contact or '').strip()
+    if '@' in contact:
+        email = normalize_email(contact)
+        return (User.query.filter_by(email=email).first() if email else None), email
+    phone = normalize_phone(contact)
+    return (User.query.filter_by(phone=phone).first() if phone else None), phone
+
+
+@mobile_api_bp.route('/quick-split', methods=['POST'])
+@mobile_login_required
+@limiter.limit('30 per hour')
+def quick_split():
+    """Split one expense equally with friends found by email or phone, without making a group first.
+
+    The same set of people reuses their earlier Quick split group, so balances stay in one place.
+    """
+    data = json_body()
+    me = request.mobile_user
+    contacts = [str(item).strip() for item in (data.get('contacts') or []) if str(item).strip()]
+    if not contacts:
+        return json_error('Add at least one friend by email or phone number.')
+    if len(contacts) > QUICK_SPLIT_MAX_PEOPLE:
+        return json_error(f'Quick split works with up to {QUICK_SPLIT_MAX_PEOPLE} people. Make a group for more.')
+
+    friends, invalid, not_found = [], [], []
+    for contact in contacts:
+        user, cleaned = find_user_by_contact(contact)
+        if not cleaned:
+            invalid.append(contact)
+        elif not user or getattr(user, 'is_suspended', False):
+            not_found.append(cleaned)
+        elif user.id != me.id and user not in friends:
+            friends.append(user)
+    if invalid:
+        return json_error(f'Not a valid email or phone number: {", ".join(invalid)}')
+    if not_found:
+        response = jsonify({
+            'error': f'Not on Splitmate yet: {", ".join(not_found)}. Invite them first.',
+            'not_found': not_found,
+        })
+        return response, 404
+    if not friends:
+        return json_error('Add at least one friend other than yourself.')
+
+    wanted_ids = {me.id, *(friend.id for friend in friends)}
+    group = next(
+        (candidate for candidate in me.groups.filter(Group.is_quick_split == True).all()  # noqa: E712
+         if {member.id for member in candidate.members} == wanted_ids),
+        None,
+    )
+    if group is None:
+        names = ', '.join(friend.name.split()[0] for friend in friends)
+        group = Group(name=f'Quick split: {names}'[:100], admin_id=me.id, is_quick_split=True)
+        db.session.add(group)
+        group.members.append(me)
+        group.members.extend(friends)
+        db.session.flush()
+        for member in group.members:
+            set_member_nickname(group.id, member)
+
+    parsed, parse_error = parse_expense_data(group, {
+        'description': data.get('description'),
+        'amount': data.get('amount'),
+        'category': data.get('category'),
+        'paid_by_id': me.id,
+        'split_type': 'equal',
+    })
+    if parse_error:
+        db.session.rollback()
+        return parse_error
+
+    expense = Expense(
+        description=parsed['description'],
+        amount=float(parsed['amount']),
+        category=parsed['category'],
+        receipt_url=None,
+        group_id=group.id,
+        paid_by_id=me.id,
+    )
+    db.session.add(expense)
+    db.session.flush()
+    db.session.add(ExpenseHistory(
+        description=expense.description,
+        amount=expense.amount,
+        category=expense.category,
+        date=expense.date,
+        paid_by_id=expense.paid_by_id,
+        group_id=expense.group_id,
+    ))
+    for member, share in parsed['split_rows']:
+        if share > 0:
+            db.session.add(ExpenseSplit(expense_id=expense.id, user_id=member.id, amount_owed=float(share)))
+    db.session.commit()
+    return jsonify({'group': group_payload(group), 'expense': expense_payload(expense)}), 201
 
 
 @mobile_api_bp.route('/devices', methods=['POST'])

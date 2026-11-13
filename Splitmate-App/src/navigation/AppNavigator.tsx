@@ -5,6 +5,7 @@ import type { RootStackParamList } from '@/types';
 import { useAuth } from '@/state/AuthContext';
 import { LoadingState } from '@/components/States';
 import { AddExpenseScreen } from '@/screens/AddExpenseScreen';
+import { QuickSplitScreen } from '@/screens/QuickSplitScreen';
 import { AddTaskScreen } from '@/screens/AddTaskScreen';
 import { AuthScreen } from '@/screens/AuthScreen';
 import { CreateGroupScreen } from '@/screens/CreateGroupScreen';
@@ -48,6 +49,7 @@ export function AppNavigator() {
           <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create Group' }} />
           <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={({ route }) => ({ title: route.params.groupName })} />
           <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Add Expense' }} />
+          <Stack.Screen name="QuickSplit" component={QuickSplitScreen} options={{ title: 'Quick Split' }} />
           <Stack.Screen name="AddTask" component={AddTaskScreen} options={{ title: 'Add Task' }} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
           <Stack.Screen name="GroupSettings" component={GroupSettingsScreen} options={({ route }) => ({ title: `${route.params.groupName} Settings` })} />

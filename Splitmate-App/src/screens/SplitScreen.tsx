@@ -143,11 +143,13 @@ export function SplitScreen({ navigation }: Props) {
               <Text style={styles.addHelp}>For {dashboard.groups[0].name}</Text>
             )}
             <AppButton icon="add-outline" loading={openingExpense} onPress={startExpense}>Add Expense</AppButton>
+            <AppButton icon="flash-outline" variant="outline" onPress={() => navigation.navigate('QuickSplit')}>Quick split with friends</AppButton>
           </>
         ) : (
           <>
             <Text style={styles.addHelp}>Create a group first, then you can split expenses with it.</Text>
             <AppButton icon="people-outline" onPress={() => navigation.navigate('CreateGroup')}>Create Group</AppButton>
+            <AppButton icon="flash-outline" variant="outline" onPress={() => navigation.navigate('QuickSplit')}>Quick split with friends</AppButton>
           </>
         )}
       </Card>

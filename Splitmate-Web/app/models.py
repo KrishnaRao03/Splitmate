@@ -52,6 +52,8 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     last_activity_at = db.Column(db.DateTime)
     last_inactivity_email_sent_at = db.Column(db.DateTime)
     is_suspended = db.Column(db.Boolean, default=False, nullable=False)
+    # Optional, one account per number (stored as +digits); lets friends find you for Quick split.
+    phone = db.Column(db.String(20), unique=True, index=True)
     is_email_verified = db.Column(db.Boolean, default=False, nullable=False)
     email_otp_hash = db.Column(db.String(256))
     email_otp_expires_at = db.Column(db.DateTime)
@@ -107,6 +109,8 @@ class Group(db.Model):
     admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     default_split_type = db.Column(db.String(20), default='equal', nullable=False)
     default_split_config = db.Column(db.Text)
+    # Made by Quick split for a one-off split; reused when the same people split again.
+    is_quick_split = db.Column(db.Boolean, default=False, nullable=False)
 
     members = db.relationship('User', secondary=group_members,
                               backref=db.backref('groups', lazy='dynamic'))

@@ -4,6 +4,7 @@ import type {
   AuthResponse,
   Dashboard,
   DefaultSplit,
+  Expense,
   ExpenseSearchResult,
   GroceryComparison,
   Group,
@@ -40,7 +41,7 @@ export function defaultApiBaseUrl() {
   return `http://${host}:5000/api/mobile`;
 }
 
-export type ApiError = Error & { status?: number; isNetworkError?: boolean };
+export type ApiError = Error & { status?: number; isNetworkError?: boolean; data?: Record<string, unknown> };
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -119,6 +120,7 @@ export class SplitmateApi {
     if (!response.ok) {
       const error = new Error(payload?.error || `Request failed (${response.status})`) as ApiError;
       error.status = response.status;
+      error.data = payload ?? undefined;
       // A 401 on an authenticated request means the saved login is no longer valid.
       if (response.status === 401 && this.token && !path.startsWith('/auth/')) {
         this.onUnauthorized?.();
@@ -170,7 +172,7 @@ export class SplitmateApi {
   }
 
   /** `currentPassword` is required by the server only when the email changes. */
-  updateProfile(details: { name: string; email: string; currentPassword?: string } & PaymentHandles) {
+  updateProfile(details: { name: string; email: string; currentPassword?: string; phone?: string } & PaymentHandles) {
     const { currentPassword, ...rest } = details;
     return this.request<AuthResponse & { verification_required: boolean; otp_sent: boolean }>('/me', {
       method: 'PATCH',
@@ -187,6 +189,14 @@ export class SplitmateApi {
         new_password: newPassword,
         confirm_password: confirmPassword
       })
+    });
+  }
+
+  /** Split one expense equally with friends found by email or phone; reuses their earlier Quick split group. */
+  quickSplit(contacts: string[], description: string, amount: number) {
+    return this.request<{ group: Group; expense: Expense }>('/quick-split', {
+      method: 'POST',
+      body: JSON.stringify({ contacts, description, amount })
     });
   }
 

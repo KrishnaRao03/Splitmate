@@ -123,3 +123,14 @@ def payment_methods_for(receiver, amount, currency_code, receiver_name=None):
             'url': f'upi://pay?{urlencode(params, quote_via=quote)}',
         })
     return methods
+
+
+def normalize_phone(value):
+    """'+1 (416) 555-0123' / '4165550123' -> '+14165550123'. Returns None if it isn't a plausible number."""
+    raw = str(value or '').strip()
+    digits = ''.join(char for char in raw if char.isdigit())
+    if not raw.startswith('+') and len(digits) == 10:
+        digits = '1' + digits  # A 10-digit number is North American.
+    if not 10 <= len(digits) <= 15:
+        return None
+    return '+' + digits

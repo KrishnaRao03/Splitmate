@@ -31,6 +31,7 @@ export function ProfileScreen({ navigation }: Props) {
   const [interacEmail, setInteracEmail] = useState(auth.user?.interac_email || '');
   const [paypalUsername, setPaypalUsername] = useState(auth.user?.paypal_username || '');
   const [upiId, setUpiId] = useState(auth.user?.upi_id || '');
+  const [phone, setPhone] = useState(auth.user?.phone || '');
   const [otp, setOtp] = useState('');
   const [verificationRequired, setVerificationRequired] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -95,7 +96,8 @@ export function ProfileScreen({ navigation }: Props) {
         currentPassword: emailChanged ? emailPassword : undefined,
         interac_email: interacEmail.trim(),
         paypal_username: paypalUsername.trim(),
-        upi_id: upiId.trim()
+        upi_id: upiId.trim(),
+        phone: phone.trim()
       });
       setEmailPassword('');
       setVerificationRequired(result.verificationRequired);
@@ -209,6 +211,7 @@ export function ProfileScreen({ navigation }: Props) {
           <View style={styles.panel}>
             <TextField label="Full name" value={name} onChangeText={setName} autoCapitalize="words" />
             <TextField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+            <TextField label="Phone number (optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="416 555 0123" />
             {emailChanged ? (
               <TextField label="Current password (needed to change email)" value={emailPassword} onChangeText={setEmailPassword} secureTextEntry />
             ) : null}

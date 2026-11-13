@@ -141,7 +141,10 @@ export function HomeScreen({ navigation }: Props) {
         </View>
       </View>
 
-      <AppButton icon="add-outline" onPress={() => navigation.navigate('CreateGroup')}>Create Group</AppButton>
+      <View style={styles.homeActions}>
+        <AppButton icon="flash-outline" style={styles.homeAction} onPress={() => navigation.navigate('QuickSplit')}>Quick split</AppButton>
+        <AppButton icon="add-outline" variant="outline" style={styles.homeAction} onPress={() => navigation.navigate('CreateGroup')}>Create Group</AppButton>
+      </View>
 
       <Text style={styles.sectionTitle}>This Month</Text>
       {dashboard?.monthly_spending.length ? dashboard.monthly_spending.map(item => (
@@ -223,6 +226,15 @@ export function HomeScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  homeActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm
+  },
+  homeAction: {
+    flexGrow: 1,
+    flexBasis: 140
+  },
   pageHeader: {
     gap: spacing.xs,
     backgroundColor: colors.surfaceGlass

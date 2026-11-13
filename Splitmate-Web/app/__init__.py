@@ -105,6 +105,10 @@ def ensure_user_management_schema():
     if 'is_suspended' not in columns:
         db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN is_suspended {false_boolean_default()}'))
 
+    if 'phone' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN phone VARCHAR(20)'))
+    db.session.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS ix_user_phone ON "user" (phone)'))
+
     db.session.commit()
 
 def ensure_stripe_schema():
@@ -194,6 +198,9 @@ def ensure_group_default_split_schema():
 
     if 'default_split_config' not in columns:
         db.session.execute(text('ALTER TABLE "group" ADD COLUMN default_split_config TEXT'))
+
+    if 'is_quick_split' not in columns:
+        db.session.execute(text(f'ALTER TABLE "group" ADD COLUMN is_quick_split {false_boolean_default()}'))
 
     db.session.commit()
 

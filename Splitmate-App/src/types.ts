@@ -9,6 +9,8 @@ export type User = PaymentHandles & {
   id: number;
   name: string;
   email: string;
+  /** Optional, unique per account (stored as +digits). */
+  phone?: string;
   is_email_verified: boolean;
   created_at?: string | null;
 };
@@ -367,6 +369,7 @@ export type RootStackParamList = {
   Main: undefined;
   Groups: undefined;
   CreateGroup: undefined;
+  QuickSplit: undefined;
   GroupDetail: { groupId: number; groupName: string };
   AddExpense: {
     groupId: number;
