@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header page-header-action">
     <div>
-        <h1>Tasks & Calendar</h1>
+        <h1>Tasks & calendar</h1>
         <p>Schedule and track group tasks with reminders</p>
     </div>
     <div class="page-actions">
@@ -14,7 +14,7 @@
         </button>
         <button type="button" class="btn btn-text-action btn-sm" id="inviteSelectedGroupBtn" hidden
                 onclick="openInviteMemberModal(this.dataset.groupId)">
-            Group Invite
+            Group invite
         </button>
         <button type="button" class="btn btn-primary btn-sm action-plus" onclick="openModal('createGroupModal')" aria-label="Create group" title="Create group">
             <span aria-hidden="true">+</span>
@@ -38,14 +38,14 @@
         <!-- Add Task Form -->
         <div class="card">
             <div class="card-header">
-                <h2>Add Task</h2>
+                <h2>Add task</h2>
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('tasks.add_task') }}">
                     <input type="hidden" name="group_id" id="taskGroupId">
 
                     <div class="form-group">
-                        <label for="title">Task Title</label>
+                        <label for="title">Task title</label>
                         <input type="text" id="title" name="title" required
                                placeholder="e.g., Pay rent, Buy groceries">
                     </div>
@@ -57,7 +57,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="due_date">Due Date & Time</label>
+                        <label for="due_date">Due date & time</label>
                         <input type="datetime-local" id="due_date" name="due_date" required>
                     </div>
 
@@ -94,7 +94,7 @@
                         </select>
                     </div>
 
-                    <button type="submit" class="btn btn-primary btn-full">Add Task</button>
+                    <button type="submit" class="btn btn-primary btn-full">Add task</button>
                 </form>
             </div>
         </div>
@@ -118,7 +118,7 @@
     <!-- Tasks List -->
     <div class="card">
         <div class="card-header">
-            <h2>Upcoming Tasks</h2>
+            <h2>Upcoming tasks</h2>
         </div>
         <div class="card-body">
             <div id="tasksList" class="tasks-list"></div>
@@ -130,7 +130,7 @@
 <div class="empty-state-full">
     <p>You need to join or create a group first.</p>
     <button type="button" class="btn btn-primary" onclick="openModal('createGroupModal')">
-        Create Your First Group
+        Create your first group
     </button>
 </div>
 {% endif %}

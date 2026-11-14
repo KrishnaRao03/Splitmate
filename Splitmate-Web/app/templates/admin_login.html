@@ -5,14 +5,14 @@
 <div class="admin-login-wrap">
     <div class="auth-card admin-login-card">
         <div class="auth-header">
-            <div class="auth-logo auth-logo-admin"><img class="logo-mark logo-mark-auth" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114" alt="Splitmate"><span>Admin</span></div>
+            <div class="auth-logo auth-logo-admin"><img class="logo-mark logo-mark-auth" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114b" alt="Splitmate"><span>Admin</span></div>
             <h1>Admin sign in</h1>
             <p>Use an email listed in ADMIN_EMAILS to access product analytics and reminder controls.</p>
         </div>
 
         <form method="POST" class="auth-form">
             <div class="form-group">
-                <label for="email">Admin Email</label>
+                <label for="email">Admin email</label>
                 <input type="email" id="email" name="email" required
                        maxlength="120" placeholder="admin@example.com" autocomplete="email">
             </div>
@@ -23,7 +23,7 @@
                        placeholder="********" autocomplete="current-password">
             </div>
 
-            <button type="submit" class="btn btn-primary btn-full">Sign In to Admin</button>
+            <button type="submit" class="btn btn-primary btn-full">Sign in to admin</button>
         </form>
 
         <div class="auth-footer">

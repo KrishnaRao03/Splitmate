@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header page-header-action">
     <div>
-        <h1>Shared Notes</h1>
+        <h1>Shared notes</h1>
         <p>Save simple notes, lists, and shared details with your group</p>
     </div>
     <div class="page-actions">
@@ -14,7 +14,7 @@
         </button>
         <button type="button" class="btn btn-text-action btn-sm" id="inviteSelectedGroupBtn" hidden
                 onclick="openInviteMemberModal(this.dataset.groupId)">
-            Group Invite
+            Group invite
         </button>
         <button type="button" class="btn btn-primary btn-sm action-plus" onclick="openModal('createGroupModal')" aria-label="Create group" title="Create group">
             <span aria-hidden="true">+</span>
@@ -25,7 +25,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h2>Compare Grocery Prices</h2>
+        <h2>Compare grocery prices</h2>
     </div>
     <div class="card-body">
         <form id="priceCompareForm" class="form-group" onsubmit="comparePriceList(event)">
@@ -53,7 +53,7 @@
 <div id="notesContent" style="display: none;">
     <div class="card">
         <div class="card-header">
-            <h2>Add Note</h2>
+            <h2>Add note</h2>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ url_for('notes.add_note') }}" class="add-note-form">
@@ -68,7 +68,7 @@
                     <textarea id="noteDescription" name="description" rows="3"
                               placeholder="Add details..."></textarea>
                 </div>
-                <button type="submit" class="btn btn-primary btn-full">Add Note</button>
+                <button type="submit" class="btn btn-primary btn-full">Add note</button>
             </form>
         </div>
     </div>
@@ -86,7 +86,7 @@
 <div id="editNoteModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2>Edit Note</h2>
+            <h2>Edit note</h2>
             <button class="modal-close" onclick="closeModal('editNoteModal')">&times;</button>
         </div>
         <form method="POST" id="editNoteForm">
@@ -101,7 +101,7 @@
             <div class="modal-actions">
                 <button type="button" class="btn btn-outline"
                         onclick="closeModal('editNoteModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="submit" class="btn btn-primary">Save changes</button>
             </div>
         </form>
     </div>
@@ -111,7 +111,7 @@
 <div class="empty-state-full">
     <p>You need to join or create a group first.</p>
     <button type="button" class="btn btn-primary" onclick="openModal('createGroupModal')">
-        Create Your First Group
+        Create your first group
     </button>
 </div>
 {% endif %}
@@ -175,7 +175,7 @@
                     ${n.can_compare_prices ? `
                     <button type="button" class="btn btn-xs btn-outline"
                             data-compare-note-id="${n.id}"
-                            onclick="compareGroceries(${n.id})">Compare Prices</button>
+                            onclick="compareGroceries(${n.id})">Compare prices</button>
                     ` : ''}
                     <button type="button" class="btn btn-xs btn-outline"
                             onclick="openEditNoteModal(${n.id})">Edit</button>

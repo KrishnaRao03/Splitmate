@@ -3,7 +3,7 @@
 {% macro verification_card(back_url) %}
 <div class="auth-card">
     <div class="auth-header">
-        <div class="auth-logo"><img class="logo-mark logo-mark-auth" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114" alt="Splitmate"></div>
+        <div class="auth-logo"><img class="logo-mark logo-mark-auth" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114b" alt="Splitmate"></div>
         <h1>Verify your email</h1>
         <p>Enter the 6-digit OTP sent to {{ email }}</p>
     </div>
@@ -24,7 +24,7 @@
                    placeholder="000000" autocomplete="one-time-code">
         </div>
 
-        <button type="submit" class="btn btn-primary btn-full">Verify Email</button>
+        <button type="submit" class="btn btn-primary btn-full">Verify email</button>
     </form>
 
     <form method="POST" action="{{ url_for('auth.resend_otp') }}" class="auth-secondary-form">

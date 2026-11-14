@@ -17,7 +17,7 @@
     <div class="stat-card">
         <div class="stat-icon">$</div>
         <div class="stat-content">
-            <span class="stat-label">Expenses Tracked</span>
+            <span class="stat-label">Expenses tracked</span>
             <span class="stat-value">{{ "%.2f"|format(stats.expenses_total) }}</span>
             <span class="stat-subvalue">{{ currency }}, {{ stats.expense_count }} expenses</span>
         </div>
@@ -25,7 +25,7 @@
     <div class="stat-card stat-positive">
         <div class="stat-icon">M</div>
         <div class="stat-content">
-            <span class="stat-label">This Month</span>
+            <span class="stat-label">This month</span>
             <span class="stat-value">{{ "%.2f"|format(stats.expenses_this_month) }}</span>
             <span class="stat-subvalue">{{ currency }} in new expenses</span>
         </div>
@@ -33,7 +33,7 @@
     <div class="stat-card">
         <div class="stat-icon">P</div>
         <div class="stat-content">
-            <span class="stat-label">Payments Recorded</span>
+            <span class="stat-label">Payments recorded</span>
             <span class="stat-value">{{ "%.2f"|format(stats.payments_total) }}</span>
             <span class="stat-subvalue">{{ currency }}, all statuses</span>
         </div>
@@ -88,7 +88,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h2>Latest Expenses</h2>
+        <h2>Latest expenses</h2>
         <span class="badge">Latest {{ expenses|length }}</span>
     </div>
     <div class="card-body">

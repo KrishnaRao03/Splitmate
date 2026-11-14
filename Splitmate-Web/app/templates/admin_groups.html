@@ -25,7 +25,7 @@
     <div class="stat-card">
         <div class="stat-icon">$</div>
         <div class="stat-content">
-            <span class="stat-label">Spending Tracked</span>
+            <span class="stat-label">Spending tracked</span>
             <span class="stat-value">{{ "%.2f"|format(total_tracked) }}</span>
             <span class="stat-subvalue">{{ currency }}, current expenses</span>
         </div>
@@ -33,7 +33,7 @@
     <div class="stat-card stat-negative">
         <div class="stat-icon">0</div>
         <div class="stat-content">
-            <span class="stat-label">Empty Groups</span>
+            <span class="stat-label">Empty groups</span>
             <span class="stat-value">{{ groups|selectattr('expense_count', 'equalto', 0)|list|length }}</span>
             <span class="stat-subvalue">No expenses yet</span>
         </div>
@@ -42,7 +42,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h2>All Groups</h2>
+        <h2>All groups</h2>
         <span class="badge">{{ groups|length }}</span>
     </div>
     <div class="card-body">

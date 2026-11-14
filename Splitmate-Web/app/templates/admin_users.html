@@ -45,13 +45,13 @@
                 <th><button type="button" class="sort-button" data-sort-index="1" data-sort-type="text">User</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="2" data-sort-type="text">Status</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="3" data-sort-type="number">Created</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="4" data-sort-type="number">Last Login</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="5" data-sort-type="number">Last Usage</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="4" data-sort-type="number">Last login</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="5" data-sort-type="number">Last usage</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="6" data-sort-type="number">Idle</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="7" data-sort-type="number">Groups</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="8" data-sort-type="number">Expenses</button></th>
                 <th><button type="button" class="sort-button" data-sort-index="9" data-sort-type="number">Payments</button></th>
-                <th><button type="button" class="sort-button" data-sort-index="10" data-sort-type="number">Last Reminder</button></th>
+                <th><button type="button" class="sort-button" data-sort-index="10" data-sort-type="number">Last reminder</button></th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -120,7 +120,7 @@
                                         <input type="email" name="email" value="{{ user.email }}" maxlength="120" required {% if user.is_admin %}readonly{% endif %}>
                                     </label>
                                 </div>
-                                <button type="submit" class="btn btn-primary btn-sm">Save Profile</button>
+                                <button type="submit" class="btn btn-primary btn-sm">Save profile</button>
                             </form>
 
                             <form method="POST" action="{{ url_for('admin.update_user_status', user_id=user.id) }}" class="admin-action-form">
@@ -133,17 +133,17 @@
                                     <input type="checkbox" name="is_suspended" {% if user.is_suspended %}checked{% endif %} {% if user.is_admin %}disabled{% endif %}>
                                     <span>Suspended</span>
                                 </label>
-                                <button type="submit" class="btn btn-outline btn-sm">Save Status</button>
+                                <button type="submit" class="btn btn-outline btn-sm">Save status</button>
                             </form>
 
                             <form method="POST" action="{{ url_for('admin.send_user_password_reset', user_id=user.id) }}" class="admin-action-form">
                                 <input type="hidden" name="tab" value="{{ tab_id }}">
-                                <button type="submit" class="btn btn-outline btn-sm">Send Password Reset</button>
+                                <button type="submit" class="btn btn-outline btn-sm">Send password reset</button>
                             </form>
 
                             <form method="POST" action="{{ url_for('admin.sign_out_user_everywhere', user_id=user.id) }}" class="admin-action-form">
                                 <input type="hidden" name="tab" value="{{ tab_id }}">
-                                <button type="submit" class="btn btn-outline btn-sm">Sign Out Everywhere</button>
+                                <button type="submit" class="btn btn-outline btn-sm">Sign out everywhere</button>
                             </form>
 
                         </div>
@@ -166,7 +166,7 @@
                                     <span>Type {{ user.email }} to confirm</span>
                                     <input type="email" name="confirm_email" maxlength="120" autocomplete="off" required>
                                 </label>
-                                <button type="submit" class="btn btn-danger btn-sm">Delete Account</button>
+                                <button type="submit" class="btn btn-danger btn-sm">Delete account</button>
                             </form>
                         </div>
                     </details>
@@ -191,12 +191,12 @@
 {% block content %}
 <div class="page-header page-header-action">
     <div>
-        <h1>Users Report</h1>
+        <h1>Users report</h1>
         <p>Detailed user data, split activity, reminders, and account status.</p>
     </div>
     <div>
         <a href="{{ url_for('admin.export_users_csv') }}" class="btn btn-outline btn-sm">Export CSV</a>
-        <a href="{{ url_for('admin.emails') }}" class="btn btn-outline btn-sm">Email Report</a>
+        <a href="{{ url_for('admin.emails') }}" class="btn btn-outline btn-sm">Email report</a>
     </div>
 </div>
 
@@ -226,7 +226,7 @@
 <div class="card admin-create-user-card">
     <div class="card-header">
         <div>
-            <h2>Create User</h2>
+            <h2>Create user</h2>
             <p>Add a user account and send a password setup email when needed.</p>
         </div>
     </div>
@@ -248,7 +248,7 @@
                 <input type="checkbox" name="send_password_reset" checked>
                 <span>Send setup email</span>
             </label>
-            <button type="submit" class="btn btn-primary btn-sm">Create User</button>
+            <button type="submit" class="btn btn-primary btn-sm">Create user</button>
         </form>
     </div>
 </div>

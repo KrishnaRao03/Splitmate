@@ -19,7 +19,7 @@
     <div class="stat-card stat-negative">
         <div class="stat-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
         <div class="stat-content">
-            <span class="stat-label">You Owe</span>
+            <span class="stat-label">You owe</span>
             <span class="stat-value">{{ total_user_owes|money }}</span>
         </div>
     </div>
@@ -35,8 +35,8 @@
 <div class="content-grid">
     <div class="card">
         <div class="card-header">
-            <h2>Monthly Spending</h2>
-            <span class="badge">This Month</span>
+            <h2>Monthly spending</h2>
+            <span class="badge">This month</span>
         </div>
         <div class="card-body">
             {% if monthly_spending %}
@@ -56,7 +56,7 @@
 
     <div class="card">
         <div class="card-header">
-            <h2>Recent Activity</h2>
+            <h2>Recent activity</h2>
         </div>
         <div class="card-body">
             {% if recent_expenses %}
@@ -83,7 +83,7 @@
 
 <div class="card spending-insights-card" id="spending-insights">
     <div class="card-header">
-        <h2>Spending Insights</h2>
+        <h2>Spending insights</h2>
         <span class="badge">{{ spending_insights.count }} expenses</span>
     </div>
     <div class="card-body">
@@ -93,11 +93,11 @@
                 <strong>{{ spending_insights.total|money }}</strong>
             </div>
             <div class="analytics-stat">
-                <span>Top Category</span>
+                <span>Top category</span>
                 <strong>{{ spending_insights.top_category }}</strong>
             </div>
             <div class="analytics-stat">
-                <span>Average Expense</span>
+                <span>Average expense</span>
                 <strong>{{ spending_insights.average|money }}</strong>
             </div>
         </div>
@@ -105,7 +105,7 @@
         {% if spending_insights.count %}
         <div class="analytics-grid">
             <section class="analytics-panel">
-                <h3>By Category</h3>
+                <h3>By category</h3>
                 <div class="splitmate-bar-chart">
                     {% for row in spending_insights.category_totals %}
                     <div class="bar-row">
@@ -120,7 +120,7 @@
             </section>
 
             <section class="analytics-panel">
-                <h3>Monthly Trend</h3>
+                <h3>Monthly trend</h3>
                 <div class="splitmate-column-chart">
                     {% for row in spending_insights.monthly_totals %}
                     <div class="column-row">
@@ -134,7 +134,7 @@
 
             {% if spending_insights.group_totals|length > 1 %}
             <section class="analytics-panel">
-                <h3>By Group</h3>
+                <h3>By group</h3>
                 <div class="splitmate-bar-chart">
                     {% for row in spending_insights.group_totals %}
                     <div class="bar-row">
@@ -150,7 +150,7 @@
             {% endif %}
 
             <section class="analytics-panel">
-                <h3>Paid By</h3>
+                <h3>Paid by</h3>
                 <div class="splitmate-bar-chart">
                     {% for row in spending_insights.payer_totals %}
                     <div class="bar-row">
@@ -172,7 +172,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h2>Your Groups</h2>
+        <h2>Your groups</h2>
         <div class="page-actions">
             <button type="button" class="btn btn-text-action btn-sm" onclick="openModal('inviteSplitmateModal')">
                 Invite
@@ -230,7 +230,7 @@
         <div class="empty-state">
             <p>You're not part of any groups yet.</p>
             <button class="btn btn-primary" onclick="openModal('createGroupModal')">
-                Create Your First Group
+                Create your first group
             </button>
         </div>
         {% endif %}
@@ -241,19 +241,19 @@
 <div id="createGroupModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2>Create New Group</h2>
+            <h2>Create new group</h2>
             <button class="modal-close" onclick="closeModal('createGroupModal')">&times;</button>
         </div>
         <form method="POST" action="{{ url_for('main.create_group') }}">
             <div class="form-group">
-                <label for="groupName">Group Name</label>
+                <label for="groupName">Group name</label>
                 <input type="text" id="groupName" name="name" required
                        placeholder="e.g., Apartment 4B, Trip to Paris">
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-outline"
                         onclick="closeModal('createGroupModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Group</button>
+                <button type="submit" class="btn btn-primary">Create group</button>
             </div>
         </form>
     </div>
@@ -343,7 +343,7 @@
         const inviteRows = pendingInvites.length
             ? `
                 <div class="pending-invites">
-                    <h3>Pending Invites</h3>
+                    <h3>Pending invites</h3>
                     ${pendingInvites.map(invite => `
                         <div class="pending-invite-item">
                             <div>

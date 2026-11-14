@@ -8,12 +8,12 @@
 {% block content %}
 <div class="page-header page-header-action">
     <div>
-        <h1>Email Reminders</h1>
+        <h1>Email reminders</h1>
         <p>Manage inactive-user outreach and review who is eligible for reminders.</p>
     </div>
     <form method="POST" action="{{ url_for('admin.send_inactivity_reminders_now') }}">
         <input type="hidden" name="next" value="{{ url_for('admin.emails') }}">
-        <button type="submit" class="btn btn-primary btn-sm">Send Reminders Now</button>
+        <button type="submit" class="btn btn-primary btn-sm">Send reminders now</button>
     </form>
 </div>
 
@@ -29,7 +29,7 @@
     <div class="stat-card">
         <div class="stat-icon">T</div>
         <div class="stat-content">
-            <span class="stat-label">Send Time</span>
+            <span class="stat-label">Send time</span>
             <span class="stat-value">{{ "%02d:00"|format(email_hour_utc) }}</span>
             <span class="stat-subvalue">UTC daily</span>
         </div>
@@ -37,7 +37,7 @@
     <div class="stat-card stat-negative">
         <div class="stat-icon">I</div>
         <div class="stat-content">
-            <span class="stat-label">Long Inactive</span>
+            <span class="stat-label">Long inactive</span>
             <span class="stat-value">{{ stats.long_inactive_users }}</span>
             <span class="stat-subvalue">{{ inactivity_days }}+ idle days</span>
         </div>
@@ -45,7 +45,7 @@
     <div class="stat-card">
         <div class="stat-icon">R</div>
         <div class="stat-content">
-            <span class="stat-label">Ready to Email</span>
+            <span class="stat-label">Ready to email</span>
             <span class="stat-value">{{ stats.reminder_candidates }}</span>
             <span class="stat-subvalue">Verified and off cooldown</span>
         </div>
@@ -55,7 +55,7 @@
 <div class="content-grid admin-content-grid">
     <div class="card">
         <div class="card-header">
-            <h2>Reminder Candidates</h2>
+            <h2>Reminder candidates</h2>
             <span class="badge">{{ reminder_candidates|length }} ready</span>
         </div>
         <div class="card-body">
@@ -65,9 +65,9 @@
                     <thead>
                         <tr>
                             <th>User</th>
-                            <th>Last Usage</th>
+                            <th>Last usage</th>
                             <th>Idle</th>
-                            <th>Last Reminder</th>
+                            <th>Last reminder</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -93,7 +93,7 @@
 
     <div class="card">
         <div class="card-header">
-            <h2>Automation Rules</h2>
+            <h2>Automation rules</h2>
             {% if emails_enabled %}
             <span class="badge badge-success">Enabled</span>
             {% else %}
@@ -123,8 +123,8 @@
 
 <div class="card">
     <div class="card-header">
-        <h2>Long Inactive Users</h2>
-        <a href="{{ url_for('admin.users', tab='inactive') }}" class="btn btn-outline btn-sm">Open in Users Report</a>
+        <h2>Long inactive users</h2>
+        <a href="{{ url_for('admin.users', tab='inactive') }}" class="btn btn-outline btn-sm">Open in users report</a>
     </div>
     <div class="card-body">
         {% if long_inactive_users %}
@@ -134,9 +134,9 @@
                     <tr>
                         <th>User</th>
                         <th>Status</th>
-                        <th>Last Usage</th>
+                        <th>Last usage</th>
                         <th>Idle</th>
-                        <th>Reminder Ready</th>
+                        <th>Reminder ready</th>
                     </tr>
                 </thead>
                 <tbody>

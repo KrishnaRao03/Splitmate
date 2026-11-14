@@ -4,7 +4,7 @@
 <div class="auth-container">
     <div class="auth-card invite-auth-card">
         <div class="auth-header">
-            <div class="auth-logo"><img class="logo-mark logo-mark-auth" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114" alt="Splitmate"></div>
+            <div class="auth-logo"><img class="logo-mark logo-mark-auth" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114b" alt="Splitmate"></div>
             <h1>Join {{ invite.group.name }}</h1>
             <p>{{ invite.invited_by.name }} invited {{ invite.email }} to this group.</p>
         </div>
@@ -23,8 +23,8 @@
         </div>
 
         <div class="invite-auth-actions">
-            <a class="btn btn-primary btn-full" href="{{ login_url }}">Sign In</a>
-            <a class="btn btn-outline btn-full" href="{{ register_url }}">Create Account</a>
+            <a class="btn btn-primary btn-full" href="{{ login_url }}">Sign in</a>
+            <a class="btn btn-outline btn-full" href="{{ register_url }}">Create account</a>
         </div>
     </div>
 </div>

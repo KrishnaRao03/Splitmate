@@ -35,9 +35,9 @@
     <title>{% block title %}Splitmate Admin{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/splitmate-logo-mark.png') }}?v=20261114">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='images/splitmate-logo-mark.png') }}?v=20261114">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/splitmate-logo-mark.png') }}?v=20261114b">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='images/splitmate-logo-mark.png') }}?v=20261114b">
     <script>
         (function () {
             try {
@@ -55,7 +55,7 @@
 <div class="admin-shell">
     <header class="admin-topbar">
         <a class="admin-brand" href="{{ url_for('admin.dashboard') if admin_user else url_for('admin.login') }}">
-            <img class="logo-mark" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114" alt="Splitmate">
+            <img class="logo-mark" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114b" alt="Splitmate">
             <span>
                 <strong>Admin</strong>
                 <small>Operations dashboard</small>
@@ -69,7 +69,7 @@
             {% if admin_user %}
             <span class="admin-session-user">{{ admin_user.email }}</span>
             <form method="POST" action="{{ url_for('admin.logout') }}" class="inline-form">
-                <button type="submit" class="btn btn-outline btn-sm">Admin Logout</button>
+                <button type="submit" class="btn btn-outline btn-sm">Admin logout</button>
             </form>
             {% endif %}
         </div>
@@ -96,7 +96,7 @@
                 <a class="admin-nav-link {% if active_admin_page == 'emails' %}active{% endif %}" href="{{ url_for('admin.emails') }}">
                     <span class="admin-nav-icon">E</span>
                     <span>
-                        <strong>Email Reminders</strong>
+                        <strong>Email reminders</strong>
                         <small>Inactive user outreach</small>
                     </span>
                 </a>
@@ -117,7 +117,7 @@
                 <a class="admin-nav-link {% if active_admin_page == 'audit' %}active{% endif %}" href="{{ url_for('admin.audit_log') }}">
                     <span class="admin-nav-icon">L</span>
                     <span>
-                        <strong>Audit Log</strong>
+                        <strong>Audit log</strong>
                         <small>Every admin action</small>
                     </span>
                 </a>

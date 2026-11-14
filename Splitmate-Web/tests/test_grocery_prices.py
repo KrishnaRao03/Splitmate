@@ -163,7 +163,7 @@ class GroceryPriceTests(unittest.TestCase):
     def test_website_compares_a_typed_list(self):
         self.client.post('/login', data={'email': 'shopper@example.com', 'password': 'Shopper-pass-1'})
         page = self.client.get('/notes/').get_data(as_text=True)
-        self.assertIn('Compare Grocery Prices', page)
+        self.assertIn('Compare grocery prices', page)
         with patch('app.grocery_compare.live_grocery_catalogs', side_effect=flyer_catalogs):
             response = self.client.post('/notes/api/grocery-compare', json={'items': 'banana'})
         self.assertEqual(response.status_code, 200)

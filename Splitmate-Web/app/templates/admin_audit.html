@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header page-header-action">
     <div>
-        <h1>Audit Log</h1>
+        <h1>Audit log</h1>
         <p>Every admin sign-in, failed sign-in attempt and change made from this panel. Entries can't be edited or deleted.</p>
     </div>
     <form method="GET" action="{{ url_for('admin.audit_log') }}" class="inline-form">
@@ -19,7 +19,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h2>Latest Entries</h2>
+        <h2>Latest entries</h2>
         <span class="badge">{{ entries|length }} shown</span>
     </div>
     <div class="card-body">
