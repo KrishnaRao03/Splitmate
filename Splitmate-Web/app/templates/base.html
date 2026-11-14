@@ -36,8 +36,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20260806b">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20260806b">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/splitmate-logo-mark.png') }}?v=20261114">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='images/splitmate-logo-mark.png') }}?v=20261114">
     <script>
         (function () {
             try {
@@ -49,15 +49,14 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260806m">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261114">
 </head>
 <body class="{% if request.blueprint in ['split', 'notes', 'tasks'] %}workspace-page workspace-page-{{ request.blueprint }}{% endif %}">
 {% if current_user.is_authenticated %}
 <div class="app-container">
     <header class="app-topbar">
         <a class="app-brand" href="{{ url_for('main.home') }}" aria-label="Splitmate home">
-            <img class="logo-mark logo-mark-symbol" src="{{ url_for('static', filename='images/splitmate-logo-mark.png') }}?v=20260806a" alt="" aria-hidden="true">
-            <span class="logo-wordmark">Splitmate</span>
+            <img class="logo-mark" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114" alt="Splitmate">
         </a>
 
         <nav class="top-nav" aria-label="Primary navigation">

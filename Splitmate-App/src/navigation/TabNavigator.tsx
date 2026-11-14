@@ -1,6 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
+import { BrandLogo } from '@/components/BrandMark';
 import { HeaderProfileButton } from '@/components/HeaderProfileButton';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { NotesScreen } from '@/screens/NotesScreen';
@@ -35,7 +36,7 @@ export function TabNavigator() {
         tabBarIcon: ({ color, size }) => <Ionicons name={ICONS[route.name]} size={size} color={color} />
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Splitmate' }} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Splitmate', tabBarLabel: 'Home', headerTitle: () => <BrandLogo size={132} /> }} />
       <Tab.Screen name="Split" component={SplitScreen} options={{ title: 'Split' }} />
       <Tab.Screen name="Tasks" component={TasksScreen} options={{ title: 'Tasks' }} />
       <Tab.Screen name="Notes" component={NotesScreen} options={{ title: 'Notes' }} />

@@ -14,9 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { activeColorScheme, colors, spacing } from '@/theme/colors';
 
-// Same background as the website: the blue artwork under a soft overlay so text stays readable.
-const BACKGROUND = require('../../assets/images/background.jpg');
-const OVERLAY = activeColorScheme() === 'dark' ? 'rgba(17, 20, 24, 0.88)' : 'rgba(245, 247, 250, 0.86)';
+// Soft indigo and teal glow, matching the logo; a light overlay keeps text readable.
+const BACKGROUND = activeColorScheme() === 'dark'
+  ? require('../../assets/images/background-dark.jpg')
+  : require('../../assets/images/background.jpg');
+const OVERLAY = activeColorScheme() === 'dark' ? 'rgba(12, 14, 26, 0.35)' : 'rgba(246, 247, 251, 0.35)';
 
 type ScreenProps = {
   children: ReactNode;

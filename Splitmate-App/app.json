@@ -14,7 +14,7 @@
       "package": "com.splitmate.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#4f46e5"
       }
     },
     "plugins": [

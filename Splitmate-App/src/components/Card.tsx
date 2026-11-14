@@ -12,10 +12,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     padding: spacing.lg,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#1e1b4b',
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 2
   }
 });

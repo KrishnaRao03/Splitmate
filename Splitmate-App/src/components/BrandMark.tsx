@@ -11,7 +11,7 @@ type Props = {
   style?: StyleProp<ImageStyle>;
 };
 
-/** The "SM" logo mark, as used in the website's header. */
+/** The split-coin logo mark. */
 export function BrandMark({ size = 40, style }: Props) {
   return (
     <Image
@@ -23,13 +23,13 @@ export function BrandMark({ size = 40, style }: Props) {
   );
 }
 
-/** The full Splitmate logo with the wordmark, as on the website's sign-in page. */
+/** The logo mark with the "splitmate" wordmark, used at the top of the app and the website. */
 export function BrandLogo({ size = 180, style }: Props) {
   return (
     <Image
       source={WORDMARK[activeColorScheme()]}
-      style={[{ width: size, height: size * 0.62 }, style]}
-      resizeMode="cover"
+      style={[{ width: size, height: size * 0.218 }, style]}
+      resizeMode="contain"
       accessibilityLabel="Splitmate"
     />
   );

@@ -45,7 +45,7 @@ export async function writePreference(key: string, value: string) {
 
 export function storedAccent(): AccentKey {
   const saved = readPreference(THEME_ACCENT_KEY);
-  return saved && saved in ACCENT_PRESETS ? (saved as AccentKey) : 'blue';
+  return saved && saved in ACCENT_PRESETS ? (saved as AccentKey) : 'indigo';
 }
 
 export function storedThemeMode(): ThemeMode {

@@ -60,7 +60,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md
   },
   primary: {
-    backgroundColor: colors.primary
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3
   },
   outline: {
     borderWidth: 1,
