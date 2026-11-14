@@ -129,6 +129,11 @@ class GroupManagementTests(SecurityFixTests):
         self.assertTrue(set(''.join(rows)) <= {'0', '1'})
         self.assertIn('/invite/', invite['invite_url'])
 
+        # Opened signed out, the invite page offers the app first, carrying the invite with it.
+        token = invite['invite_url'].rstrip('/').split('/invite/')[-1]
+        page = self.client.get(f'/invite/{token}').get_data(as_text=True)
+        self.assertIn(f'splitmate-app.onrender.com/?invite={token}', page)
+
 
 if __name__ == '__main__':
     unittest.main()

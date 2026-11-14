@@ -16,6 +16,7 @@ import { typography } from '@/theme/typography';
 import { deviceCountry } from '@/utils/countries';
 import { emailError as describeEmailError, passwordError as describePasswordError, passwordStrength } from '@/utils/validation';
 import { notify } from '@/state/UndoToast';
+import { hasPendingInvite } from '@/utils/launchLinks';
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot';
 
@@ -158,6 +159,7 @@ export function AuthScreen() {
 
       <Card>
         <Text style={styles.cardTitle}>{loginTabActive ? 'Welcome back' : 'Create your account'}</Text>
+        {hasPendingInvite() ? <Text style={styles.notice}>Sign in or create an account with the invited email, and you'll join the group straight away.</Text> : null}
 
         <View style={styles.modeRow}>
           <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={[styles.modeButton, loginTabActive && styles.modeActive]}>

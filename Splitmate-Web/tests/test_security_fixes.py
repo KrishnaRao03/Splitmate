@@ -296,7 +296,10 @@ class MediumFixes(SecurityFixTests):
         with self.app.test_request_context():
             token = generate_password_reset_token(db.session.get(User, self.member_id))
         first = self.client.post(f'/reset-password/{token}', data={'password': 'Brandnew123!', 'confirm_password': 'Brandnew123!'})
-        self.assertIn('/login', first.headers['Location'])
+        self.assertIn('/password-changed', first.headers['Location'])
+        page = self.client.get('/password-changed').get_data(as_text=True)
+        self.assertIn('Password changed', page)
+        self.assertIn('splitmate-app.onrender.com', page)
         second = self.client.post(f'/reset-password/{token}', data={'password': 'Again12345!', 'confirm_password': 'Again12345!'})
         self.assertIn('/forgot-password', second.headers['Location'])
         with self.app.app_context():

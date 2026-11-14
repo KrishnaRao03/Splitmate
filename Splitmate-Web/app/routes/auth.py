@@ -5,7 +5,7 @@ from flask import Blueprint, current_app, render_template, redirect, url_for, fl
 from flask_login import login_user, logout_user, login_required, current_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from app import db, limiter
-from app.email_utils import send_password_reset_email, send_verification_otp
+from app.email_utils import app_url, send_password_reset_email, send_verification_otp
 from app.email_validation import email_error_message, normalize_email
 from app.models import PendingRegistration, User
 from app.regions import countries_payload, normalize_country
@@ -265,10 +265,15 @@ def reset_password(token):
         # set_password also bumps the token version: this link and every existing login stop working.
         user.set_password(password)
         db.session.commit()
-        flash('Your password has been reset. Please sign in.', 'success')
-        return redirect(url_for('auth.login'))
+        return redirect(url_for('auth.password_changed'))
 
     return render_template('reset_password.html')
+
+
+@auth_bp.route('/password-changed')
+def password_changed():
+    """The end of a password reset: a clear confirmation with a way back into the app."""
+    return render_template('password_reset_done.html', app_link=app_url('/'), login_url=url_for('auth.login'))
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 @limiter.limit('5 per hour', methods=['POST'])

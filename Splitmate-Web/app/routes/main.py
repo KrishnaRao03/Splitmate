@@ -12,7 +12,7 @@ from sqlalchemy import func, or_
 from app import db, limiter
 from app.regions import countries_payload, normalize_country, payment_fields_for
 from app.email_validation import normalize_email
-from app.email_utils import send_group_invite_email, send_splitmate_invite_email
+from app.email_utils import app_url, send_group_invite_email, send_splitmate_invite_email
 from app.models import User, Group, GroupInvite, Expense, ExpenseSplit, ExpenseHistory, Note, Payment, RewardTransaction, Task
 from app.routes.auth import send_user_otp, set_pending_verification
 from app.group_utils import group_member_payload, group_pending_invite_payload, set_member_nickname
@@ -151,7 +151,8 @@ def join_splitmate():
         'join_splitmate.html',
         email=email,
         login_url=url_for('auth.login'),
-        register_url=url_for('auth.register', **register_kwargs)
+        register_url=url_for('auth.register', **register_kwargs),
+        app_link=app_url('/'),
     )
 
 @main_bp.route('/')
@@ -752,7 +753,8 @@ def accept_group_invite(token):
             'invite.html',
             invite=invite,
             login_url=url_for('auth.login', next=request.path),
-            register_url=url_for('auth.register', next=request.path)
+            register_url=url_for('auth.register', next=request.path),
+            app_invite_url=app_url(f'/?invite={invite.token}'),
         )
 
     if normalize_email(current_user.email) != invite.email:

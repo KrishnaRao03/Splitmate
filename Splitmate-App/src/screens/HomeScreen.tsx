@@ -18,17 +18,8 @@ import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
 import { notify } from '@/state/UndoToast';
+import { takeLaunchLink } from '@/utils/launchLinks';
 import type { Dashboard, Group, MainTabParamList, MyInvite, PersonBalance, RootStackParamList, Task } from '@/types';
-
-let returnFromCheckout: string | null = (() => {
-  const location = (globalThis as unknown as { location?: { search: string; pathname: string } }).location;
-  const history = (globalThis as unknown as { history?: { replaceState: (data: null, title: string, url: string) => void } }).history;
-  const result = location?.search ? new URLSearchParams(location.search).get('membership') : null;
-  if (result) {
-    history?.replaceState(null, '', location?.pathname || '/');
-  }
-  return result;
-})();
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -89,19 +80,26 @@ export function HomeScreen({ navigation }: Props) {
     configureNotifications().catch(() => undefined);
   }, []);
 
-  // On the web build Stripe sends people back to the app with ?membership=success or =cancelled.
-  // Read once at startup (the URL is cleaned straight away) and acted on once Home has data,
-  // so a sign-in restore that remounts the screens can't swallow it.
+  // Links the app was opened with (Stripe checkout return, group invite email), acted on once
+  // Home has data so a sign-in restore that remounts the screens can't swallow them.
   useEffect(() => {
-    if (!dashboard || !returnFromCheckout) {
+    if (!dashboard) {
       return;
     }
-    const result = returnFromCheckout;
-    returnFromCheckout = null;
-    if (result === 'success') {
+    const membership = takeLaunchLink('membership');
+    if (membership === 'success') {
       navigation.navigate('MembershipWelcome');
-    } else if (result === 'cancelled') {
+    } else if (membership === 'cancelled') {
       notify('Checkout cancelled', 'You were not charged.');
+    }
+    const invite = takeLaunchLink('invite');
+    if (invite) {
+      api.acceptInviteLink(invite)
+        .then(result => {
+          notify('You joined a group', result.message);
+          navigation.navigate('GroupDetail', { groupId: result.group.id, groupName: result.group.name });
+        })
+        .catch(error => notify('Could not join the group', error instanceof Error ? error.message : 'Open Group invites to try again.'));
     }
   }, [dashboard, navigation]);
 
