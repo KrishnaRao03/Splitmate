@@ -193,8 +193,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.ink,
-    ...typography.h3,
-    marginBottom: spacing.xs
+    ...typography.h3
   },
   help: {
     color: colors.secondary,

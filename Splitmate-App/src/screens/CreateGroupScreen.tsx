@@ -45,10 +45,10 @@ export function CreateGroupScreen({ navigation }: Props) {
   return (
     <Screen>
       <Card>
-        <Text style={{ ...typography.h3, color: colors.ink, marginBottom: spacing.sm }}>New group</Text>
+        <Text style={{ ...typography.h3, color: colors.ink }}>New group</Text>
         <TextField label="Group name" value={name} onChangeText={setName} placeholder="Apartment, Trip, Project" autoFocus />
         <ChoiceChips<string> label="Currency" value={currency} onChange={setCurrency} options={currencyOptions} />
-        <Text style={{ ...typography.caption, color: colors.muted, marginBottom: spacing.sm }}>
+        <Text style={{ ...typography.caption, color: colors.muted }}>
           Every expense and balance in this group uses this currency.
         </Text>
         <AppButton icon="add-outline" loading={creating} onPress={createGroup}>Create group</AppButton>

@@ -13,6 +13,8 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: colors.surface,
     padding: spacing.lg,
+    // Even space between everything inside a box (fields, buttons, text blocks).
+    gap: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: '#1e1b4b',

@@ -286,7 +286,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: colors.ink,
-    marginBottom: spacing.md,
     ...typography.h3
   },
   meter: {
@@ -313,7 +312,6 @@ const styles = StyleSheet.create({
   modeRow: {
     flexDirection: 'row',
     gap: spacing.xs,
-    marginBottom: spacing.md,
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
     padding: 4
@@ -366,7 +364,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    marginTop: spacing.md,
     paddingVertical: spacing.xs
   },
   advancedToggleText: {
@@ -374,7 +371,6 @@ const styles = StyleSheet.create({
     ...typography.label
   },
   advancedBody: {
-    gap: spacing.sm,
-    marginTop: spacing.sm
+    gap: spacing.sm
   }
 });

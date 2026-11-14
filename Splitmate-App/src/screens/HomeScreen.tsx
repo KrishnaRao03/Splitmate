@@ -17,7 +17,7 @@ import { colors, fonts, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
-import { notify } from '@/state/UndoToast';
+import { notify, useUndo } from '@/state/UndoToast';
 import { takeLaunchLink } from '@/utils/launchLinks';
 import type { Dashboard, Group, MainTabParamList, MyInvite, PersonBalance, RootStackParamList, Task } from '@/types';
 
@@ -40,6 +40,11 @@ export function HomeScreen({ navigation }: Props) {
   const hasLoaded = useRef(false);
   const money = (value: number) => formatMoney(value, currencyCode);
   const cacheKey = `splitmate.cache.dashboard.${user?.id ?? 'guest'}`;
+  // Clearing Recent activity only hides it on this device; group history is untouched.
+  // Expense ids only grow, so anything newer than the last cleared id shows again.
+  const clearedKey = `splitmate.activity.cleared.${user?.id ?? 'guest'}`;
+  const [clearedThrough, setClearedThrough] = useState(0);
+  const showUndo = useUndo();
 
   // Only the very first load shows a full-screen spinner; later reloads (on focus,
   // pull-to-refresh) keep the current content visible.
@@ -79,6 +84,20 @@ export function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     configureNotifications().catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(clearedKey).then(value => setClearedThrough(Number(value) || 0)).catch(() => undefined);
+  }, [clearedKey]);
+
+  function clearActivity() {
+    const newest = Math.max(0, ...(dashboard?.recent_expenses ?? []).map(expense => expense.id));
+    const previous = clearedThrough;
+    setClearedThrough(newest);
+    showUndo('Recent activity cleared', {
+      commit: () => { AsyncStorage.setItem(clearedKey, String(newest)).catch(() => undefined); },
+      undo: () => setClearedThrough(previous)
+    });
+  }
 
   // Links the app was opened with (Stripe checkout return, group invite email), acted on once
   // Home has data so a sign-in restore that remounts the screens can't swallow them.
@@ -166,6 +185,7 @@ export function HomeScreen({ navigation }: Props) {
   const net = dashboard.total_owed_to_user - dashboard.total_user_owes;
   const firstName = (user?.name || '').split(' ')[0] || 'there';
   const owing = people.filter(person => person.net !== 0).slice(0, 6);
+  const recentActivity = dashboard.recent_expenses.filter(expense => expense.id > clearedThrough);
 
   return (
     <Screen onRefresh={refresh} refreshing={refreshing} flush background={SHEET.bg}>
@@ -221,10 +241,10 @@ export function HomeScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.section}>
-          <SectionTitle title="Recent activity" />
-          {dashboard.recent_expenses.length ? (
+          <SectionTitle title="Recent activity" action={recentActivity.length ? 'Clear' : undefined} onAction={clearActivity} />
+          {recentActivity.length ? (
             <View style={styles.darkCard}>
-              {dashboard.recent_expenses.slice(0, 8).map((expense, index, list) => (
+              {recentActivity.slice(0, 8).map((expense, index, list) => (
                 <View key={expense.id} style={[styles.activityRow, index < list.length - 1 && styles.divider]}>
                   <View style={[styles.tile, { backgroundColor: categoryStyle(expense.category).bg }]}>
                     <Icon name={categoryStyle(expense.category).icon} size={20} color={categoryStyle(expense.category).fg} />
@@ -237,7 +257,7 @@ export function HomeScreen({ navigation }: Props) {
                 </View>
               ))}
             </View>
-          ) : <EmptyDark icon="receipt-outline" label="No expenses yet. Add one to see it here." />}
+          ) : <EmptyDark icon="receipt-outline" label={clearedThrough ? 'All caught up. New expenses will show here.' : 'No expenses yet. Add one to see it here.'} />}
         </View>
 
         <View style={styles.section}>

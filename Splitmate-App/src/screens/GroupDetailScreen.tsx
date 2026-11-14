@@ -6,14 +6,12 @@ import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
-import { UpgradePrompt, isLimitReached } from '@/components/UpgradePrompt';
 import { AppText as Text } from '@/components/AppText';
 import { BrandMark } from '@/components/BrandMark';
 import { Card } from '@/components/Card';
 import { ChoiceChips } from '@/components/ChoiceChips';
 import { Screen } from '@/components/Screen';
 import { SegmentedControl } from '@/components/SegmentedControl';
-import { GroceryComparisonView } from '@/components/GroceryComparisonView';
 import { InteracShortcut } from '@/components/InteracShortcut';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { TextField } from '@/components/TextField';
@@ -21,13 +19,12 @@ import { useAuth } from '@/state/AuthContext';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDate, formatDateTime } from '@/utils/dates';
-import { getGroceryLocation } from '@/utils/groceryLocation';
 import { formatMoney, parseAmount } from '@/utils/money';
 import { confirm, notify, useUndo } from '@/state/UndoToast';
-import type { Expense, ExpenseSearchResult, GroceryComparison, GroupDetail, Note, RootStackParamList } from '@/types';
+import type { Expense, ExpenseSearchResult, GroupDetail, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupDetail'>;
-type Tab = 'overview' | 'expenses' | 'tasks' | 'notes' | 'pay';
+type Tab = 'overview' | 'expenses' | 'pay';
 
 export function GroupDetailScreen({ navigation, route }: Props) {
   const { groupId } = route.params;
@@ -42,13 +39,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const hasLoaded = useRef(false);
-  const [noteTitle, setNoteTitle] = useState('');
-  const [noteDescription, setNoteDescription] = useState('');
-  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [noteLimit, setNoteLimit] = useState<{ noteId: number; message: string } | null>(null);
-  const [comparisons, setComparisons] = useState<Record<number, GroceryComparison>>({});
   const [receiverId, setReceiverId] = useState<number | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [requestPayerId, setRequestPayerId] = useState<number | null>(null);
@@ -123,14 +113,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
     }
   }
 
-  async function addNote() {
-    await runAction(async () => {
-      await api.addNote(groupId, { title: noteTitle, description: noteDescription });
-      setNoteTitle('');
-      setNoteDescription('');
-    }, 'Could not add note');
-  }
-
   async function recordPayment() {
     if (!receiverId) {
       notify('Choose a receiver', 'Select the person you are paying.');
@@ -169,15 +151,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
     }
   }
 
-  // Ticking a task or note flips it on screen first, then the server confirms (a failed call reloads).
-  function toggleOptimistic(list: 'tasks' | 'notes', id: number, call: () => Promise<unknown>, failTitle: string) {
-    setDetail(current => current ? {
-      ...current,
-      [list]: (current[list] as Array<{ id: number; is_completed: boolean }>).map(item => (item.id === id ? { ...item, is_completed: !item.is_completed } : item))
-    } : current);
-    runAction(call, failTitle);
-  }
-
   // Deletes hide the item at once and show an Undo toast; the server delete runs when it times out.
   function removeWithUndo(key: string, message: string, remove: () => Promise<unknown>, failTitle: string) {
     setRemoved(keys => [...keys, key]);
@@ -186,10 +159,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       commit: () => { runAction(remove, failTitle).finally(restore); },
       undo: restore
     });
-  }
-
-  function confirmDeleteTask(taskId: number, _title: string) {
-    removeWithUndo(`task:${taskId}`, 'Task deleted', () => api.deleteTask(taskId), 'Could not delete task');
   }
 
   function editExpense(expense: Expense) {
@@ -214,36 +183,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
 
   function confirmDeleteExpense(expense: Expense) {
     removeWithUndo(`expense:${expense.id}`, `${expense.description} deleted`, () => api.deleteExpense(expense.id), 'Could not delete expense');
-  }
-
-  function confirmDeleteNote(note: Note) {
-    removeWithUndo(`note:${note.id}`, 'Note deleted', () => api.deleteNote(note.id), 'Could not delete note');
-  }
-
-  function beginEditNote(note: Note) {
-    setEditingNoteId(note.id);
-    setEditTitle(note.title);
-    setEditDescription(note.description);
-  }
-
-  async function saveNote(noteId: number) {
-    await runAction(async () => {
-      await api.updateNote(noteId, editTitle, editDescription);
-      setEditingNoteId(null);
-    }, 'Could not update note');
-  }
-
-  async function compareNote(noteId: number) {
-    try {
-      const comparison = await api.compareGroceries(noteId, getGroceryLocation());
-      setComparisons(current => ({ ...current, [noteId]: comparison }));
-    } catch (error) {
-      if (isLimitReached(error)) {
-        setNoteLimit({ noteId, message: (error as Error).message });
-        return;
-      }
-      notify('Could not compare groceries', error instanceof Error ? error.message : 'Try again.');
-    }
   }
 
   function clearRecentExpenses() {
@@ -374,8 +313,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
         </View>
         <View style={styles.actionRow}>
           <AppButton icon="add-outline" variant="outline" style={styles.quickButton} onPress={navigateToExpense}>Expense</AppButton>
-          <AppButton icon="checkbox-outline" variant="outline" style={styles.quickButton} onPress={() => navigation.navigate('AddTask', { groupId, members: detail.group.members })}>Task</AppButton>
-          <AppButton icon="document-text-outline" variant="outline" style={styles.quickButton} onPress={() => setTab('notes')}>Note</AppButton>
         </View>
         <AppButton icon="swap-horizontal-outline" onPress={() => setTab('pay')}>Settle up</AppButton>
         <View style={styles.actionRow}>
@@ -385,7 +322,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
             members: detail.group.members,
             categories: detail.expense_categories
           })}>Insights</AppButton>
-          <AppButton icon="calendar-outline" variant="ghost" style={styles.actionButton} onPress={() => navigation.navigate('TaskCalendar', { groupId, groupName: detail.group.name })}>Calendar</AppButton>
           <AppButton icon="settings-outline" variant="ghost" style={styles.actionButton} onPress={openManage}>Manage</AppButton>
         </View>
       </Card>
@@ -396,8 +332,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
         options={[
           { label: 'Overview', value: 'overview' },
           { label: 'Expenses', value: 'expenses' },
-          { label: 'Tasks', value: 'tasks' },
-          { label: 'Notes', value: 'notes' },
           { label: 'Settle up', value: 'pay' }
         ]}
       />
@@ -508,86 +442,6 @@ export function GroupDetailScreen({ navigation, route }: Props) {
               </Card>
             )) : <EmptyState label="No active expenses. Transaction history remains available in Insights." />
           )}
-        </>
-      ) : null}
-
-      {tab === 'tasks' ? (
-        <>
-          <View style={styles.actionRow}>
-            <AppButton icon="add-outline" style={styles.actionButton} onPress={() => navigation.navigate('AddTask', { groupId, members: detail.group.members })}>Add task</AppButton>
-            <AppButton icon="calendar-outline" variant="outline" style={styles.actionButton} onPress={() => navigation.navigate('TaskCalendar', { groupId, groupName: detail.group.name })}>Calendar</AppButton>
-          </View>
-          {detail.tasks.length ? detail.tasks.filter(task => !removed.includes(`task:${task.id}`)).map(task => (
-            <Card key={task.id}>
-              <View style={styles.rowBetween}>
-                <Pressable hitSlop={8} onPress={() => toggleOptimistic('tasks', task.id, () => api.toggleTask(task.id), 'Could not update task')} style={styles.taskMain}>
-                  <Icon name={task.is_completed ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
-                  <View style={styles.headerText}>
-                    <Text style={[styles.itemTitle, task.is_completed && styles.completed]}>{task.title}</Text>
-                    <Text style={styles.muted}>{formatDateTime(task.due_date)}</Text>
-                  </View>
-                </Pressable>
-                {task.can_delete ? (
-                  <Pressable hitSlop={8} accessibilityLabel={`Delete ${task.title}`} onPress={() => confirmDeleteTask(task.id, task.title)} style={styles.iconButton}>
-                    <Icon name="trash-outline" size={20} color={colors.danger} />
-                  </Pressable>
-                ) : null}
-              </View>
-              {task.description ? <Text style={styles.muted}>{task.description}</Text> : null}
-              <Text style={styles.memberLine}>{task.priority.toUpperCase()}{task.assigned_to ? ` - Assigned to ${task.assigned_to}` : ' - Anyone'}{task.recurrence !== 'none' ? ` - Repeats ${task.recurrence}` : ''}</Text>
-              {task.reminder_time ? <Text style={styles.memberLine}>Reminder: {formatDateTime(task.reminder_time)}</Text> : null}
-            </Card>
-          )) : (
-            <Card>
-              <EmptyState label="No tasks yet. Add chores, bills or reminders for this group." />
-              <AppButton icon="add-outline" onPress={() => navigation.navigate('AddTask', { groupId, members: detail.group.members })}>Add the First Task</AppButton>
-            </Card>
-          )}
-        </>
-      ) : null}
-
-      {tab === 'notes' ? (
-        <>
-          <Card>
-            <Text style={styles.cardLabel}>New note</Text>
-            <TextField label="Title" value={noteTitle} onChangeText={setNoteTitle} />
-            <TextField label="Description" value={noteDescription} onChangeText={setNoteDescription} multiline />
-            <AppButton icon="add-outline" onPress={addNote}>Add note</AppButton>
-          </Card>
-          {detail.notes.length ? detail.notes.filter(note => !removed.includes(`note:${note.id}`)).map(note => (
-            <Card key={note.id}>
-              {editingNoteId === note.id ? (
-                <>
-                  <TextField label="Title" value={editTitle} onChangeText={setEditTitle} />
-                  <TextField label="Description" value={editDescription} onChangeText={setEditDescription} multiline />
-                  <View style={styles.actionRow}>
-                    <AppButton icon="save-outline" style={styles.actionButton} onPress={() => saveNote(note.id)}>Save</AppButton>
-                    <AppButton icon="close-outline" variant="outline" style={styles.actionButton} onPress={() => setEditingNoteId(null)}>Cancel</AppButton>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Pressable hitSlop={8} onPress={() => toggleOptimistic('notes', note.id, () => api.toggleNote(note.id), 'Could not update note')} style={styles.rowBetween}>
-                    <Text style={[styles.itemTitle, note.is_completed && styles.completed]}>{note.title}</Text>
-                    <Icon name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />
-                  </Pressable>
-                  {note.description ? <Text style={styles.muted}>{note.description}</Text> : null}
-                  <Text style={styles.memberLine}>By {note.created_by}</Text>
-                  <View style={styles.iconActionRow}>
-                    {note.can_compare_prices !== false ? (
-                      <Pressable hitSlop={8} accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}><Icon name="cart-outline" size={20} color={colors.primaryDark} /></Pressable>
-                    ) : null}
-                    <Pressable hitSlop={8} accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}><Icon name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
-                    {note.can_delete ? (
-                      <Pressable hitSlop={8} accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}><Icon name="trash-outline" size={20} color={colors.danger} /></Pressable>
-                    ) : null}
-                  </View>
-                </>
-              )}
-              {noteLimit?.noteId === note.id ? <UpgradePrompt message={noteLimit.message} /> : null}
-              {comparisons[note.id] ? <GroceryComparisonView comparison={comparisons[note.id]} /> : null}
-            </Card>
-          )) : <EmptyState label="No notes yet." />}
         </>
       ) : null}
 
@@ -821,10 +675,6 @@ const styles = StyleSheet.create({
     ...typography.bodyStrong,
     color: colors.ink
   },
-  completed: {
-    color: colors.muted,
-    textDecorationLine: 'line-through'
-  },
   amountNeutral: {
     ...typography.bodyStrong,
     color: colors.ink
@@ -852,13 +702,11 @@ const styles = StyleSheet.create({
   },
   memberLine: {
     ...typography.caption,
-    color: colors.secondary,
-    marginTop: spacing.xs
+    color: colors.secondary
   },
   cardLabel: {
     ...typography.label,
-    color: colors.ink,
-    marginBottom: spacing.sm
+    color: colors.ink
   },
   memberRow: {
     minHeight: 58,
@@ -903,11 +751,5 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.muted,
     marginTop: spacing.sm
-  },
-  taskMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm
   }
 });

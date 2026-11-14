@@ -74,14 +74,14 @@ const styles = StyleSheet.create({
     flex: 1
   },
   content: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.xl
   },
   inner: {
     width: '100%',
     maxWidth: 880,
     alignSelf: 'center',
-    gap: spacing.md
+    gap: spacing.lg
   }
 });
