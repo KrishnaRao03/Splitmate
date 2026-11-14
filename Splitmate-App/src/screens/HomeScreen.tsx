@@ -17,7 +17,8 @@ import { colors, fonts, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
-import { notify, useUndo } from '@/state/UndoToast';
+import { confirm, notify, useUndo } from '@/state/UndoToast';
+import { pickReceiptImage, type ReceiptFile } from '@/utils/receiptPicker';
 import { takeLaunchLink } from '@/utils/launchLinks';
 import type { Dashboard, Group, MainTabParamList, MyInvite, PersonBalance, RootStackParamList, Task } from '@/types';
 
@@ -148,22 +149,48 @@ export function HomeScreen({ navigation }: Props) {
       navigation.navigate('Split');
       return;
     }
+    await openExpenseFor(groups[0].id);
+  }
+
+  async function openExpenseFor(groupId: number, scanImage?: ReceiptFile) {
     setOpening(true);
     try {
-      const detail = await api.groupDetail(groups[0].id);
+      const detail = await api.groupDetail(groupId);
       navigation.navigate('AddExpense', {
-        groupId: groups[0].id,
+        groupId,
         members: detail.group.members,
         groupName: detail.group.name,
         currentUserId: detail.current_user_id,
         categories: detail.expense_categories,
-        defaultSplit: detail.default_split
+        defaultSplit: detail.default_split,
+        scanImage
       });
     } catch (error) {
       notify('Could not open the expense form', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setOpening(false);
     }
+  }
+
+  // Scan receipt opens the camera (or the photo picker on the web build) first, then the
+  // expense form with the receipt already being read.
+  async function scanReceipt() {
+    if (!groups.length) {
+      notify('Create a group first', 'Receipts are split with a group.');
+      return;
+    }
+    const image = await pickReceiptImage('camera');
+    if (!image) {
+      return;
+    }
+    if (groups.length === 1) {
+      await openExpenseFor(groups[0].id, image);
+      return;
+    }
+    confirm('Which group is this receipt for?', undefined, [
+      ...groups.slice(0, 6).map(group => ({ text: group.name, onPress: () => { void openExpenseFor(group.id, image); } })),
+      { text: 'Cancel', style: 'cancel' as const }
+    ]);
   }
 
   function settleUp() {
@@ -202,7 +229,7 @@ export function HomeScreen({ navigation }: Props) {
         <View style={styles.actions}>
           <Action icon="add-outline" label="Add expense" onPress={openExpenseForm} disabled={opening} />
           <Action icon="flash-outline" label="Quick split" onPress={() => navigation.navigate('QuickSplit')} />
-          <Action icon="scan-outline" label="Scan receipt" onPress={openExpenseForm} disabled={opening} />
+          <Action icon="scan-outline" label="Scan receipt" onPress={scanReceipt} disabled={opening} />
           <Action icon="swap-horizontal-outline" label="Settle up" onPress={settleUp} />
         </View>
 

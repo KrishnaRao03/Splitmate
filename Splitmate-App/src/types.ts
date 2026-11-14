@@ -428,6 +428,8 @@ export type RootStackParamList = {
   AddExpense: {
     groupId: number;
     groupName?: string;
+    /** A receipt photo picked from Home's Scan receipt, scanned as soon as the form opens. */
+    scanImage?: { uri: string; name: string; mimeType?: string; file?: File };
     members: GroupMember[];
     currentUserId: number;
     categories: string[];

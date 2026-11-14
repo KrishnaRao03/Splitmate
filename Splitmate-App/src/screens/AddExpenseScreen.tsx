@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -20,13 +19,13 @@ import { typography } from '@/theme/typography';
 import type { Expense, GroupMember, RootStackParamList } from '@/types';
 import { formatMoney, parseAmount } from '@/utils/money';
 import { notify } from '@/state/UndoToast';
+import { pickReceiptImage, type ReceiptFile } from '@/utils/receiptPicker';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddExpense'>;
 type SplitType = 'equal' | 'selected' | 'exact' | 'percentage';
 // What the user picks. "Equally" covers both the server's 'equal' (everyone ticked) and 'selected' (some ticked).
 type SplitMode = 'equal' | 'exact' | 'percentage';
 type ScannedItem = { key: number; name: string; quantity: number; price: string; keep: boolean; isTax?: boolean };
-type ReceiptFile = { uri: string; name: string; mimeType?: string; file?: File };
 
 /**
  * Works out how an existing expense was split so the edit form can start from it:
@@ -143,31 +142,13 @@ export function AddExpenseScreen({ navigation, route }: Props) {
   }
 
   async function scanFrom(source: 'camera' | 'library') {
-    const permission = source === 'camera'
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      notify(
-        source === 'camera' ? 'Camera access needed' : 'Photo access needed',
-        `Allow Splitmate to use your ${source === 'camera' ? 'camera' : 'photos'} in your phone's settings to scan receipts.`
-      );
-      return;
+    const image = await pickReceiptImage(source);
+    if (image) {
+      await scanImage(image);
     }
-    // A slightly compressed photo keeps uploads well under the server's 5 MB limit.
-    const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7 };
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync(options)
-      : await ImagePicker.launchImageLibraryAsync(options);
-    if (result.canceled) {
-      return;
-    }
-    const asset = result.assets[0];
-    const image: ReceiptFile = {
-      uri: asset.uri,
-      name: asset.fileName || 'receipt.jpg',
-      mimeType: asset.mimeType || 'image/jpeg',
-      file: asset.file
-    };
+  }
+
+  async function scanImage(image: ReceiptFile) {
     setScanning(true);
     try {
       setScanLimit('');
@@ -192,6 +173,14 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       setScanning(false);
     }
   }
+
+  // Opened from Home's Scan receipt: the photo was already picked, so scan it straight away.
+  useEffect(() => {
+    if (route.params.scanImage) {
+      void scanImage(route.params.scanImage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (editing) {
@@ -307,7 +296,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
         <TextField label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" />
         <TextField label="Description" value={description} onChangeText={setDescription} placeholder="Dinner, rent, groceries" />
         <AppButton icon="scan-outline" variant="outline" loading={scanning} onPress={scanReceipt}>
-          {scannedItems.length ? 'Scan a Different Receipt' : 'Scan a Receipt Instead'}
+          {scannedItems.length ? 'Scan a Different Receipt' : 'Scan a receipt instead'}
         </AppButton>
         {scanUsage ? <Text style={styles.helper}>{scanUsage}</Text> : null}
         {scanLimit ? <UpgradePrompt message={scanLimit} /> : null}

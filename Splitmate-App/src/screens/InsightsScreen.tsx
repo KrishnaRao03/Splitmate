@@ -1,6 +1,6 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { api } from '@/api/client';
@@ -17,7 +17,19 @@ import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
 import { notify } from '@/state/UndoToast';
-import type { GroupActivity, RootStackParamList } from '@/types';
+import type { GroupActivity, RootStackParamList, Transaction } from '@/types';
+
+type SortKey = 'newest' | 'oldest' | 'highest' | 'lowest';
+const SORT_OPTIONS: Array<{ label: string; value: SortKey }> = [
+  { label: 'Newest', value: 'newest' },
+  { label: 'Oldest', value: 'oldest' },
+  { label: 'Highest', value: 'highest' },
+  { label: 'Lowest', value: 'lowest' }
+];
+
+function timeOf(item: Transaction) {
+  return item.date ? new Date(item.date).getTime() : 0;
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Insights'>;
 
@@ -26,6 +38,17 @@ export function InsightsScreen({ route }: Props) {
   const { currencyCode } = useAuth();
   const money = (value: number) => formatMoney(value, currencyCode);
   const [activity, setActivity] = useState<GroupActivity | null>(null);
+  const [sort, setSort] = useState<SortKey>('newest');
+  const sortedTransactions = useMemo(() => {
+    const list = [...(activity?.transactions ?? [])];
+    const compare: Record<SortKey, (a: Transaction, b: Transaction) => number> = {
+      newest: (a, b) => timeOf(b) - timeOf(a),
+      oldest: (a, b) => timeOf(a) - timeOf(b),
+      highest: (a, b) => b.amount - a.amount || timeOf(b) - timeOf(a),
+      lowest: (a, b) => a.amount - b.amount || timeOf(b) - timeOf(a)
+    };
+    return list.sort(compare[sort]);
+  }, [activity, sort]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
@@ -146,7 +169,8 @@ export function InsightsScreen({ route }: Props) {
       </Card>
 
       <Text style={styles.sectionTitle}>Transaction history</Text>
-      {activity?.transactions.length ? activity.transactions.map((item, index) => (
+      {sortedTransactions.length > 1 ? <ChoiceChips<SortKey> label="Sort by" options={SORT_OPTIONS} value={sort} onChange={setSort} /> : null}
+      {sortedTransactions.length ? sortedTransactions.map((item, index) => (
         <Card key={`${item.type}-${item.id}-${index}`}>
           <View style={styles.rowBetween}>
             <Text style={styles.transactionTitle}>{item.description}</Text>
