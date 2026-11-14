@@ -73,13 +73,13 @@ const styles = StyleSheet.create({
     color: colors.primaryDark
   },
   selectedText: {
-    color: colors.white
+    color: colors.onPrimary
   },
   detail: {
     ...typography.caption,
     color: colors.muted
   },
   selectedDetail: {
-    color: colors.white
+    color: colors.onPrimary
   }
 });

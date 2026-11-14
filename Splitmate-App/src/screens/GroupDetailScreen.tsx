@@ -861,7 +861,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     ...typography.bodyStrong,
-    color: colors.white
+    color: colors.onPrimary
   },
   adminPill: {
     paddingHorizontal: spacing.sm,

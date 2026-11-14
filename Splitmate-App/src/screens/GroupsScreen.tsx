@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   },
   groupIconText: {
     ...typography.bodyStrong,
-    color: colors.white
+    color: colors.onPrimary
   },
   groupMain: {
     flex: 1,

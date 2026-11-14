@@ -101,7 +101,7 @@ export function HelpChatScreen() {
           style={styles.input}
         />
         <Pressable accessibilityRole="button" accessibilityLabel="Send" onPress={send} style={styles.send}>
-          <Ionicons name="send" size={18} color={colors.white} />
+          <Ionicons name="send" size={18} color={colors.onPrimary} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     ...typography.body
   },
   userText: {
-    color: colors.white
+    color: colors.onPrimary
   },
   composer: {
     flexDirection: 'row',

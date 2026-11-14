@@ -238,21 +238,21 @@ const styles = StyleSheet.create({
     right: -90,
     top: -40,
     transform: [{ rotate: '45deg' }],
-    backgroundColor: 'rgba(255, 255, 255, 0.10)'
+    backgroundColor: 'rgba(255, 255, 255, 0.22)'
   },
   heroLabel: {
     ...typography.label,
-    color: 'rgba(255, 255, 255, 0.85)'
+    color: colors.onHighlight
   },
   heroAmount: {
     fontFamily: fonts.medium,
     fontSize: 38,
     lineHeight: 46,
-    color: colors.white
+    color: colors.onHighlight
   },
   heroMeta: {
     ...typography.caption,
-    color: 'rgba(255, 255, 255, 0.8)'
+    color: 'rgba(31, 32, 35, 0.7)'
   },
   summaryCard: {
     paddingVertical: spacing.xs

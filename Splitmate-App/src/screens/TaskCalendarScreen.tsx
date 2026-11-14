@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   taskCount: {
     minWidth: 18,
     textAlign: 'center',
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: 10,
     fontWeight: '700',
     backgroundColor: colors.primary

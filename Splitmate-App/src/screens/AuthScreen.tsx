@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     ...typography.bodyStrong
   },
   modeTextActive: {
-    color: colors.white
+    color: colors.onPrimary
   },
   notice: {
     color: colors.primaryDark,

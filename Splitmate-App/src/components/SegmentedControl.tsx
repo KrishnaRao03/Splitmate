@@ -61,6 +61,6 @@ const styles = StyleSheet.create({
     color: colors.secondary
   },
   activeLabel: {
-    color: colors.white
+    color: colors.onPrimary
   }
 });

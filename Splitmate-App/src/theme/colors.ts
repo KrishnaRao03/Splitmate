@@ -1,16 +1,16 @@
 export const colors = {
-  ink: '#0f172a',
-  text: '#0f172a',
-  secondary: '#475569',
-  muted: '#94a3b8',
-  primary: '#4354e8',
-  primaryDark: '#3343cf',
-  primaryStrong: '#3343cf',
-  primarySoft: '#eef2ff',
-  primaryFocus: 'rgba(79, 70, 229, 0.14)',
-  primaryBorder: 'rgba(79, 70, 229, 0.22)',
-  accent: '#4354e8',
-  accentSoft: '#eef2ff',
+  ink: '#1f2023',
+  text: '#1f2023',
+  secondary: '#4a4d55',
+  muted: '#8b8f98',
+  primary: '#2b2d31',
+  primaryDark: '#1f2023',
+  primaryStrong: '#1f2023',
+  primarySoft: '#fff6d6',
+  primaryFocus: 'rgba(43, 45, 49, 0.14)',
+  primaryBorder: 'rgba(43, 45, 49, 0.22)',
+  accent: '#2b2d31',
+  accentSoft: '#fff6d6',
   // Teal: money owed to you and settled amounts, the second colour of the logo.
   success: '#0d9488',
   successSoft: '#ccfbf1',
@@ -19,18 +19,23 @@ export const colors = {
   dangerSoft: '#fff1f3',
   warning: '#d97706',
   warningSoft: '#fffbeb',
-  bg: '#f6f7fb',
+  bg: '#f7f7f5',
   surface: '#ffffff',
   surfaceGlass: 'rgba(255, 255, 255, 0.92)',
-  surfaceBlue: '#f1f2fa',
-  surfaceAlt: '#f1f2fa',
-  hoverSurface: '#f1f2fa',
-  border: '#eceef5',
-  borderStrong: '#dfe2ee',
+  surfaceBlue: '#f1f1ef',
+  surfaceAlt: '#f1f1ef',
+  hoverSurface: '#f1f1ef',
+  border: '#ececea',
+  borderStrong: '#dcdcd8',
   input: '#ffffff',
-  placeholder: '#cbd5e1',
-  pageTint: '#eef0ff',
-  white: '#ffffff'
+  placeholder: '#b9bcc2',
+  pageTint: '#fff9e6',
+  white: '#ffffff',
+  // Sunshine yellow for main buttons and the balance card, with graphite text on it.
+  highlight: '#ffc83d',
+  onHighlight: '#1f2023',
+  // Text and icons drawn on a primary-coloured fill.
+  onPrimary: '#ffffff'
 };
 
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -38,17 +43,17 @@ export type AccentKey = 'indigo' | 'blue' | 'green' | 'rose';
 
 /** color/dark/soft are the light-mode shades; night/nightLight are used in dark mode. */
 export const ACCENT_PRESETS: Record<AccentKey, { label: string; color: string; dark: string; soft: string; night: string; nightLight: string }> = {
-  indigo: { label: 'Indigo', color: '#4354e8', dark: '#3343cf', soft: '#eef0fe', night: '#5b6cff', nightLight: '#aab4ff' },
+  indigo: { label: 'Sunshine', color: '#2b2d31', dark: '#1f2023', soft: '#fff6d6', night: '#ffc83d', nightLight: '#ffe08a' },
   blue: { label: 'Blue', color: '#2563eb', dark: '#1d4ed8', soft: '#eff6ff', night: '#3b82f6', nightLight: '#93c5fd' },
   green: { label: 'Green', color: '#16a34a', dark: '#15803d', soft: '#f0fdf4', night: '#22c55e', nightLight: '#86efac' },
   rose: { label: 'Rose', color: '#e11d48', dark: '#be123c', soft: '#fff1f3', night: '#f43f5e', nightLight: '#fda4af' }
 };
 
 const darkNeutrals: Partial<typeof colors> = {
-  ink: '#f1f5f9',
-  text: '#e2e8f0',
-  secondary: '#cbd5e1',
-  muted: '#94a3b8',
+  ink: '#f4f4f2',
+  text: '#ececea',
+  secondary: '#c4c6cb',
+  muted: '#8b8f98',
   success: '#2dd4bf',
   successSoft: 'rgba(45, 212, 191, 0.16)',
   danger: '#fb7185',
@@ -56,17 +61,17 @@ const darkNeutrals: Partial<typeof colors> = {
   dangerSoft: 'rgba(251, 113, 133, 0.16)',
   warning: '#f59e0b',
   warningSoft: 'rgba(245, 158, 11, 0.16)',
-  bg: '#14132f',
-  surface: '#1e1d42',
-  surfaceGlass: 'rgba(30, 29, 66, 0.94)',
-  surfaceBlue: '#28275a',
-  surfaceAlt: '#28275a',
-  hoverSurface: '#28275a',
-  border: '#2b2a5a',
-  borderStrong: '#3b3a72',
-  input: '#191838',
-  placeholder: '#64748b',
-  pageTint: '#1e1d42'
+  bg: '#18191c',
+  surface: '#222327',
+  surfaceGlass: 'rgba(34, 35, 39, 0.94)',
+  surfaceBlue: '#2c2e33',
+  surfaceAlt: '#2c2e33',
+  hoverSurface: '#2c2e33',
+  border: '#2f3136',
+  borderStrong: '#3d4046',
+  input: '#1d1e21',
+  placeholder: '#6b6f78',
+  pageTint: '#222327'
 };
 
 let activeScheme: 'light' | 'dark' = 'light';
@@ -93,7 +98,8 @@ export function applyTheme(scheme: 'light' | 'dark', accent: AccentKey) {
       primaryFocus: hexToRgba(preset.night, 0.24),
       primaryBorder: hexToRgba(preset.night, 0.4),
       accent: preset.night,
-      accentSoft: hexToRgba(preset.night, 0.18)
+      accentSoft: hexToRgba(preset.night, 0.18),
+      onPrimary: accent === 'indigo' ? '#1f2023' : '#ffffff'
     });
     return;
   }
@@ -105,7 +111,8 @@ export function applyTheme(scheme: 'light' | 'dark', accent: AccentKey) {
     primaryFocus: hexToRgba(preset.color, 0.14),
     primaryBorder: hexToRgba(preset.color, 0.22),
     accent: preset.color,
-    accentSoft: preset.soft
+    accentSoft: preset.soft,
+    onPrimary: '#ffffff'
   });
 }
 
@@ -141,7 +148,7 @@ export const fonts = {
   extraBold: 'Inter_800ExtraBold'
 };
 
-/** The blue gradient of the balance card on Home. */
+/** The yellow gradient of the balance card on Home. */
 export const gradients = {
-  balance: ['#3445d6', '#5b6cff', '#7fb6ff']
+  balance: ['#ffd65c', '#ffc83d', '#ffb81f']
 } as const;

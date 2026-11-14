@@ -17,9 +17,10 @@ type Props = {
 };
 
 export function AppButton({ children, disabled, icon, loading, onPress, style, variant = 'primary' }: Props) {
-  const { accentColor } = useTheme();
+  const { accent, accentColor } = useTheme();
+  const sunshine = accent === 'indigo';
   const foreground = variant === 'primary'
-    ? colors.white
+    ? (sunshine ? colors.onHighlight : colors.white)
     : variant === 'danger'
       ? colors.white
       : accentColor;
@@ -32,7 +33,7 @@ export function AppButton({ children, disabled, icon, loading, onPress, style, v
       style={({ pressed }) => [
         styles.button,
         styles[variant],
-        variant === 'primary' && { backgroundColor: accentColor },
+        variant === 'primary' && { backgroundColor: sunshine ? colors.highlight : accentColor },
         (pressed || disabled) && styles.dimmed,
         style
       ]}

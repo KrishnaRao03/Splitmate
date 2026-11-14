@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   },
   personAvatarText: {
     ...typography.bodyStrong,
-    color: colors.white
+    color: colors.onPrimary
   },
   personName: {
     ...typography.bodyStrong,
