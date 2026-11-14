@@ -66,6 +66,19 @@ export function phoneError(value: string) {
   return '';
 }
 
+/** How strong a new password is, for the coloured border and meter while typing. */
+export function passwordStrength(password: string): { level: 0 | 1 | 2 | 3 | 4; label: string; color: string } {
+  if (!password) {
+    return { level: 0, label: '', color: '' };
+  }
+  const rules = [password.length >= 8, /[A-Z]/.test(password), /[a-z]/.test(password), /[0-9]/.test(password), /[^A-Za-z0-9]/.test(password)];
+  const met = rules.filter(Boolean).length;
+  if (met === 5 && password.length >= 12) return { level: 4, label: 'Very strong', color: '#10b981' };
+  if (met === 5) return { level: 3, label: 'Strong', color: '#22c55e' };
+  if (met >= 4) return { level: 2, label: 'Almost there', color: '#f59e0b' };
+  return { level: 1, label: 'Weak', color: '#e11d48' };
+}
+
 /** What a new password is missing, or '' when it meets every rule. */
 export function passwordError(password: string) {
   const missing: string[] = [];

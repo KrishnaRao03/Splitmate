@@ -47,6 +47,10 @@
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required
                        placeholder="8+ chars: Aa, 1 and a symbol" minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character (like ! @ # $).">
+                <div class="password-meter" id="passwordMeter" hidden>
+                    <span></span><span></span><span></span><span></span>
+                    <small id="passwordMeterLabel"></small>
+                </div>
             </div>
 
             <div class="form-group">
@@ -66,6 +70,29 @@
     </div>
 </div>
 <script>
+    // The password border and meter change colour with strength while typing (same rules as the server).
+    (function () {
+        const input = document.getElementById('password');
+        const meter = document.getElementById('passwordMeter');
+        const label = document.getElementById('passwordMeterLabel');
+        const bars = meter.querySelectorAll('span');
+        input.addEventListener('input', () => {
+            const value = input.value;
+            const met = [value.length >= 8, /[A-Z]/.test(value), /[a-z]/.test(value), /[0-9]/.test(value), /[^A-Za-z0-9]/.test(value)].filter(Boolean).length;
+            const [level, text, color] = !value ? [0, '', '']
+                : met === 5 && value.length >= 12 ? [4, 'Very strong', '#10b981']
+                : met === 5 ? [3, 'Strong', '#22c55e']
+                : met >= 4 ? [2, 'Almost there', '#f59e0b']
+                : [1, 'Weak', '#e11d48'];
+            meter.hidden = !level;
+            input.style.borderColor = color;
+            input.style.boxShadow = color ? `0 0 0 3px ${color}33` : '';
+            bars.forEach((bar, index) => { bar.style.background = index < level ? color : ''; });
+            label.textContent = text;
+            label.style.color = color;
+        });
+    })();
+
     // Pre-select the country from the browser's language setting (e.g. en-CA -> Canada) if none is chosen yet.
     (function () {
         const select = document.getElementById('country');

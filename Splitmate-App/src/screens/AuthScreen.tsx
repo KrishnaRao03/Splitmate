@@ -15,7 +15,7 @@ import { useAuth } from '@/state/AuthContext';
 import { colors, fonts, gradients, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { deviceCountry } from '@/utils/countries';
-import { emailError as describeEmailError, passwordError as describePasswordError } from '@/utils/validation';
+import { emailError as describeEmailError, passwordError as describePasswordError, passwordStrength } from '@/utils/validation';
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot';
 
@@ -39,6 +39,7 @@ export function AuthScreen() {
 
   const emailError = email ? describeEmailError(email) : '';
   const newPasswordError = mode === 'register' && password ? describePasswordError(password) : '';
+  const strength = mode === 'register' ? passwordStrength(password) : null;
   const loginTabActive = mode === 'login' || mode === 'forgot';
   const registerTabActive = mode === 'register' || mode === 'verify';
 
@@ -210,6 +211,15 @@ export function AuthScreen() {
               value={password}
               onChangeText={setPassword}
               error={newPasswordError}
+              borderColor={strength?.color || undefined}
+              footer={strength?.level ? (
+                <View style={styles.meterRow}>
+                  {[1, 2, 3, 4].map(step => (
+                    <View key={step} style={[styles.meterBar, step <= strength.level && { backgroundColor: strength.color }]} />
+                  ))}
+                  <Text style={[styles.meterLabel, { color: strength.color }]}>{strength.label}</Text>
+                </View>
+              ) : null}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
@@ -348,6 +358,23 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginBottom: spacing.md,
     ...typography.h3
+  },
+  meterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
+  },
+  meterBar: {
+    flex: 1,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.borderStrong
+  },
+  meterLabel: {
+    ...typography.caption,
+    marginLeft: spacing.xs,
+    minWidth: 76,
+    textAlign: 'right'
   },
   modeRow: {
     flexDirection: 'row',

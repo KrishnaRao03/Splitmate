@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { StyleSheet, TextInput, TextInputProps, View } from 'react-native';
+import { Platform, StyleSheet, TextInput, TextInputProps, View } from 'react-native';
 
 import { AppText as Text } from '@/components/AppText';
 import { colors, fonts, radius, spacing } from '@/theme/colors';
@@ -9,9 +9,13 @@ type Props = TextInputProps & {
   label: string;
   error?: string;
   right?: ReactNode;
+  /** Overrides the border colour, e.g. to show password strength. */
+  borderColor?: string;
+  /** Shown under the field, above any error. */
+  footer?: ReactNode;
 };
 
-export function TextField({ label, error, right, style, onFocus, onBlur, ...props }: Props) {
+export function TextField({ label, error, right, borderColor, footer, style, onFocus, onBlur, ...props }: Props) {
   const [focused, setFocused] = useState(false);
 
   return (
@@ -21,12 +25,13 @@ export function TextField({ label, error, right, style, onFocus, onBlur, ...prop
         style={[
           styles.inputWrap,
           focused && styles.focused,
-          Boolean(error) && styles.invalid
+          Boolean(error) && styles.invalid,
+          borderColor ? { borderColor, borderWidth: 2 } : null
         ]}
       >
         <TextInput
           placeholderTextColor={colors.placeholder}
-          style={[styles.input, style]}
+          style={[styles.input, Platform.OS === 'web' && WEB_NO_OUTLINE, style]}
           onFocus={(event) => {
             setFocused(true);
             onFocus?.(event);
@@ -39,10 +44,14 @@ export function TextField({ label, error, right, style, onFocus, onBlur, ...prop
         />
         {right}
       </View>
+      {footer}
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 }
+
+// The coloured border already shows focus; the browser's own black focus box would sit inside it.
+const WEB_NO_OUTLINE = { outlineStyle: 'none' } as unknown as TextInputProps['style'];
 
 const styles = StyleSheet.create({
   wrap: {

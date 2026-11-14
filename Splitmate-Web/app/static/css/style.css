@@ -4699,3 +4699,24 @@ body:has(.auth-container) {
         radial-gradient(circle at 40% 100%, rgba(249, 115, 22, 0.16), transparent 50%),
         var(--bg-primary);
 }
+
+.password-meter {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.password-meter span {
+    flex: 1;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--border-strong);
+    transition: background var(--transition);
+}
+
+.password-meter small {
+    min-width: 84px;
+    text-align: right;
+    font-weight: 700;
+}
