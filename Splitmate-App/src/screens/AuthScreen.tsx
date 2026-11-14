@@ -15,6 +15,7 @@ import { colors, fonts, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { deviceCountry } from '@/utils/countries';
 import { emailError as describeEmailError, passwordError as describePasswordError, passwordStrength } from '@/utils/validation';
+import { notify } from '@/state/UndoToast';
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot';
 
@@ -123,7 +124,7 @@ export function AuthScreen() {
         // Shown on screen as well as in an alert: Alert.alert does nothing in the web build.
         if (registered.otpSent) {
           setNotice('Check your email and enter the 6-digit OTP to finish registration.');
-          Alert.alert('Check your email', 'Enter the 6-digit OTP to finish registration.');
+          notify('Check your email', 'Enter the 6-digit OTP to finish registration.');
         } else {
           setError(OTP_NOT_SENT);
         }
@@ -131,7 +132,7 @@ export function AuthScreen() {
         await auth.requestPasswordReset(email);
         setPassword('');
         switchMode('login');
-        Alert.alert('Check your email', 'If an account exists for that email, password reset instructions were sent.');
+        notify('Check your email', 'If an account exists for that email, password reset instructions were sent.');
       } else {
         await auth.verifyEmail(email, otp);
       }

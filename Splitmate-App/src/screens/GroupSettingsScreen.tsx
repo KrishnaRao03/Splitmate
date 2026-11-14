@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Pressable, Share, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
@@ -16,6 +16,7 @@ import { TextField } from '@/components/TextField';
 import { colors, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDate } from '@/utils/dates';
+import { confirm, notify } from '@/state/UndoToast';
 import type { DefaultSplit, GroupDetail, GroupMember, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupSettings'>;
@@ -49,7 +50,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
         Object.entries(next.default_split.percentages).map(([memberId, value]) => [Number(memberId), value])
       ));
     } catch (error) {
-      Alert.alert('Could not load group settings', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not load group settings', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setLoading(false);
     }
@@ -77,7 +78,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       setLastInvite(result.invite_url ? { email: result.email, url: result.invite_url, qrRows: result.qr_rows || [] } : null);
       await load();
     } catch (error) {
-      Alert.alert('Could not create invite', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not create invite', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
@@ -97,14 +98,14 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       await api.renameGroup(groupId, groupName);
       navigation.setOptions({ title: `${groupName.trim()} Settings` });
       await load();
-      Alert.alert('Group renamed', `This group is now called "${groupName.trim()}".`);
+      notify('Group renamed', `This group is now called "${groupName.trim()}".`);
     } catch (error) {
-      Alert.alert('Could not rename group', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not rename group', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
   function makeAdmin(member: GroupMember) {
-    Alert.alert(
+    confirm(
       `Make ${member.full_name} the admin?`,
       'They will be able to rename the group, invite and remove people, and delete it. You will become a regular member.',
       [
@@ -116,9 +117,9 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
               await api.transferAdmin(groupId, member.id);
               setLastInvite(null);
               await load();
-              Alert.alert('Admin changed', `${member.full_name} is now the group admin.`);
+              notify('Admin changed', `${member.full_name} is now the group admin.`);
             } catch (error) {
-              Alert.alert('Could not change admin', error instanceof Error ? error.message : 'Try again.');
+              notify('Could not change admin', error instanceof Error ? error.message : 'Try again.');
             }
           }
         }
@@ -127,7 +128,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
   }
 
   function leaveGroup() {
-    Alert.alert('Leave this group?', 'You will lose access to its expenses, tasks and notes.', [
+    confirm('Leave this group?', 'You will lose access to its expenses, tasks and notes.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Leave',
@@ -137,7 +138,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
             await api.leaveGroup(groupId);
             navigation.popToTop();
           } catch (error) {
-            Alert.alert('Could not leave group', error instanceof Error ? error.message : 'Try again.');
+            notify('Could not leave group', error instanceof Error ? error.message : 'Try again.');
           }
         }
       }
@@ -149,7 +150,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
     const warning = soloAdmin
       ? 'This deletes all expenses, payments, notes and tasks in this group, and cancels its pending invites. It cannot be undone.'
       : 'This permanently deletes the group, its tasks and notes. It cannot be undone.';
-    Alert.alert('Delete this group?', warning, [
+    confirm('Delete this group?', warning, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -159,7 +160,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
             await api.deleteGroup(groupId);
             navigation.popToTop();
           } catch (error) {
-            Alert.alert('Could not delete group', error instanceof Error ? error.message : 'Try again.');
+            notify('Could not delete group', error instanceof Error ? error.message : 'Try again.');
           }
         }
       }
@@ -171,12 +172,12 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       await api.updateMemberNickname(groupId, memberId, nicknames[memberId] || '');
       await load();
     } catch (error) {
-      Alert.alert('Could not update nickname', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not update nickname', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
   function removeMember(member: GroupMember) {
-    Alert.alert('Remove member?', `${member.full_name} will lose access to this group.`, [
+    confirm('Remove member?', `${member.full_name} will lose access to this group.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -186,7 +187,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
             await api.removeMember(groupId, member.id);
             await load();
           } catch (error) {
-            Alert.alert('Could not remove member', error instanceof Error ? error.message : 'Try again.');
+            notify('Could not remove member', error instanceof Error ? error.message : 'Try again.');
           }
         }
       }
@@ -206,10 +207,10 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
           ? Object.fromEntries(detail.group.members.map(member => [String(member.id), percentages[member.id] || '0']))
           : {}
       });
-      Alert.alert('Default saved', 'New expenses will start with this split.');
+      notify('Default saved', 'New expenses will start with this split.');
       await load();
     } catch (error) {
-      Alert.alert('Could not save default', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not save default', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setSaving(false);
     }

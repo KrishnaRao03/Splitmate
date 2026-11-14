@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Linking, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
@@ -23,7 +23,7 @@ import { typography } from '@/theme/typography';
 import { formatDate, formatDateTime } from '@/utils/dates';
 import { getGroceryLocation } from '@/utils/groceryLocation';
 import { formatMoney, parseAmount } from '@/utils/money';
-import { useUndo } from '@/state/UndoToast';
+import { confirm, notify, useUndo } from '@/state/UndoToast';
 import type { Expense, ExpenseSearchResult, GroceryComparison, GroupDetail, Note, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupDetail'>;
@@ -77,7 +77,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       const message = error instanceof Error ? error.message : 'Try again.';
       setLoadError(message);
       if (hasLoaded.current) {
-        Alert.alert('Could not refresh group', message);
+        notify('Could not refresh group', message);
       }
     } finally {
       setLoading(false);
@@ -117,7 +117,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       await action();
       await load();
     } catch (error) {
-      Alert.alert(title, error instanceof Error ? error.message : 'Try again.');
+      notify(title, error instanceof Error ? error.message : 'Try again.');
       // Undo any optimistic change by showing what the server really has.
       load().catch(() => undefined);
     }
@@ -133,17 +133,17 @@ export function GroupDetailScreen({ navigation, route }: Props) {
 
   async function recordPayment() {
     if (!receiverId) {
-      Alert.alert('Choose a receiver', 'Select the person you are paying.');
+      notify('Choose a receiver', 'Select the person you are paying.');
       return;
     }
     const amount = parseAmount(paymentAmount);
     if (amount === null || amount <= 0) {
-      Alert.alert('Enter an amount', 'Enter a payment amount greater than zero.');
+      notify('Enter an amount', 'Enter a payment amount greater than zero.');
       return;
     }
     const option = detail?.payment_options.find(item => item.receiver_id === receiverId);
     if (option && amount > option.max_amount + 0.005) {
-      Alert.alert('Amount too high', `You can record up to ${money(option.max_amount)} for this person right now.`);
+      notify('Amount too high', `You can record up to ${money(option.max_amount)} for this person right now.`);
       return;
     }
     try {
@@ -151,9 +151,9 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       setPaymentAmount('');
       setReceiverId(null);
       await load();
-      Alert.alert('Payment recorded', `${option?.receiver ?? 'They'} will be asked to confirm it. Your balance updates once they do.`);
+      notify('Payment recorded', `${option?.receiver ?? 'They'} will be asked to confirm it. Your balance updates once they do.`);
     } catch (error) {
-      Alert.alert('Could not record payment', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not record payment', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
@@ -165,7 +165,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert('Could not open payment app', 'Make sure the app for this payment method is installed.');
+      notify('Could not open payment app', 'Make sure the app for this payment method is installed.');
     }
   }
 
@@ -197,7 +197,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       return;
     }
     if (expense.splits.some(split => split.is_settled && split.user_id !== expense.paid_by_id)) {
-      Alert.alert('Cannot edit this expense', 'Part of it has already been settled. Delete it and add a corrected expense instead.');
+      notify('Cannot edit this expense', 'Part of it has already been settled. Delete it and add a corrected expense instead.');
       return;
     }
     navigation.navigate('AddExpense', {
@@ -241,12 +241,12 @@ export function GroupDetailScreen({ navigation, route }: Props) {
         setNoteLimit({ noteId, message: (error as Error).message });
         return;
       }
-      Alert.alert('Could not compare groceries', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not compare groceries', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
   function clearRecentExpenses() {
-    Alert.alert('Clear recent expenses?', 'Balances from active expenses will be cleared, but transaction history stays available.', [
+    confirm('Clear recent expenses?', 'Balances from active expenses will be cleared, but transaction history stays available.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: () => runAction(() => api.clearExpenses(groupId), 'Could not clear expenses') }
     ]);
@@ -283,7 +283,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       const csv = await api.exportActivityCsv(groupId);
       await Share.share({ message: csv });
     } catch (error) {
-      Alert.alert('Could not export activity', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not export activity', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setExportingCsv(false);
     }

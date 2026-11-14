@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useCallback, useState } from 'react';
-import { Alert, DevSettings, Pressable, Share, StyleSheet, Switch, View } from 'react-native';
+import { DevSettings, Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
@@ -23,6 +23,7 @@ import { useAuth } from '@/state/AuthContext';
 import { ACCENT_PRESETS, AccentKey, ThemeMode, useTheme } from '@/state/ThemeContext';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
+import { confirm, notify } from '@/state/UndoToast';
 import type { RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
@@ -44,7 +45,7 @@ export function SettingsScreen({ navigation }: Props) {
   async function enableNotifications() {
     const result = await configureNotifications();
     refreshPermission();
-    Alert.alert(
+    notify(
       result.granted ? 'Notifications ready' : 'Notifications disabled',
       result.granted
         ? result.token ? 'This device is registered for push notifications.' : 'Task reminders will show on this device.'
@@ -65,7 +66,7 @@ export function SettingsScreen({ navigation }: Props) {
       DevSettings.reload();
       return;
     }
-    Alert.alert('Restart Splitmate', 'Close and reopen Splitmate to apply your new theme everywhere.');
+    notify('Restart Splitmate', 'Close and reopen Splitmate to apply your new theme everywhere.');
   }
 
   async function exportMyData() {
@@ -74,7 +75,7 @@ export function SettingsScreen({ navigation }: Props) {
       const data = await api.exportData();
       await Share.share({ message: JSON.stringify(data, null, 2) });
     } catch (error) {
-      Alert.alert('Could not export data', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not export data', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setExporting(false);
     }
@@ -168,12 +169,12 @@ export function SettingsScreen({ navigation }: Props) {
         <AppButton
           icon="phone-portrait-outline"
           variant="outline"
-          onPress={() => Alert.alert('Sign out everywhere?', 'This signs you out of every phone and browser, including this one.', [
+          onPress={() => confirm('Sign out everywhere?', 'This signs you out of every phone and browser, including this one.', [
             { text: 'Cancel', style: 'cancel' },
             {
               text: 'Sign out everywhere',
               style: 'destructive',
-              onPress: () => auth.signOutEverywhere().catch(error => Alert.alert('Could not sign out everywhere', error instanceof Error ? error.message : 'Try again.'))
+              onPress: () => auth.signOutEverywhere().catch(error => notify('Could not sign out everywhere', error instanceof Error ? error.message : 'Try again.'))
             }
           ])}
         >

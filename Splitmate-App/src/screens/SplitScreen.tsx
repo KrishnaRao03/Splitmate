@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps, useFocusEffect } from '@react-navigation/native';
 import { useCallback, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
@@ -16,6 +16,7 @@ import { useAuth } from '@/state/AuthContext';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatMoney } from '@/utils/money';
+import { notify } from '@/state/UndoToast';
 import type { Dashboard, MainTabParamList, PersonBalance, RootStackParamList } from '@/types';
 
 type Props = CompositeScreenProps<
@@ -50,7 +51,7 @@ export function SplitScreen({ navigation }: Props) {
       const message = error instanceof Error ? error.message : 'Try again.';
       setLoadError(message);
       if (hasLoaded.current) {
-        Alert.alert('Could not refresh Split', message);
+        notify('Could not refresh Split', message);
       }
     } finally {
       setLoading(false);
@@ -72,7 +73,7 @@ export function SplitScreen({ navigation }: Props) {
     const groups = dashboard?.groups || [];
     const groupId = expenseGroupId ?? (groups.length === 1 ? groups[0].id : null);
     if (!groupId) {
-      Alert.alert('Choose a group', 'Pick which group this expense belongs to.');
+      notify('Choose a group', 'Pick which group this expense belongs to.');
       return;
     }
     setOpeningExpense(true);
@@ -86,7 +87,7 @@ export function SplitScreen({ navigation }: Props) {
         defaultSplit: detail.default_split
       });
     } catch (error) {
-      Alert.alert('Could not open the expense form', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not open the expense form', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setOpeningExpense(false);
     }

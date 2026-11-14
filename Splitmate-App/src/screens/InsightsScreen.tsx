@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -16,6 +16,7 @@ import { colors, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
+import { notify } from '@/state/UndoToast';
 import type { GroupActivity, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Insights'>;
@@ -47,7 +48,7 @@ export function InsightsScreen({ route }: Props) {
         max_amount: maxAmount
       } : {}));
     } catch (error) {
-      Alert.alert('Could not load activity', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not load activity', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setLoading(false);
     }

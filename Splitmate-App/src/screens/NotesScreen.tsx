@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
@@ -16,9 +16,9 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { TextField } from '@/components/TextField';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
-import { useUndo } from '@/state/UndoToast';
 import type { GroceryComparison, Group, Note, RootStackParamList } from '@/types';
 import { currentPositionText, getGroceryLocation, setGroceryLocation } from '@/utils/groceryLocation';
+import { notify, useUndo } from '@/state/UndoToast';
 
 export function NotesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -62,7 +62,7 @@ export function NotesScreen() {
       const message = error instanceof Error ? error.message : 'Try again.';
       setLoadError(message);
       if (hasLoaded.current) {
-        Alert.alert('Could not refresh Notes', message);
+        notify('Could not refresh Notes', message);
       }
     } finally {
       setLoading(false);
@@ -84,7 +84,7 @@ export function NotesScreen() {
       await action();
       await load();
     } catch (error) {
-      Alert.alert(title, error instanceof Error ? error.message : 'Try again.');
+      notify(title, error instanceof Error ? error.message : 'Try again.');
       // Undo any optimistic change by showing what the server really has.
       load().catch(() => undefined);
     }
@@ -94,11 +94,11 @@ export function NotesScreen() {
     const groupId = newGroupId ?? (groups.length === 1 ? groups[0].id : null);
     const title = newTitle.trim();
     if (!groupId) {
-      Alert.alert('Choose a group', 'Pick which group this note belongs to.');
+      notify('Choose a group', 'Pick which group this note belongs to.');
       return;
     }
     if (!title) {
-      Alert.alert('Title required', 'Enter a title for this note.');
+      notify('Title required', 'Enter a title for this note.');
       return;
     }
     setSavingNew(true);
@@ -120,7 +120,7 @@ export function NotesScreen() {
   async function saveNote(noteId: number) {
     const title = editTitle.trim();
     if (!title) {
-      Alert.alert('Title required', 'Enter a title for this note.');
+      notify('Title required', 'Enter a title for this note.');
       return;
     }
     await runAction(async () => {
@@ -143,7 +143,7 @@ export function NotesScreen() {
         setNoteLimit({ noteId, message: (error as Error).message });
         return;
       }
-      Alert.alert('Could not compare groceries', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not compare groceries', error instanceof Error ? error.message : 'Try again.');
     }
   }
 

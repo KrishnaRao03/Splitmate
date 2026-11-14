@@ -19,6 +19,7 @@ import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import type { Expense, GroupMember, RootStackParamList } from '@/types';
 import { formatMoney, parseAmount } from '@/utils/money';
+import { notify } from '@/state/UndoToast';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddExpense'>;
 type SplitType = 'equal' | 'selected' | 'exact' | 'percentage';
@@ -146,7 +147,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
+      notify(
         source === 'camera' ? 'Camera access needed' : 'Photo access needed',
         `Allow Splitmate to use your ${source === 'camera' ? 'camera' : 'photos'} in your phone's settings to scan receipts.`
       );
@@ -186,7 +187,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
         setScanLimit((error as Error).message);
         return;
       }
-      Alert.alert('Could not scan receipt', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not scan receipt', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setScanning(false);
     }
@@ -231,19 +232,19 @@ export function AddExpenseScreen({ navigation, route }: Props) {
 
   async function save() {
     if (!description.trim()) {
-      Alert.alert('Missing description', 'Say what the expense was for.');
+      notify('Missing description', 'Say what the expense was for.');
       return;
     }
     if (parsedAmount === null || parsedAmount <= 0) {
-      Alert.alert('Check the amount', 'Enter an amount greater than zero, like 24.50.');
+      notify('Check the amount', 'Enter an amount greater than zero, like 24.50.');
       return;
     }
     if (splitMode === 'equal' && !activeMembers.length) {
-      Alert.alert('Choose people', 'Tick at least one person to split with.');
+      notify('Choose people', 'Tick at least one person to split with.');
       return;
     }
     if (splitMode !== 'equal' && !addsUp) {
-      Alert.alert(
+      notify(
         splitMode === 'exact' ? 'Amounts do not add up' : 'Percentages do not add up',
         splitMode === 'exact'
           ? `The exact amounts total ${formatMoney(splitTotal, currencyCode)} but the expense is ${formatMoney(parsedAmount, currencyCode)}.`
@@ -285,7 +286,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       }
       navigation.goBack();
     } catch (error) {
-      Alert.alert(editing ? 'Could not save expense' : 'Could not add expense', error instanceof Error ? error.message : 'Try again.');
+      notify(editing ? 'Could not save expense' : 'Could not add expense', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setSaving(false);
     }

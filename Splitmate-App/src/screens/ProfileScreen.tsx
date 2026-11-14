@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Pressable, Share, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
 
 import { api } from '@/api/client';
@@ -19,6 +19,7 @@ import { CountryPicker } from '@/components/CountryPicker';
 import { paymentFieldsFor } from '@/utils/countries';
 import { formatDate } from '@/utils/dates';
 import { passwordError as describePasswordError } from '@/utils/validation';
+import { notify } from '@/state/UndoToast';
 import type { ProfileQr, RewardsSummary, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
@@ -118,7 +119,7 @@ export function ProfileScreen({ navigation }: Props) {
       if (result.interacCodeSent) {
         setInteracMessage('We emailed a 6-digit code to your new Interac email. Enter it below to start using it.');
       }
-      Alert.alert(
+      notify(
         'Profile updated',
         result.verificationRequired
           ? result.otpSent
@@ -127,7 +128,7 @@ export function ProfileScreen({ navigation }: Props) {
           : 'Your account details are up to date.'
       );
     } catch (error) {
-      Alert.alert('Could not update profile', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not update profile', error instanceof Error ? error.message : 'Try again.');
       setInteracMessage(error instanceof Error ? error.message : 'Could not update profile.');
     } finally {
       setSavingDetails(false);
@@ -139,9 +140,9 @@ export function ProfileScreen({ navigation }: Props) {
       await auth.verifyEmail(email, otp);
       setOtp('');
       setVerificationRequired(false);
-      Alert.alert('Email verified', 'Your new email is ready to use.');
+      notify('Email verified', 'Your new email is ready to use.');
     } catch (error) {
-      Alert.alert('Could not verify email', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not verify email', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
@@ -168,7 +169,7 @@ export function ProfileScreen({ navigation }: Props) {
   async function changePassword() {
     const problem = describePasswordError(newPassword);
     if (problem) {
-      Alert.alert('Choose a stronger password', problem);
+      notify('Choose a stronger password', problem);
       return;
     }
     setSavingPassword(true);
@@ -177,9 +178,9 @@ export function ProfileScreen({ navigation }: Props) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      Alert.alert('Password updated', 'Your other devices were signed out. Use your new password to sign in there.');
+      notify('Password updated', 'Your other devices were signed out. Use your new password to sign in there.');
     } catch (error) {
-      Alert.alert('Could not update password', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not update password', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setSavingPassword(false);
     }
@@ -191,9 +192,9 @@ export function ProfileScreen({ navigation }: Props) {
       const result = await api.inviteSplitmate(inviteEmail);
       setInviteEmail('');
       // The reply is the same whether or not the address already has an account (so it can't be used to look people up).
-      Alert.alert('Invite sent', result.message);
+      notify('Invite sent', result.message);
     } catch (error) {
-      Alert.alert('Could not invite friend', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not invite friend', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setInviting(false);
     }

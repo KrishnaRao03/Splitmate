@@ -1,6 +1,6 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -13,6 +13,7 @@ import { LoadingState } from '@/components/States';
 import { TextField } from '@/components/TextField';
 import { colors, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
+import { notify } from '@/state/UndoToast';
 import type { Group, GroupMember, RootStackParamList, Task } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddTask'>;
@@ -53,7 +54,7 @@ export function AddTaskScreen({ navigation, route }: Props) {
           setGroupId(list[0].id);
         }
       })
-      .catch(error => Alert.alert('Could not load your groups', error instanceof Error ? error.message : 'Try again.'));
+      .catch(error => notify('Could not load your groups', error instanceof Error ? error.message : 'Try again.'));
   }, [fixedGroupId]);
 
   const members: GroupMember[] = useMemo(() => {
@@ -83,19 +84,19 @@ export function AddTaskScreen({ navigation, route }: Props) {
 
   async function save() {
     if (!groupId) {
-      Alert.alert('Choose a group', 'Pick which group this task belongs to.');
+      notify('Choose a group', 'Pick which group this task belongs to.');
       return;
     }
     if (!title.trim()) {
-      Alert.alert('Missing title', 'Give the task a title.');
+      notify('Missing title', 'Give the task a title.');
       return;
     }
     if (!due) {
-      Alert.alert('Pick a due date', 'Choose when the task is due.');
+      notify('Pick a due date', 'Choose when the task is due.');
       return;
     }
     if (reminderChoice === 'custom' && !customReminder) {
-      Alert.alert('Pick a reminder time', 'Choose when to be reminded, or pick another reminder option.');
+      notify('Pick a reminder time', 'Choose when to be reminded, or pick another reminder option.');
       return;
     }
 
@@ -113,7 +114,7 @@ export function AddTaskScreen({ navigation, route }: Props) {
       });
       navigation.goBack();
     } catch (error) {
-      Alert.alert('Could not add task', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not add task', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setSaving(false);
     }

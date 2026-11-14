@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -13,6 +13,7 @@ import { TextField } from '@/components/TextField';
 import { colors, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDate } from '@/utils/dates';
+import { confirm, notify } from '@/state/UndoToast';
 import type { Group, MyInvite, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Invites'>;
@@ -44,7 +45,7 @@ export function InvitesScreen({ navigation }: Props) {
   }
 
   function joined(result: { message: string; group: Group }) {
-    Alert.alert('Joined group', result.message, [
+    confirm('Joined group', result.message, [
       { text: 'Later', style: 'cancel' },
       { text: 'Open group', onPress: () => navigation.replace('GroupDetail', { groupId: result.group.id, groupName: result.group.name }) }
     ]);
@@ -57,7 +58,7 @@ export function InvitesScreen({ navigation }: Props) {
       setInvites(current => (current || []).filter(item => item.id !== invite.id));
       joined(result);
     } catch (error) {
-      Alert.alert('Could not accept invite', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not accept invite', error instanceof Error ? error.message : 'Try again.');
       load();
     } finally {
       setAcceptingId(null);
@@ -66,7 +67,7 @@ export function InvitesScreen({ navigation }: Props) {
 
   async function acceptLink() {
     if (!link.trim()) {
-      Alert.alert('Paste a link', 'Paste the invite link from your email, like https://.../invite/abc123.');
+      notify('Paste a link', 'Paste the invite link from your email, like https://.../invite/abc123.');
       return;
     }
     setAcceptingId('link');
@@ -76,7 +77,7 @@ export function InvitesScreen({ navigation }: Props) {
       load();
       joined(result);
     } catch (error) {
-      Alert.alert('Could not accept invite', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not accept invite', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setAcceptingId(null);
     }

@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
@@ -12,6 +12,7 @@ import { EmptyState, LoadingState } from '@/components/States';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime, parseServerDate } from '@/utils/dates';
+import { notify } from '@/state/UndoToast';
 import type { RootStackParamList, Task } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'TaskCalendar'>;
@@ -30,7 +31,7 @@ export function TaskCalendarScreen({ route }: Props) {
     try {
       setTasks((await api.groupDetail(groupId)).tasks);
     } catch (error) {
-      Alert.alert('Could not load calendar', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not load calendar', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setLoading(false);
     }

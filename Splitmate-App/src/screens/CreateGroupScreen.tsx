@@ -1,6 +1,5 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import { Alert } from 'react-native';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -12,6 +11,7 @@ import { TextField } from '@/components/TextField';
 import { useAuth } from '@/state/AuthContext';
 import { colors, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
+import { notify } from '@/state/UndoToast';
 import type { RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
@@ -36,7 +36,7 @@ export function CreateGroupScreen({ navigation }: Props) {
       const created = await api.createGroup(name.trim(), currency);
       navigation.replace('GroupDetail', { groupId: created.id, groupName: created.name });
     } catch (error) {
-      Alert.alert('Could not create group', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not create group', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setCreating(false);
     }

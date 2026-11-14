@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
@@ -15,6 +15,7 @@ import { TextField } from '@/components/TextField';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
+import { notify, useUndo } from '@/state/UndoToast';
 import type { RootStackParamList, Task } from '@/types';
 
 const REPEAT_LABELS: Record<Task['recurrence'], string> = { none: '', daily: 'Repeats daily', weekly: 'Repeats weekly', monthly: 'Repeats monthly' };
@@ -23,6 +24,9 @@ export function TasksScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const addTask = () => navigation.navigate('AddTask');
   const [tasks, setTasks] = useState<Task[]>([]);
+  // Tasks deleted in the last few seconds stay hidden while their Undo toast is showing.
+  const [removed, setRemoved] = useState<number[]>([]);
+  const showUndo = useUndo();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -41,7 +45,7 @@ export function TasksScreen() {
       const message = error instanceof Error ? error.message : 'Try again.';
       setLoadError(message);
       if (hasLoaded.current) {
-        Alert.alert('Could not refresh Tasks', message);
+        notify('Could not refresh Tasks', message);
       }
     } finally {
       setLoading(false);
@@ -67,7 +71,7 @@ export function TasksScreen() {
       await load();
     } catch (error) {
       setTasks(current => current.map(item => (item.id === task.id ? { ...item, is_completed: task.is_completed } : item)));
-      Alert.alert('Could not update task', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not update task', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
@@ -76,15 +80,14 @@ export function TasksScreen() {
       await api.deleteTask(task.id);
       await load();
     } catch (error) {
-      Alert.alert('Could not delete task', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not delete task', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
   function confirmDeleteTask(task: Task) {
-    Alert.alert('Delete task?', task.title, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteTask(task) }
-    ]);
+    setRemoved(ids => [...ids, task.id]);
+    const restore = () => setRemoved(ids => ids.filter(id => id !== task.id));
+    showUndo('Task deleted', { commit: () => { deleteTask(task).finally(restore); }, undo: restore });
   }
 
   const groupOptions = useMemo(() => {
@@ -100,6 +103,7 @@ export function TasksScreen() {
   const filteredTasks = useMemo(() => {
     const query = search.trim().toLowerCase();
     return tasks
+      .filter(task => !removed.includes(task.id))
       .filter(task => {
         if (!showCompleted && task.is_completed) {
           return false;
@@ -117,7 +121,7 @@ export function TasksScreen() {
         const bTime = b.due_date ? new Date(b.due_date).getTime() : Infinity;
         return aTime - bTime;
       });
-  }, [tasks, groupFilter, search, showCompleted]);
+  }, [tasks, removed, groupFilter, search, showCompleted]);
 
   if (loading && !hasLoaded.current) {
     return <LoadingState label="Loading your tasks..." />;

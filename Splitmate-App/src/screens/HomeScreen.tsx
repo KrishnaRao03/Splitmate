@@ -3,7 +3,7 @@ import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
 
 import { api } from '@/api/client';
@@ -17,6 +17,7 @@ import { colors, fonts, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
+import { notify } from '@/state/UndoToast';
 import type { Dashboard, Group, MainTabParamList, MyInvite, PersonBalance, RootStackParamList, Task } from '@/types';
 
 type Props = CompositeScreenProps<
@@ -61,7 +62,7 @@ export function HomeScreen({ navigation }: Props) {
       const message = error instanceof Error ? error.message : 'Try again.';
       setLoadError(message);
       if (hasLoaded.current) {
-        Alert.alert('Could not refresh Splitmate', message);
+        notify('Could not refresh Splitmate', message);
       }
     } finally {
       setLoading(false);
@@ -111,7 +112,7 @@ export function HomeScreen({ navigation }: Props) {
         defaultSplit: detail.default_split
       });
     } catch (error) {
-      Alert.alert('Could not open the expense form', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not open the expense form', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setOpening(false);
     }

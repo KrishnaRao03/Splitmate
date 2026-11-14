@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 
 import { AppButton } from '@/components/AppButton';
@@ -8,6 +8,7 @@ import { ChoiceChips } from '@/components/ChoiceChips';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { CANADIAN_BANKS, copyText, getPreferredBankId, openBank, setPreferredBankId } from '@/utils/banks';
+import { notify } from '@/state/UndoToast';
 
 type Props = {
   /** 'pay': send an e-Transfer to `email`. 'request': send an Interac "Request money" to `email`. */
@@ -35,12 +36,12 @@ export function InteracShortcut({ mode, person, email, masked, amountText, amoun
 
   async function copy(value: string, what: string) {
     await copyText(value);
-    Alert.alert('Copied', `${what} copied. Paste it in your banking app.`);
+    notify('Copied', `${what} copied. Paste it in your banking app.`);
   }
 
   async function openMyBank() {
     if (!bank) {
-      Alert.alert('Choose your bank', 'Pick your bank once and Splitmate will open it next time.');
+      notify('Choose your bank', 'Pick your bank once and Splitmate will open it next time.');
       return;
     }
     // The email is the field people mistype, so it goes on the clipboard before the bank opens.
@@ -48,7 +49,7 @@ export function InteracShortcut({ mode, person, email, masked, amountText, amoun
     try {
       await openBank(bank);
     } catch {
-      Alert.alert('Could not open your bank', `Open the ${bank.name} app yourself; the email is copied.`);
+      notify('Could not open your bank', `Open the ${bank.name} app yourself; the email is copied.`);
     }
   }
 
