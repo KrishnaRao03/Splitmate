@@ -9,14 +9,13 @@ import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
 import { AppText as Text } from '@/components/AppText';
 import { BrandMark } from '@/components/BrandMark';
-import { GradientView } from '@/components/GradientView';
 import { Card } from '@/components/Card';
 import { BarList, MonthBars } from '@/components/Charts';
 import { Screen } from '@/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { configureNotifications, scheduleTaskReminders } from '@/services/notifications';
 import { useAuth } from '@/state/AuthContext';
-import { badgeColor, colors, gradients, radius, spacing } from '@/theme/colors';
+import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
@@ -91,17 +90,16 @@ export function HomeScreen({ navigation }: Props) {
 
   return (
     <Screen onRefresh={refresh} refreshing={refreshing}>
-      <GradientView colors={gradients.brand} style={styles.pageHeader}>
-        <View style={styles.heroBubble} />
+      <Card style={styles.pageHeader}>
         <View style={styles.brandRow}>
-          <BrandMark size={44} style={styles.heroMark} />
+          <BrandMark size={40} />
           <View>
             <Text style={styles.eyebrow}>Welcome back</Text>
             <Text style={styles.title}>{user?.name || 'Splitmate'}</Text>
           </View>
         </View>
-        <Text style={styles.heroMeta}>{currencyCode} workspace</Text>
-      </GradientView>
+        <Text style={styles.muted}>{currencyCode} workspace</Text>
+      </Card>
 
       {invites.length ? (
         <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Invites')}>
@@ -118,16 +116,29 @@ export function HomeScreen({ navigation }: Props) {
         </Pressable>
       ) : null}
 
-      <View style={styles.statsGrid}>
-        <StatTile color={colors.success} icon="arrow-down-outline" label="Owed to you" value={money(dashboard.total_owed_to_user)} />
-        <StatTile color={colors.danger} icon="arrow-up-outline" label="You owe" value={money(dashboard.total_user_owes)} />
-      </View>
+      <Card style={styles.balanceCard}>
+        <View style={styles.balanceHalf}>
+          <Text style={styles.balanceLabel}>Owed to you</Text>
+          <Text style={[styles.balanceValue, { color: colors.success }]}>{money(dashboard.total_owed_to_user)}</Text>
+        </View>
+        <View style={styles.balanceDivider} />
+        <View style={styles.balanceHalf}>
+          <Text style={styles.balanceLabel}>You owe</Text>
+          <Text style={[styles.balanceValue, { color: colors.danger }]}>{money(dashboard.total_user_owes)}</Text>
+        </View>
+      </Card>
 
       <View style={styles.statsGrid}>
-        <Pressable style={styles.statPress} onPress={() => navigation.navigate('Groups')}>
-          <StatTile color={colors.primary} icon="people-outline" label="Groups" value={String(groups.length)} />
+        <Pressable style={styles.statTile} onPress={() => navigation.navigate('Groups')}>
+          <Ionicons name="people-outline" size={18} color={colors.secondary} />
+          <Text style={styles.statLabel}>Groups</Text>
+          <Text style={styles.statValue}>{groups.length}</Text>
         </Pressable>
-        <StatTile color={colors.warning} icon="alarm-outline" label="Reminders" value={String(reminders.length)} />
+        <View style={styles.statTile}>
+          <Ionicons name="alarm-outline" size={18} color={colors.secondary} />
+          <Text style={styles.statLabel}>Reminders</Text>
+          <Text style={styles.statValue}>{reminders.length}</Text>
+        </View>
       </View>
 
       <View style={styles.homeActions}>
@@ -138,9 +149,6 @@ export function HomeScreen({ navigation }: Props) {
       <Text style={styles.sectionTitle}>This Month</Text>
       {dashboard?.monthly_spending.length ? dashboard.monthly_spending.map(item => (
         <Card key={item.group_id} style={styles.spendingRow}>
-          <View style={[styles.badge, { backgroundColor: badgeColor(item.group) }]}>
-            <Text style={styles.badgeText}>{item.group.slice(0, 1).toUpperCase()}</Text>
-          </View>
           <View style={styles.groupMain}>
             <Text style={styles.groupName}>{item.group}</Text>
             <Text style={styles.muted}>Recorded workspace spending</Text>
@@ -153,9 +161,6 @@ export function HomeScreen({ navigation }: Props) {
       {dashboard?.recent_expenses.length ? dashboard.recent_expenses.slice(0, 10).map(expense => (
         <Card key={expense.id}>
           <View style={styles.spendingRow}>
-            <View style={[styles.badge, { backgroundColor: badgeColor(expense.category || expense.description) }]}>
-              <Ionicons name="receipt-outline" size={18} color={colors.white} />
-            </View>
             <View style={styles.groupMain}>
               <Text style={styles.groupName}>{expense.description}</Text>
               <Text style={styles.muted}>{expense.group_name} - {expense.category}</Text>
@@ -220,17 +225,6 @@ export function HomeScreen({ navigation }: Props) {
   );
 }
 
-/** A light card tinted with one colour; the number carries the colour, not the background. */
-function StatTile({ color, icon, label, value }: { color: string; icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
-  return (
-    <View style={[styles.balanceTile, { backgroundColor: `${color}14`, borderColor: `${color}33` }]}>
-      <View style={[styles.tileIcon, { backgroundColor: color }]}><Ionicons name={icon} size={18} color={colors.white} /></View>
-      <Text style={styles.balanceLabel}>{label}</Text>
-      <Text style={[styles.balanceValue, { color }]}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   homeActions: {
     flexDirection: 'row',
@@ -242,57 +236,8 @@ const styles = StyleSheet.create({
     flexBasis: 140
   },
   pageHeader: {
-    gap: spacing.sm,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    overflow: 'hidden'
-  },
-  heroBubble: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    top: -60,
-    right: -40,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)'
-  },
-  heroMark: {
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.7)'
-  },
-  heroMeta: {
-    ...typography.label,
-    color: 'rgba(255, 255, 255, 0.85)'
-  },
-  balanceTile: {
-    flex: 1,
     gap: spacing.xs,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1
-  },
-  statPress: {
-    flex: 1,
-    display: 'flex'
-  },
-  tileIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  badge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  badgeText: {
-    ...typography.bodyStrong,
-    color: colors.white
+    backgroundColor: colors.surfaceGlass
   },
   brandRow: {
     flexDirection: 'row',
@@ -301,16 +246,31 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     ...typography.label,
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: colors.primary,
     textTransform: 'uppercase'
   },
   title: {
     ...typography.display,
-    color: colors.white
+    color: colors.ink
   },
   muted: {
     ...typography.body,
     color: colors.muted
+  },
+  balanceCard: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  balanceHalf: {
+    flex: 1,
+    gap: spacing.xs,
+    alignItems: 'center'
+  },
+  balanceDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.sm
   },
   balanceLabel: {
     ...typography.label,

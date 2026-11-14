@@ -3,7 +3,6 @@ import { ActivityIndicator, Pressable, StyleSheet, ViewStyle } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 
 import { AppText as Text } from '@/components/AppText';
-import { gradientFill } from '@/components/GradientView';
 import { useTheme } from '@/state/ThemeContext';
 import { colors, radius, spacing } from '@/theme/colors';
 
@@ -33,7 +32,7 @@ export function AppButton({ children, disabled, icon, loading, onPress, style, v
       style={({ pressed }) => [
         styles.button,
         styles[variant],
-        variant === 'primary' && gradientFill([accentColor, '#7c3aed']),
+        variant === 'primary' && { backgroundColor: accentColor },
         (pressed || disabled) && styles.dimmed,
         style
       ]}

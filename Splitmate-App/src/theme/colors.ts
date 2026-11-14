@@ -3,13 +3,13 @@ export const colors = {
   text: '#0f172a',
   secondary: '#475569',
   muted: '#94a3b8',
-  primary: '#4f46e5',
-  primaryDark: '#4338ca',
-  primaryStrong: '#4338ca',
+  primary: '#4354e8',
+  primaryDark: '#3343cf',
+  primaryStrong: '#3343cf',
   primarySoft: '#eef2ff',
   primaryFocus: 'rgba(79, 70, 229, 0.14)',
   primaryBorder: 'rgba(79, 70, 229, 0.22)',
-  accent: '#4f46e5',
+  accent: '#4354e8',
   accentSoft: '#eef2ff',
   // Teal: money owed to you and settled amounts, the second colour of the logo.
   success: '#0d9488',
@@ -38,7 +38,7 @@ export type AccentKey = 'indigo' | 'blue' | 'green' | 'rose';
 
 /** color/dark/soft are the light-mode shades; night/nightLight are used in dark mode. */
 export const ACCENT_PRESETS: Record<AccentKey, { label: string; color: string; dark: string; soft: string; night: string; nightLight: string }> = {
-  indigo: { label: 'Indigo', color: '#4f46e5', dark: '#4338ca', soft: '#eef2ff', night: '#6366f1', nightLight: '#a5b4fc' },
+  indigo: { label: 'Indigo', color: '#4354e8', dark: '#3343cf', soft: '#eef0fe', night: '#5b6cff', nightLight: '#aab4ff' },
   blue: { label: 'Blue', color: '#2563eb', dark: '#1d4ed8', soft: '#eff6ff', night: '#3b82f6', nightLight: '#93c5fd' },
   green: { label: 'Green', color: '#16a34a', dark: '#15803d', soft: '#f0fdf4', night: '#22c55e', nightLight: '#86efac' },
   rose: { label: 'Rose', color: '#e11d48', dark: '#be123c', soft: '#fff1f3', night: '#f43f5e', nightLight: '#fda4af' }
@@ -56,17 +56,17 @@ const darkNeutrals: Partial<typeof colors> = {
   dangerSoft: 'rgba(251, 113, 133, 0.16)',
   warning: '#f59e0b',
   warningSoft: 'rgba(245, 158, 11, 0.16)',
-  bg: '#0c0e1a',
-  surface: '#151829',
-  surfaceGlass: 'rgba(21, 24, 41, 0.94)',
-  surfaceBlue: '#1f2338',
-  surfaceAlt: '#1f2338',
-  hoverSurface: '#1f2338',
-  border: '#24283d',
-  borderStrong: '#3a405c',
-  input: '#10131f',
+  bg: '#14132f',
+  surface: '#1e1d42',
+  surfaceGlass: 'rgba(30, 29, 66, 0.94)',
+  surfaceBlue: '#28275a',
+  surfaceAlt: '#28275a',
+  hoverSurface: '#28275a',
+  border: '#2b2a5a',
+  borderStrong: '#3b3a72',
+  input: '#191838',
   placeholder: '#64748b',
-  pageTint: '#151829'
+  pageTint: '#1e1d42'
 };
 
 let activeScheme: 'light' | 'dark' = 'light';
@@ -140,24 +140,3 @@ export const fonts = {
   bold: 'Inter_700Bold',
   extraBold: 'Inter_800ExtraBold'
 };
-
-/** Bright gradients for hero cards and stat tiles: [from, to]. */
-export const gradients = {
-  brand: ['#4f46e5', '#7c3aed'],
-  owed: ['#0d9488', '#10b981'],
-  owe: ['#e11d48', '#f97316'],
-  violet: ['#7c3aed', '#a855f7'],
-  amber: ['#f59e0b', '#f97316'],
-  sky: ['#0284c7', '#06b6d4']
-} as const;
-
-/** Colours for category and group badges, picked by name so each stays the same everywhere. */
-export const badgePalette = ['#6366f1', '#14b8a6', '#f97316', '#e11d48', '#a855f7', '#0ea5e9', '#f59e0b', '#10b981'];
-
-export function badgeColor(name: string) {
-  let hash = 0;
-  for (const char of name || '?') {
-    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  }
-  return badgePalette[hash % badgePalette.length];
-}

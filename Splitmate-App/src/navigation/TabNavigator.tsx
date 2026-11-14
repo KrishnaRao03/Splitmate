@@ -30,15 +30,13 @@ export function TabNavigator() {
         headerTintColor: colors.ink,
         headerTitleStyle: { fontFamily: fonts.extraBold, fontWeight: 'normal' },
         headerLeft: () => <HeaderProfileButton />,
-        headerTitle: () => <BrandLogo size={150} />,
-        headerTitleAlign: 'center',
         tabBarActiveTintColor: accentColor,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         tabBarIcon: ({ color, size }) => <Ionicons name={ICONS[route.name]} size={size} color={color} />
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Splitmate', tabBarLabel: 'Home' }} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Splitmate', tabBarLabel: 'Home', headerTitle: () => <BrandLogo size={132} /> }} />
       <Tab.Screen name="Split" component={SplitScreen} options={{ title: 'Split' }} />
       <Tab.Screen name="Tasks" component={TasksScreen} options={{ title: 'Tasks' }} />
       <Tab.Screen name="Notes" component={NotesScreen} options={{ title: 'Notes' }} />
