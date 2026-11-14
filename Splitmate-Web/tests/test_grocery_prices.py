@@ -173,3 +173,23 @@ class GroceryPriceTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+    def test_location_becomes_a_place_name(self):
+        from app import places
+        places._cache.clear()
+        fake = {'address': {'neighbourhood': 'Downtown', 'city': 'Toronto', 'postcode': 'M5V 2T6'}}
+        with patch('app.places.urlopen') as opened:
+            opened.return_value.__enter__.return_value.read.return_value = json.dumps(fake).encode()
+            response = self.client.get('/api/mobile/places/reverse?lat=43.6426&lng=-79.3871', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['name'], 'Downtown, Toronto, M5V 2T6')
+        # Only a rounded position (about 100 m) leaves the server.
+        self.assertIn('lat=43.643', opened.call_args.args[0].full_url)
+
+        self.client.post('/login', data={'email': 'shopper@example.com', 'password': 'Shopper-pass-1'})
+        self.assertEqual(self.client.get('/notes/api/place?lat=43.6426&lng=-79.3871').get_json()['name'], 'Downtown, Toronto, M5V 2T6')
+        self.assertEqual(self.client.get('/api/mobile/places/reverse?lat=abc&lng=1', headers=self.headers).status_code, 400)
+
+        places._cache.clear()
+        with patch('app.places.urlopen', side_effect=OSError('offline')):
+            self.assertEqual(self.client.get('/api/mobile/places/reverse?lat=1&lng=1', headers=self.headers).status_code, 502)

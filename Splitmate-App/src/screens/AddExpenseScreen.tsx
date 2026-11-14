@@ -281,10 +281,17 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       } : undefined;
       if (expense) {
         await api.updateExpense(expense.id, payload, receiptUpload);
+        navigation.goBack();
       } else {
-        await api.addExpense(groupId, payload, receiptUpload);
+        const added = await api.addExpense(groupId, payload, receiptUpload);
+        const owedToMe = added.paid_by_id === currentUserId && added.splits.some(split => split.user_id !== currentUserId && split.amount > 0);
+        if (owedToMe) {
+          navigation.replace('SplitRequested', { groupId, groupName: route.params.groupName || 'your group', expense: added, currency: currencyCode });
+        } else {
+          notify('Expense added', `${added.description} is now in the group.`);
+          navigation.goBack();
+        }
       }
-      navigation.goBack();
     } catch (error) {
       notify(editing ? 'Could not save expense' : 'Could not add expense', error instanceof Error ? error.message : 'Try again.');
     } finally {

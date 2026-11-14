@@ -113,7 +113,7 @@ export function QuickSplitScreen({ navigation }: Props) {
     setSaving(true);
     try {
       const result = await api.quickSplit(all, description.trim(), amount);
-      navigation.replace('GroupDetail', { groupId: result.group.id, groupName: result.group.name });
+      navigation.replace('SplitRequested', { groupId: result.group.id, groupName: result.group.name, expense: result.expense });
     } catch (splitError) {
       const apiError = splitError as ApiError;
       const missing = apiError.data?.not_found;

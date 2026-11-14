@@ -203,6 +203,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
     navigation.navigate('AddExpense', {
       groupId,
       members: detail.group.members,
+      groupName: detail.group.name,
       currentUserId: detail.current_user_id,
       categories: detail.expense_categories,
       defaultSplit: detail.default_split,
@@ -352,6 +353,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
   const navigateToExpense = () => navigation.navigate('AddExpense', {
     groupId,
     members: detail.group.members,
+    groupName: detail.group.name,
     currentUserId: detail.current_user_id,
     categories: detail.expense_categories,
     defaultSplit: detail.default_split,

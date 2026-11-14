@@ -1882,12 +1882,12 @@ def rewards_summary():
     })
 
 
-def billing_return_url(path=''):
+def billing_return_url(path='', fallback=None):
     """Where Stripe sends the person back: the app's own address when it is one we trust, else the website."""
     origin = str(json_body().get('return_url') or '').rstrip('/')
     if origin in current_app.config['MOBILE_API_CORS_ORIGINS'] or origin == request.host_url.rstrip('/'):
         return f'{origin}/{path}'
-    return url_for('main.profile', _external=True) + '#membership-panel'
+    return fallback or url_for('main.profile', _external=True) + '#membership-panel'
 
 
 @mobile_api_bp.route('/membership/checkout', methods=['POST'])
@@ -1898,7 +1898,7 @@ def membership_checkout():
     try:
         url, error = billing.create_checkout_url(
             user, json_body().get('interval'),
-            success_url=billing_return_url('?membership=success'),
+            success_url=billing_return_url('?membership=success', url_for('billing.welcome', _external=True)),
             cancel_url=billing_return_url('?membership=cancelled'),
         )
     except Exception as exc:  # Stripe down or misconfigured: say so instead of a 500.
@@ -2038,6 +2038,20 @@ def toggle_note(note_id):
     note.is_completed = not note.is_completed
     db.session.commit()
     return jsonify({'is_completed': bool(note.is_completed)})
+
+
+@mobile_api_bp.route('/places/reverse', methods=['GET'])
+@mobile_login_required
+@limiter.limit('30 per hour')
+def reverse_place():
+    from app.places import place_name
+    try:
+        name = place_name(request.args.get('lat'), request.args.get('lng'))
+    except (TypeError, ValueError):
+        return json_error('Send lat and lng as numbers.')
+    if not name:
+        return json_error('Could not find a place name for your location. Type your city or postal code instead.', 502)
+    return jsonify({'name': name})
 
 
 @mobile_api_bp.route('/grocery/compare', methods=['POST'])

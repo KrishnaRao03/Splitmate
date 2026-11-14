@@ -132,6 +132,20 @@ def get_group_notes(group_id):
         'can_compare_prices': note_allows_grocery_comparison(n)
     } for n in notes])
 
+@notes_bp.route('/api/place')
+@login_required
+@limiter.limit('30 per hour')
+def reverse_place():
+    from app.places import place_name
+    try:
+        name = place_name(request.args.get('lat'), request.args.get('lng'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Send lat and lng as numbers.'}), 400
+    if not name:
+        return jsonify({'error': 'Could not find a place name for your location.'}), 502
+    return jsonify({'name': name})
+
+
 @notes_bp.route('/api/grocery-compare', methods=['POST'])
 @login_required
 @limiter.limit('30 per hour')

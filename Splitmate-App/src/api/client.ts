@@ -258,7 +258,7 @@ export class SplitmateApi {
     });
   }
 
-  private expenseRequest(path: string, method: 'POST' | 'PUT', body: Record<string, unknown>, receipt?: { uri: string; name: string; mimeType?: string; file?: File }) {
+  private expenseRequest<T = unknown>(path: string, method: 'POST' | 'PUT', body: Record<string, unknown>, receipt?: { uri: string; name: string; mimeType?: string; file?: File }) {
     if (receipt) {
       const form = new FormData();
       form.append('payload', JSON.stringify(body));
@@ -271,16 +271,16 @@ export class SplitmateApi {
           type: receipt.mimeType || 'application/octet-stream'
         } as unknown as Blob);
       }
-      return this.request(path, { method, body: form });
+      return this.request<T>(path, { method, body: form });
     }
-    return this.request(path, {
+    return this.request<T>(path, {
       method,
       body: JSON.stringify(body)
     });
   }
 
   addExpense(groupId: number, body: Record<string, unknown>, receipt?: { uri: string; name: string; mimeType?: string; file?: File }) {
-    return this.expenseRequest(`/groups/${groupId}/expenses`, 'POST', body, receipt);
+    return this.expenseRequest<Expense>(`/groups/${groupId}/expenses`, 'POST', body, receipt);
   }
 
   updateExpense(expenseId: number, body: Record<string, unknown>, receipt?: { uri: string; name: string; mimeType?: string; file?: File }) {
@@ -536,6 +536,10 @@ export class SplitmateApi {
   }
 
   /** Stripe's hosted payment page for Splitmate Pro. `returnUrl` is where Stripe sends the person back. */
+  reversePlace(lat: string, lng: string) {
+    return this.request<{ name: string }>(`/places/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+  }
+
   membershipCheckout(interval: 'month' | 'year', returnUrl?: string) {
     return this.request<{ url: string }>('/membership/checkout', {
       method: 'POST',

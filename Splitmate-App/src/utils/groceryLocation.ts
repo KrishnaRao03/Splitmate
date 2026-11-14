@@ -1,3 +1,5 @@
+import { api } from '@/api/client';
+
 /** The shopper's location for grocery price lookups (city, postal code or "lat, lng"). Remembered on this device. */
 const STORAGE_KEY = 'splitmate.groceryLocation';
 let current = '';
@@ -27,6 +29,20 @@ export function setGroceryLocation(value: string) {
     storage()?.setItem(STORAGE_KEY, current);
   } catch {
     // Remembering it is only a convenience.
+  }
+}
+
+/**
+ * Asks the browser/device for the current position and turns it into a place name such as
+ * "Downtown, Toronto, M5V 2T6". Falls back to "lat, lng" if the name lookup fails.
+ */
+export async function currentPlaceText(): Promise<string> {
+  const position = await currentPositionText();
+  const [lat, lng] = position.split(', ');
+  try {
+    return (await api.reversePlace(lat, lng)).name;
+  } catch {
+    return position;
   }
 }
 

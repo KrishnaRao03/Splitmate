@@ -82,6 +82,7 @@ export function SplitScreen({ navigation }: Props) {
       navigation.navigate('AddExpense', {
         groupId,
         members: detail.group.members,
+        groupName: detail.group.name,
         currentUserId: detail.current_user_id,
         categories: detail.expense_categories,
         defaultSplit: detail.default_split

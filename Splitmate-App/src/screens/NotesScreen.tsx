@@ -17,7 +17,7 @@ import { TextField } from '@/components/TextField';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import type { GroceryComparison, Group, Note, RootStackParamList } from '@/types';
-import { currentPositionText, getGroceryLocation, setGroceryLocation } from '@/utils/groceryLocation';
+import { currentPlaceText, getGroceryLocation, setGroceryLocation } from '@/utils/groceryLocation';
 import { notify, useUndo } from '@/state/UndoToast';
 
 export function NotesScreen() {
@@ -174,7 +174,7 @@ export function NotesScreen() {
     setLocating(true);
     setPriceError('');
     try {
-      const position = await currentPositionText();
+      const position = await currentPlaceText();
       setPriceLocation(position);
       setGroceryLocation(position);
     } catch (error) {

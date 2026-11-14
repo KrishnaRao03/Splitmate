@@ -411,9 +411,12 @@ export type RootStackParamList = {
   Groups: undefined;
   CreateGroup: undefined;
   QuickSplit: undefined;
+  /** Confirmation after splitting a bill: who owes what, waiting on them to pay. */
+  SplitRequested: { groupId: number; groupName: string; expense: Expense; currency?: string };
   GroupDetail: { groupId: number; groupName: string };
   AddExpense: {
     groupId: number;
+    groupName?: string;
     members: GroupMember[];
     currentUserId: number;
     categories: string[];
@@ -431,6 +434,7 @@ export type RootStackParamList = {
   TaskCalendar: { groupId: number; groupName: string };
   Settings: undefined;
   Membership: undefined;
+  MembershipWelcome: undefined;
   HelpChat: undefined;
   Invites: undefined;
 };

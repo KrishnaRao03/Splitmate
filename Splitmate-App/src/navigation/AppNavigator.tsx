@@ -6,6 +6,7 @@ import { useAuth } from '@/state/AuthContext';
 import { LoadingState } from '@/components/States';
 import { AddExpenseScreen } from '@/screens/AddExpenseScreen';
 import { QuickSplitScreen } from '@/screens/QuickSplitScreen';
+import { SplitRequestedScreen } from '@/screens/SplitRequestedScreen';
 import { AddTaskScreen } from '@/screens/AddTaskScreen';
 import { AuthScreen } from '@/screens/AuthScreen';
 import { CreateGroupScreen } from '@/screens/CreateGroupScreen';
@@ -16,6 +17,7 @@ import { GroupSettingsScreen } from '@/screens/GroupSettingsScreen';
 import { InsightsScreen } from '@/screens/InsightsScreen';
 import { InvitesScreen } from '@/screens/InvitesScreen';
 import { MembershipScreen } from '@/screens/MembershipScreen';
+import { MembershipWelcomeScreen } from '@/screens/MembershipWelcomeScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { TaskCalendarScreen } from '@/screens/TaskCalendarScreen';
@@ -50,6 +52,7 @@ export function AppNavigator() {
           <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={({ route }) => ({ title: route.params.groupName })} />
           <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Add expense', presentation: 'modal' }} />
           <Stack.Screen name="QuickSplit" component={QuickSplitScreen} options={{ title: 'Quick split', presentation: 'modal' }} />
+          <Stack.Screen name="SplitRequested" component={SplitRequestedScreen} options={{ title: 'Money requested', headerBackVisible: false, headerLeft: () => null, gestureEnabled: false }} />
           <Stack.Screen name="AddTask" component={AddTaskScreen} options={{ title: 'Add task', presentation: 'modal' }} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
           <Stack.Screen name="GroupSettings" component={GroupSettingsScreen} options={({ route }) => ({ title: `${route.params.groupName} settings` })} />
@@ -57,6 +60,7 @@ export function AppNavigator() {
           <Stack.Screen name="TaskCalendar" component={TaskCalendarScreen} options={({ route }) => ({ title: `${route.params.groupName} calendar` })} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
           <Stack.Screen name="Membership" component={MembershipScreen} options={{ title: 'Membership' }} />
+          <Stack.Screen name="MembershipWelcome" component={MembershipWelcomeScreen} options={{ title: 'Splitmate Pro', headerBackVisible: false, headerLeft: () => null, gestureEnabled: false }} />
           <Stack.Screen name="HelpChat" component={HelpChatScreen} options={{ title: 'Splitmate Help' }} />
           <Stack.Screen name="Invites" component={InvitesScreen} options={{ title: 'Group invites' }} />
         </>

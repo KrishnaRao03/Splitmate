@@ -247,8 +247,17 @@
             return;
         }
         button.disabled = true;
-        navigator.geolocation.getCurrentPosition(position => {
-            field.value = `${position.coords.latitude.toFixed(3)}, ${position.coords.longitude.toFixed(3)}`;
+        navigator.geolocation.getCurrentPosition(async position => {
+            const lat = position.coords.latitude.toFixed(3);
+            const lng = position.coords.longitude.toFixed(3);
+            field.value = 'Finding your area...';
+            try {
+                const response = await fetch(`/notes/api/place?lat=${lat}&lng=${lng}`);
+                const data = await response.json();
+                field.value = response.ok && data.name ? data.name : `${lat}, ${lng}`;
+            } catch (error) {
+                field.value = `${lat}, ${lng}`;
+            }
             groceryLocation();
             button.disabled = false;
         }, () => {

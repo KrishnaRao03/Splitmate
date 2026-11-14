@@ -1,5 +1,5 @@
 """Website side of Splitmate Pro, plus the Stripe webhook that both the app and website rely on."""
-from flask import Blueprint, current_app, flash, redirect, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app import billing, limiter
@@ -18,7 +18,7 @@ def checkout():
     try:
         url, error = billing.create_checkout_url(
             current_user, request.form.get('interval'),
-            success_url=_profile_url('?membership=success'),
+            success_url=url_for('billing.welcome', _external=True),
             cancel_url=_profile_url('?membership=cancelled'),
         )
     except Exception as exc:
@@ -28,6 +28,13 @@ def checkout():
         flash(error, 'error')
         return redirect(_profile_url())
     return redirect(url, code=303)
+
+
+@billing_bp.route('/membership/welcome')
+@login_required
+def welcome():
+    """Where Stripe sends people after paying: a clear confirmation instead of the profile page."""
+    return render_template('membership_welcome.html', membership=billing.membership_payload(current_user))
 
 
 @billing_bp.route('/membership/portal', methods=['POST'])

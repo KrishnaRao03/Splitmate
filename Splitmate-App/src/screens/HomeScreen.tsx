@@ -20,6 +20,16 @@ import { formatMoney } from '@/utils/money';
 import { notify } from '@/state/UndoToast';
 import type { Dashboard, Group, MainTabParamList, MyInvite, PersonBalance, RootStackParamList, Task } from '@/types';
 
+let returnFromCheckout: string | null = (() => {
+  const location = (globalThis as unknown as { location?: { search: string; pathname: string } }).location;
+  const history = (globalThis as unknown as { history?: { replaceState: (data: null, title: string, url: string) => void } }).history;
+  const result = location?.search ? new URLSearchParams(location.search).get('membership') : null;
+  if (result) {
+    history?.replaceState(null, '', location?.pathname || '/');
+  }
+  return result;
+})();
+
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
   NativeStackScreenProps<RootStackParamList>
@@ -79,6 +89,22 @@ export function HomeScreen({ navigation }: Props) {
     configureNotifications().catch(() => undefined);
   }, []);
 
+  // On the web build Stripe sends people back to the app with ?membership=success or =cancelled.
+  // Read once at startup (the URL is cleaned straight away) and acted on once Home has data,
+  // so a sign-in restore that remounts the screens can't swallow it.
+  useEffect(() => {
+    if (!dashboard || !returnFromCheckout) {
+      return;
+    }
+    const result = returnFromCheckout;
+    returnFromCheckout = null;
+    if (result === 'success') {
+      navigation.navigate('MembershipWelcome');
+    } else if (result === 'cancelled') {
+      notify('Checkout cancelled', 'You were not charged.');
+    }
+  }, [dashboard, navigation]);
+
   // Stale-while-revalidate: show the last dashboard straight away, then the fresh one replaces it.
   useEffect(() => {
     AsyncStorage.getItem(cacheKey).then(cached => {
@@ -107,6 +133,7 @@ export function HomeScreen({ navigation }: Props) {
       navigation.navigate('AddExpense', {
         groupId: groups[0].id,
         members: detail.group.members,
+        groupName: detail.group.name,
         currentUserId: detail.current_user_id,
         categories: detail.expense_categories,
         defaultSplit: detail.default_split

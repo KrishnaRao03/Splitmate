@@ -140,6 +140,19 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(response.headers['Location'], 'https://checkout.stripe.com/y')
         self.assertEqual(self.client.get('/profile').status_code, 200)
 
+    def test_paying_lands_on_a_confirmation_page(self):
+        self.client.post('/login', data={'email': 'buyer@example.com', 'password': 'Strong-pass-1'})
+        with patch('stripe.Customer.create', return_value=SimpleNamespace(id='cus_1')), \
+                patch('stripe.checkout.Session.create', return_value=SimpleNamespace(url='https://checkout.stripe.com/y')) as create:
+            self.client.post('/membership/checkout', data={'interval': 'month'})
+        self.assertTrue(create.call_args.kwargs['success_url'].endswith('/membership/welcome'))
+
+        waiting = self.client.get('/membership/welcome').get_data(as_text=True)
+        self.assertIn('Payment received', waiting)
+        self.send('customer.subscription.created', self.subscription())
+        done = self.client.get('/membership/welcome').get_data(as_text=True)
+        self.assertIn('Welcome to Splitmate Pro', done)
+
 
     def test_free_plan_gets_monthly_limits_and_pro_is_unlimited(self):
         self.app.config['FREE_GROCERY_COMPARES_PER_MONTH'] = 2
