@@ -143,7 +143,7 @@ export const fonts = {
 
 /** Bright gradients for hero cards and stat tiles: [from, to]. */
 export const gradients = {
-  brand: ['#4f46e5', '#7c3aed', '#14b8a6'],
+  brand: ['#4f46e5', '#7c3aed'],
   owed: ['#0d9488', '#10b981'],
   owe: ['#e11d48', '#f97316'],
   violet: ['#7c3aed', '#a855f7'],

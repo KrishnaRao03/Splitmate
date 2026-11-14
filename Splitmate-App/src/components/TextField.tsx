@@ -26,7 +26,7 @@ export function TextField({ label, error, right, borderColor, footer, style, onF
           styles.inputWrap,
           focused && styles.focused,
           Boolean(error) && styles.invalid,
-          borderColor ? { borderColor, borderWidth: 2 } : null
+          borderColor ? { borderColor } : null
         ]}
       >
         <TextInput

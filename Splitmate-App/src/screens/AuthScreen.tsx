@@ -210,14 +210,17 @@ export function AuthScreen() {
               label="Password"
               value={password}
               onChangeText={setPassword}
-              error={newPasswordError}
+              error={strength?.level ? '' : newPasswordError}
               borderColor={strength?.color || undefined}
               footer={strength?.level ? (
-                <View style={styles.meterRow}>
-                  {[1, 2, 3, 4].map(step => (
-                    <View key={step} style={[styles.meterBar, step <= strength.level && { backgroundColor: strength.color }]} />
-                  ))}
-                  <Text style={[styles.meterLabel, { color: strength.color }]}>{strength.label}</Text>
+                <View style={styles.meter}>
+                  <View style={styles.meterTrack}>
+                    <View style={[styles.meterFill, { width: `${strength.level * 25}%`, backgroundColor: strength.color }]} />
+                  </View>
+                  <Text style={styles.meterText}>
+                    <Text style={[styles.meterLabel, { color: strength.color }]}>{strength.label}</Text>
+                    {newPasswordError ? ` · ${newPasswordError}` : ''}
+                  </Text>
                 </View>
               ) : null}
               secureTextEntry={!showPassword}
@@ -359,22 +362,26 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...typography.h3
   },
-  meterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4
+  meter: {
+    gap: 6
   },
-  meterBar: {
-    flex: 1,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.borderStrong
+  meterTrack: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    overflow: 'hidden'
+  },
+  meterFill: {
+    height: 3,
+    borderRadius: 2
+  },
+  meterText: {
+    ...typography.caption,
+    color: colors.muted
   },
   meterLabel: {
     ...typography.caption,
-    marginLeft: spacing.xs,
-    minWidth: 76,
-    textAlign: 'right'
+    fontFamily: fonts.bold
   },
   modeRow: {
     flexDirection: 'row',

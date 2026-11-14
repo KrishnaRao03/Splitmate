@@ -119,31 +119,15 @@ export function HomeScreen({ navigation }: Props) {
       ) : null}
 
       <View style={styles.statsGrid}>
-        <GradientView colors={gradients.owed} style={styles.balanceTile}>
-          <View style={styles.tileIcon}><Ionicons name="arrow-down-outline" size={18} color={colors.white} /></View>
-          <Text style={styles.balanceLabel}>Owed to you</Text>
-          <Text style={styles.balanceValue}>{money(dashboard.total_owed_to_user)}</Text>
-        </GradientView>
-        <GradientView colors={gradients.owe} style={styles.balanceTile}>
-          <View style={styles.tileIcon}><Ionicons name="arrow-up-outline" size={18} color={colors.white} /></View>
-          <Text style={styles.balanceLabel}>You owe</Text>
-          <Text style={styles.balanceValue}>{money(dashboard.total_user_owes)}</Text>
-        </GradientView>
+        <StatTile color={colors.success} icon="arrow-down-outline" label="Owed to you" value={money(dashboard.total_owed_to_user)} />
+        <StatTile color={colors.danger} icon="arrow-up-outline" label="You owe" value={money(dashboard.total_user_owes)} />
       </View>
 
       <View style={styles.statsGrid}>
         <Pressable style={styles.statPress} onPress={() => navigation.navigate('Groups')}>
-          <GradientView colors={gradients.violet} style={styles.balanceTile}>
-            <View style={styles.tileIcon}><Ionicons name="people-outline" size={18} color={colors.white} /></View>
-            <Text style={styles.balanceLabel}>Groups</Text>
-            <Text style={styles.balanceValue}>{groups.length}</Text>
-          </GradientView>
+          <StatTile color={colors.primary} icon="people-outline" label="Groups" value={String(groups.length)} />
         </Pressable>
-        <GradientView colors={gradients.amber} style={styles.balanceTile}>
-          <View style={styles.tileIcon}><Ionicons name="alarm-outline" size={18} color={colors.white} /></View>
-          <Text style={styles.balanceLabel}>Reminders</Text>
-          <Text style={styles.balanceValue}>{reminders.length}</Text>
-        </GradientView>
+        <StatTile color={colors.warning} icon="alarm-outline" label="Reminders" value={String(reminders.length)} />
       </View>
 
       <View style={styles.homeActions}>
@@ -236,6 +220,17 @@ export function HomeScreen({ navigation }: Props) {
   );
 }
 
+/** A light card tinted with one colour; the number carries the colour, not the background. */
+function StatTile({ color, icon, label, value }: { color: string; icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
+  return (
+    <View style={[styles.balanceTile, { backgroundColor: `${color}14`, borderColor: `${color}33` }]}>
+      <View style={[styles.tileIcon, { backgroundColor: color }]}><Ionicons name={icon} size={18} color={colors.white} /></View>
+      <Text style={styles.balanceLabel}>{label}</Text>
+      <Text style={[styles.balanceValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   homeActions: {
     flexDirection: 'row',
@@ -275,7 +270,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     padding: spacing.md,
     borderRadius: radius.md,
-    overflow: 'hidden'
+    borderWidth: 1
   },
   statPress: {
     flex: 1,
@@ -286,8 +281,7 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 10,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.22)'
+    justifyContent: 'center'
   },
   badge: {
     width: 38,
@@ -320,11 +314,10 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     ...typography.label,
-    color: 'rgba(255, 255, 255, 0.9)'
+    color: colors.muted
   },
   balanceValue: {
-    ...typography.h1,
-    color: colors.white
+    ...typography.h1
   },
   statsGrid: {
     flexDirection: 'row',
