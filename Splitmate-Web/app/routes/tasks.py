@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime
+from app.group_notifications import notify_group_item_added
 from app import db
 from app.models import Group, Task, User
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows
@@ -76,8 +77,9 @@ def add_task():
     )
     db.session.add(task)
     db.session.commit()
+    notify_group_item_added('task', task, current_user)
 
-    flash('Task added to calendar', 'success')
+    flash('Task added. Everyone in the group was emailed.', 'success')
     return redirect(url_for('tasks.index'))
 
 

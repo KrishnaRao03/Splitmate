@@ -10,6 +10,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 import qrcode
 from sqlalchemy import func, or_
 
+from app.group_notifications import notify_group_item_added
 from app import billing, db, limiter
 from app.email_validation import email_error_message, normalize_email
 from app.grocery_compare import (
@@ -1994,6 +1995,7 @@ def add_task(group_id):
     )
     db.session.add(task)
     db.session.commit()
+    notify_group_item_added('task', task, request.mobile_user)
     return jsonify(task_payload(task)), 201
 
 
@@ -2044,6 +2046,7 @@ def add_note(group_id):
     )
     db.session.add(note)
     db.session.commit()
+    notify_group_item_added('note', note, request.mobile_user)
     return jsonify(note_payload(note)), 201
 
 

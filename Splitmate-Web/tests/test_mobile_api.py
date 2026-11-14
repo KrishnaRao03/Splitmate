@@ -647,6 +647,22 @@ class MobileApiParityTests(unittest.TestCase):
         # Newest first.
         self.assertEqual(rewards['recent_transactions'][0]['points'], 16)
 
+    def test_new_task_or_note_emails_everyone_else_in_the_group(self):
+        with patch('app.email_utils.send_email', return_value=True) as sent:
+            task = self.client.post(f'/api/mobile/groups/{self.group_id}/tasks', headers=self.headers,
+                                    json={'title': 'Take out bins', 'due_date': '2026-11-20T18:00:00'})
+            self.assertEqual(task.status_code, 201)
+            note = self.client.post(f'/api/mobile/groups/{self.group_id}/notes', headers=self.headers,
+                                    json={'title': 'Wifi password', 'description': 'On the fridge'})
+            self.assertEqual(note.status_code, 201)
+        recipients = [call.args[0] for call in sent.call_args_list]
+        subjects = [call.args[1] for call in sent.call_args_list]
+        # Only the other member hears about it, not the person who added it.
+        self.assertEqual(recipients, ['member@example.com', 'member@example.com'])
+        self.assertEqual(subjects, ['Admin User added a task in Parity Group', 'Admin User added a note in Parity Group'])
+        self.assertIn('Take out bins', sent.call_args_list[0].args[3])
+        self.assertIn('splitmate-app.onrender.com', sent.call_args_list[1].args[3])
+
     def test_profile_qr_opens_the_app_on_add_friend(self):
         response = self.client.get('/api/mobile/me/qr', headers=self.headers)
         self.assertEqual(response.status_code, 200)

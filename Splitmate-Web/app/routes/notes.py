@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify
 from flask_login import login_required, current_user
+from app.group_notifications import notify_group_item_added
 from app import billing, db, limiter
 from app.grocery_compare import (
     compare_grocery_list, compare_grocery_note, note_allows_grocery_comparison, parse_grocery_items_from_text,
@@ -47,8 +48,9 @@ def add_note():
     )
     db.session.add(note)
     db.session.commit()
+    notify_group_item_added('note', note, current_user)
 
-    flash('Note added', 'success')
+    flash('Note added. Everyone in the group was emailed.', 'success')
     return redirect(url_for('notes.index'))
 
 @notes_bp.route('/edit/<int:note_id>', methods=['POST'])

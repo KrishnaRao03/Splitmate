@@ -254,6 +254,35 @@ def send_inactivity_reminder_email(user, days_idle):
     )
 
 
+def send_group_item_email(recipient_email, recipient_name, kind, group_name, author_name, title, description='', details=None):
+    """Tells a group member that someone added a task or note to their group."""
+    noun = 'task' if kind == 'task' else 'note'
+    link = app_url()
+    subject = f'{author_name} added a {noun} in {group_name}'
+    text = f'Hi {recipient_name},\n\n{author_name} added a {noun} in "{group_name}": {title}\n'
+    if description:
+        text += f'\n{description}\n'
+    for label, value in details or []:
+        text += f'{label}: {value}\n'
+    text += f'\nOpen Splitmate to see it: {link}\n'
+    paragraphs = [f'{author_name} added a {noun} in "{group_name}".']
+    if description:
+        paragraphs.append(description[:400])
+    return send_email(
+        recipient_email,
+        subject,
+        text,
+        render_email(
+            f'New {noun} in {group_name}: {title}',
+            f'New {noun}: {title}',
+            paragraphs,
+            details=[('Group', group_name), ('Added by', author_name), *(details or [])],
+            button=(f'Open {noun}s' if kind == 'task' else 'Open notes', link),
+            footnote='You get these because you are in this group on Splitmate.',
+        ),
+    )
+
+
 def _invite_token(invite_url):
     return (invite_url or '').rstrip('/').rsplit('/', 1)[-1]
 
