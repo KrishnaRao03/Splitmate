@@ -9,6 +9,7 @@ import { AppButton } from '@/components/AppButton';
 import { UpgradePrompt, isLimitReached } from '@/components/UpgradePrompt';
 import { AppText as Text } from '@/components/AppText';
 import { BrandMark } from '@/components/BrandMark';
+import { GradientView } from '@/components/GradientView';
 import { Card } from '@/components/Card';
 import { ChoiceChips } from '@/components/ChoiceChips';
 import { Screen } from '@/components/Screen';
@@ -18,7 +19,7 @@ import { InteracShortcut } from '@/components/InteracShortcut';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { TextField } from '@/components/TextField';
 import { useAuth } from '@/state/AuthContext';
-import { colors, radius, spacing } from '@/theme/colors';
+import { colors, gradients, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDate, formatDateTime } from '@/utils/dates';
 import { getGroceryLocation } from '@/utils/groceryLocation';
@@ -346,15 +347,15 @@ export function GroupDetailScreen({ navigation, route }: Props) {
   return (
     <Screen onRefresh={refresh} refreshing={refreshing}>
       <Card style={styles.pageHeader}>
-        <View style={styles.headerRow}>
+        <GradientView colors={gradients.brand} style={styles.groupBanner}>
           <View style={styles.brandRow}>
-            <BrandMark size={40} />
+            <BrandMark size={40} style={styles.bannerMark} />
             <View style={styles.headerText}>
-              <Text style={styles.title}>{detail.group.name}</Text>
-              <Text style={styles.muted}>{detail.group.members.length} members</Text>
+              <Text style={styles.bannerTitle}>{detail.group.name}</Text>
+              <Text style={styles.bannerMeta}>{detail.group.members.length} members · {detail.group.currency}</Text>
             </View>
           </View>
-        </View>
+        </GradientView>
         <View style={styles.actionRow}>
           <AppButton icon="add-outline" variant="outline" style={styles.quickButton} onPress={navigateToExpense}>Expense</AppButton>
           <AppButton icon="checkbox-outline" variant="outline" style={styles.quickButton} onPress={() => navigation.navigate('AddTask', { groupId, members: detail.group.members })}>Task</AppButton>
@@ -736,11 +737,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     gap: spacing.md
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    alignItems: 'center'
+  groupBanner: {
+    padding: spacing.md,
+    borderRadius: radius.md,
+    overflow: 'hidden'
+  },
+  bannerMark: {
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.7)'
+  },
+  bannerTitle: {
+    ...typography.h1,
+    color: colors.white
+  },
+  bannerMeta: {
+    ...typography.label,
+    color: 'rgba(255, 255, 255, 0.85)'
   },
   brandRow: {
     flex: 1,

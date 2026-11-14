@@ -5,13 +5,14 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ApiError } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
 import { AppText as Text } from '@/components/AppText';
-import { BrandLogo } from '@/components/BrandMark';
+import { BrandMark } from '@/components/BrandMark';
+import { GradientView, gradientFill } from '@/components/GradientView';
 import { Card } from '@/components/Card';
 import { CountryPicker } from '@/components/CountryPicker';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { useAuth } from '@/state/AuthContext';
-import { colors, radius, spacing } from '@/theme/colors';
+import { colors, fonts, gradients, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { deviceCountry } from '@/utils/countries';
 import { emailError as describeEmailError, passwordError as describePasswordError } from '@/utils/validation';
@@ -150,9 +151,23 @@ export function AuthScreen() {
 
   return (
     <Screen contentStyle={styles.authContent}>
-      <View style={styles.hero}>
-        <BrandLogo size={200} />
-      </View>
+      <GradientView colors={gradients.brand} style={styles.hero}>
+        <View style={styles.heroBubbleA} />
+        <View style={styles.heroBubbleB} />
+        <View style={styles.heroBrand}>
+          <BrandMark size={52} style={styles.heroMark} />
+          <Text style={styles.heroWordmark}>splitmate</Text>
+        </View>
+        <Text style={styles.heroTagline}>Split bills, not friendships.</Text>
+        <View style={styles.heroPills}>
+          {[['receipt-outline', 'Scan receipts'], ['flash-outline', 'Quick split'], ['wallet-outline', 'Settle up']].map(([icon, label]) => (
+            <View key={label} style={styles.heroPill}>
+              <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={14} color={colors.white} />
+              <Text style={styles.heroPillText}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      </GradientView>
 
       <Card>
         <Text style={styles.cardTitle}>{loginTabActive ? 'Welcome back' : 'Create your account'}</Text>
@@ -265,8 +280,69 @@ const styles = StyleSheet.create({
   },
   hero: {
     alignItems: 'center',
-    gap: spacing.xs,
-    paddingTop: spacing.lg
+    gap: spacing.sm,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.lg,
+    overflow: 'hidden'
+  },
+  heroBubbleA: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -70,
+    right: -50,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)'
+  },
+  heroBubbleB: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    bottom: -50,
+    left: -30,
+    backgroundColor: 'rgba(20, 184, 166, 0.35)'
+  },
+  heroBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm
+  },
+  heroMark: {
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.7)'
+  },
+  heroWordmark: {
+    color: colors.white,
+    fontSize: 38,
+    lineHeight: 44,
+    fontFamily: fonts.extraBold,
+    letterSpacing: -1
+  },
+  heroTagline: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    ...typography.bodyStrong
+  },
+  heroPills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.xs
+  },
+  heroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)'
+  },
+  heroPillText: {
+    color: colors.white,
+    ...typography.caption
   },
   cardTitle: {
     color: colors.ink,
@@ -289,7 +365,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent'
   },
   modeActive: {
-    backgroundColor: colors.primary
+    ...gradientFill([colors.primary, '#7c3aed'])
   },
   modeText: {
     color: colors.secondary,

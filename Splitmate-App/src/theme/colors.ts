@@ -140,3 +140,24 @@ export const fonts = {
   bold: 'Inter_700Bold',
   extraBold: 'Inter_800ExtraBold'
 };
+
+/** Bright gradients for hero cards and stat tiles: [from, to]. */
+export const gradients = {
+  brand: ['#4f46e5', '#7c3aed', '#14b8a6'],
+  owed: ['#0d9488', '#10b981'],
+  owe: ['#e11d48', '#f97316'],
+  violet: ['#7c3aed', '#a855f7'],
+  amber: ['#f59e0b', '#f97316'],
+  sky: ['#0284c7', '#06b6d4']
+} as const;
+
+/** Colours for category and group badges, picked by name so each stays the same everywhere. */
+export const badgePalette = ['#6366f1', '#14b8a6', '#f97316', '#e11d48', '#a855f7', '#0ea5e9', '#f59e0b', '#10b981'];
+
+export function badgeColor(name: string) {
+  let hash = 0;
+  for (const char of name || '?') {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return badgePalette[hash % badgePalette.length];
+}

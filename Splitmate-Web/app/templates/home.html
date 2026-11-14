@@ -10,21 +10,21 @@
 
 <div class="stats-grid">
     <div class="stat-card stat-positive">
-        <div class="stat-icon">IN</div>
+        <div class="stat-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7"/></svg></div>
         <div class="stat-content">
             <span class="stat-label">You're Owed</span>
             <span class="stat-value">{{ total_owed_to_user|money }}</span>
         </div>
     </div>
     <div class="stat-card stat-negative">
-        <div class="stat-icon">OUT</div>
+        <div class="stat-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
         <div class="stat-content">
             <span class="stat-label">You Owe</span>
             <span class="stat-value">{{ total_user_owes|money }}</span>
         </div>
     </div>
     <a class="stat-card stat-card-link" href="#spending-insights">
-        <div class="stat-icon">GR</div>
+        <div class="stat-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 4.5a3.5 3.5 0 010 7M21.5 20a6.5 6.5 0 00-4-6"/></svg></div>
         <div class="stat-content">
             <span class="stat-label">Groups</span>
             <span class="stat-value">{{ groups|length }}</span>
