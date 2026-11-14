@@ -140,3 +140,8 @@ export const fonts = {
   bold: 'Inter_700Bold',
   extraBold: 'Inter_800ExtraBold'
 };
+
+/** The blue gradient of the balance card on Home. */
+export const gradients = {
+  balance: ['#3445d6', '#5b6cff', '#7fb6ff']
+} as const;

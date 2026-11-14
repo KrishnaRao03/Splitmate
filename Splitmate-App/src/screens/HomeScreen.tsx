@@ -9,13 +9,14 @@ import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
 import { AppText as Text } from '@/components/AppText';
 import { BrandMark } from '@/components/BrandMark';
+import { GradientView } from '@/components/GradientView';
 import { Card } from '@/components/Card';
 import { BarList, MonthBars } from '@/components/Charts';
 import { Screen } from '@/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { configureNotifications, scheduleTaskReminders } from '@/services/notifications';
 import { useAuth } from '@/state/AuthContext';
-import { colors, radius, spacing } from '@/theme/colors';
+import { colors, fonts, gradients, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
@@ -87,19 +88,17 @@ export function HomeScreen({ navigation }: Props) {
   }
 
   const insights = dashboard.spending_insights;
+  const net = dashboard.total_owed_to_user - dashboard.total_user_owes;
+  const firstName = (user?.name || '').split(' ')[0] || 'there';
 
   return (
     <Screen onRefresh={refresh} refreshing={refreshing}>
-      <Card style={styles.pageHeader}>
-        <View style={styles.brandRow}>
-          <BrandMark size={40} />
-          <View>
-            <Text style={styles.eyebrow}>Welcome back</Text>
-            <Text style={styles.title}>{user?.name || 'Splitmate'}</Text>
-          </View>
-        </View>
-        <Text style={styles.muted}>{currencyCode} workspace</Text>
-      </Card>
+      <GradientView colors={gradients.balance} style={styles.hero}>
+        <View style={styles.heroShape} />
+        <Text style={styles.heroLabel}>Hi {firstName}, your balance</Text>
+        <Text style={styles.heroAmount}>{net < 0 ? '-' : net > 0 ? '+' : ''}{money(Math.abs(net))}</Text>
+        <Text style={styles.heroMeta}>{net > 0 ? 'You are owed overall' : net < 0 ? 'You owe overall' : 'All settled up'}</Text>
+      </GradientView>
 
       {invites.length ? (
         <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Invites')}>
@@ -116,30 +115,14 @@ export function HomeScreen({ navigation }: Props) {
         </Pressable>
       ) : null}
 
-      <Card style={styles.balanceCard}>
-        <View style={styles.balanceHalf}>
-          <Text style={styles.balanceLabel}>Owed to you</Text>
-          <Text style={[styles.balanceValue, { color: colors.success }]}>{money(dashboard.total_owed_to_user)}</Text>
-        </View>
-        <View style={styles.balanceDivider} />
-        <View style={styles.balanceHalf}>
-          <Text style={styles.balanceLabel}>You owe</Text>
-          <Text style={[styles.balanceValue, { color: colors.danger }]}>{money(dashboard.total_user_owes)}</Text>
-        </View>
-      </Card>
-
-      <View style={styles.statsGrid}>
-        <Pressable style={styles.statTile} onPress={() => navigation.navigate('Groups')}>
-          <Ionicons name="people-outline" size={18} color={colors.secondary} />
-          <Text style={styles.statLabel}>Groups</Text>
-          <Text style={styles.statValue}>{groups.length}</Text>
+      <Card style={styles.summaryCard}>
+        <SummaryRow icon="arrow-down-outline" label="Owed to you" value={`+${money(dashboard.total_owed_to_user)}`} color={colors.success} />
+        <SummaryRow icon="arrow-up-outline" label="You owe" value={`-${money(dashboard.total_user_owes)}`} color={colors.danger} />
+        <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Groups')}>
+          <SummaryRow icon="people-outline" label="Groups" value={String(groups.length)} chevron />
         </Pressable>
-        <View style={styles.statTile}>
-          <Ionicons name="alarm-outline" size={18} color={colors.secondary} />
-          <Text style={styles.statLabel}>Reminders</Text>
-          <Text style={styles.statValue}>{reminders.length}</Text>
-        </View>
-      </View>
+        <SummaryRow icon="alarm-outline" label="Reminders" value={String(reminders.length)} last />
+      </Card>
 
       <View style={styles.homeActions}>
         <AppButton icon="flash-outline" style={styles.homeAction} onPress={() => navigation.navigate('QuickSplit')}>Quick split</AppButton>
@@ -225,7 +208,83 @@ export function HomeScreen({ navigation }: Props) {
   );
 }
 
+/** One line of the summary card: a small icon, a label, and the value on the right. */
+function SummaryRow({ icon, label, value, color, chevron, last }: {
+  icon: keyof typeof Ionicons.glyphMap; label: string; value: string; color?: string; chevron?: boolean; last?: boolean;
+}) {
+  return (
+    <View style={[styles.summaryRow, !last && styles.summaryDivider]}>
+      <View style={styles.summaryIcon}><Ionicons name={icon} size={16} color={colors.primary} /></View>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={[styles.summaryValue, color ? { color } : null]}>{value}</Text>
+      {chevron ? <Ionicons name="chevron-forward" size={16} color={colors.muted} /> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  hero: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.lg,
+    overflow: 'hidden'
+  },
+  heroShape: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    right: -90,
+    top: -40,
+    transform: [{ rotate: '45deg' }],
+    backgroundColor: 'rgba(255, 255, 255, 0.10)'
+  },
+  heroLabel: {
+    ...typography.label,
+    color: 'rgba(255, 255, 255, 0.85)'
+  },
+  heroAmount: {
+    fontFamily: fonts.medium,
+    fontSize: 38,
+    lineHeight: 46,
+    color: colors.white
+  },
+  heroMeta: {
+    ...typography.caption,
+    color: 'rgba(255, 255, 255, 0.8)'
+  },
+  summaryCard: {
+    paddingVertical: spacing.xs
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md
+  },
+  summaryDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderStrong
+  },
+  summaryIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft
+  },
+  summaryLabel: {
+    ...typography.body,
+    flex: 1,
+    color: colors.secondary
+  },
+  summaryValue: {
+    ...typography.body,
+    fontFamily: fonts.semiBold,
+    color: colors.text
+  },
   homeActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -235,49 +294,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: 140
   },
-  pageHeader: {
-    gap: spacing.xs,
-    backgroundColor: colors.surfaceGlass
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm
-  },
-  eyebrow: {
-    ...typography.label,
-    color: colors.primary,
-    textTransform: 'uppercase'
-  },
-  title: {
-    ...typography.display,
-    color: colors.ink
-  },
   muted: {
     ...typography.body,
     color: colors.muted
-  },
-  balanceCard: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  balanceHalf: {
-    flex: 1,
-    gap: spacing.xs,
-    alignItems: 'center'
-  },
-  balanceDivider: {
-    width: 1,
-    alignSelf: 'stretch',
-    backgroundColor: colors.border,
-    marginHorizontal: spacing.sm
-  },
-  balanceLabel: {
-    ...typography.label,
-    color: colors.muted
-  },
-  balanceValue: {
-    ...typography.h1
   },
   statsGrid: {
     flexDirection: 'row',
