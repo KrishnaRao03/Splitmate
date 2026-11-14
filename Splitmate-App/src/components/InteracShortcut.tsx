@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { AppButton } from '@/components/AppButton';
 import { AppText as Text } from '@/components/AppText';
@@ -72,7 +72,7 @@ export function InteracShortcut({ mode, person, email, masked, amountText, amoun
             <Text style={styles.label}>{label}</Text>
             <Text style={styles.value} selectable={label !== 'Email'}>{shown}</Text>
           </View>
-          <Ionicons name="copy-outline" size={18} color={colors.primary} />
+          <Icon name="copy-outline" size={18} color={colors.primary} />
         </Pressable>
       ))}
       <ChoiceChips<string>
@@ -85,7 +85,7 @@ export function InteracShortcut({ mode, person, email, masked, amountText, amoun
         options={CANADIAN_BANKS.map(item => ({ label: item.name, value: item.id }))}
       />
       <AppButton icon="open-outline" onPress={openMyBank}>
-        {bank ? `Copy Email & Open ${bank.name}` : 'Copy Email & Open My Bank'}
+        {bank ? `Copy Email & Open ${bank.name}` : 'Copy email & open my bank'}
       </AppButton>
       <Text style={styles.hint}>
         {mode === 'pay'

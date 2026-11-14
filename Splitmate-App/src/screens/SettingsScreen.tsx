@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useCallback, useState } from 'react';
 import { Alert, DevSettings, Pressable, Share, StyleSheet, Switch, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -113,7 +113,7 @@ export function SettingsScreen({ navigation }: Props) {
                 style={styles.swatchItem}
               >
                 <View style={[styles.swatch, { backgroundColor: preset.color }, active && styles.swatchActive]}>
-                  {active ? <Ionicons name="checkmark" size={18} color={colors.white} /> : null}
+                  {active ? <Icon name="checkmark" size={18} color={colors.white} /> : null}
                 </View>
                 <Text style={styles.swatchLabel}>{preset.label}</Text>
               </Pressable>
@@ -152,11 +152,11 @@ export function SettingsScreen({ navigation }: Props) {
       <Card style={styles.section}>
         <Text style={styles.title}>Help</Text>
         <Text style={styles.help}>Quick answers about invites, splits, tasks, notes, points and more.</Text>
-        <AppButton icon="chatbubbles-outline" variant="outline" onPress={() => navigation.navigate('HelpChat')}>Open Help Chat</AppButton>
+        <AppButton icon="chatbubbles-outline" variant="outline" onPress={() => navigation.navigate('HelpChat')}>Open help chat</AppButton>
       </Card>
 
       <Card style={styles.section}>
-        <Text style={styles.title}>Your Data</Text>
+        <Text style={styles.title}>Your data</Text>
         <Text style={styles.help}>Download a copy of your profile, groups, expenses, payments, tasks, notes and rewards as JSON.</Text>
         <AppButton icon="download-outline" variant="outline" loading={exporting} onPress={exportMyData}>Export my data</AppButton>
       </Card>

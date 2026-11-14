@@ -201,7 +201,7 @@ export function AddTaskScreen({ navigation, route }: Props) {
         ) : null}
       </Card>
 
-      <AppButton icon="add-outline" loading={saving} onPress={save}>Add Task</AppButton>
+      <AppButton icon="add-outline" loading={saving} onPress={save}>Add task</AppButton>
     </Screen>
   );
 }

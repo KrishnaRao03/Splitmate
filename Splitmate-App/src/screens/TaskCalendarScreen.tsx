@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppText as Text } from '@/components/AppText';
@@ -81,11 +81,11 @@ export function TaskCalendarScreen({ route }: Props) {
       <Card>
         <View style={styles.calendarHeader}>
           <Pressable accessibilityLabel="Previous month" onPress={() => setMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))} style={styles.iconButton}>
-            <Ionicons name="chevron-back" size={22} color={colors.primaryDark} />
+            <Icon name="chevron-back" size={22} color={colors.primaryDark} />
           </Pressable>
           <Text style={styles.monthTitle}>{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</Text>
           <Pressable accessibilityLabel="Next month" onPress={() => setMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))} style={styles.iconButton}>
-            <Ionicons name="chevron-forward" size={22} color={colors.primaryDark} />
+            <Icon name="chevron-forward" size={22} color={colors.primaryDark} />
           </Pressable>
         </View>
         <View style={styles.calendarGrid}>
@@ -104,7 +104,7 @@ export function TaskCalendarScreen({ route }: Props) {
         </View>
       </Card>
 
-      <Text style={styles.sectionTitle}>Tasks This Month</Text>
+      <Text style={styles.sectionTitle}>Tasks this month</Text>
       {monthTasks.length ? monthTasks.map(task => (
         <Card key={task.id}>
           <View style={styles.rowBetween}>
@@ -174,8 +174,9 @@ const styles = StyleSheet.create({
     minWidth: 18,
     textAlign: 'center',
     color: colors.onPrimary,
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
     backgroundColor: colors.primary
   },
   sectionTitle: {

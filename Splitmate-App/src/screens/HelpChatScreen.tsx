@@ -1,6 +1,6 @@
 import { ComponentRef, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { AppText as Text } from '@/components/AppText';
 import { colors, fonts, radius, spacing } from '@/theme/colors';
@@ -101,7 +101,7 @@ export function HelpChatScreen() {
           style={styles.input}
         />
         <Pressable accessibilityRole="button" accessibilityLabel="Send" onPress={send} style={styles.send}>
-          <Ionicons name="send" size={18} color={colors.onPrimary} />
+          <Icon name="send" size={18} color={colors.onPrimary} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -165,7 +165,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.input,
     color: colors.ink,
     fontFamily: fonts.regular,
-    fontSize: 15
+    fontSize: 16,
+    lineHeight: 24
   },
   send: {
     width: 44,

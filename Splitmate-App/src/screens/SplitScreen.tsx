@@ -3,7 +3,7 @@ import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps, useFocusEffect } from '@react-navigation/native';
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -129,7 +129,7 @@ export function SplitScreen({ navigation }: Props) {
       </View>
 
       <Card style={styles.addCard}>
-        <Text style={styles.addTitle}>Add Expense</Text>
+        <Text style={styles.addTitle}>Add expense</Text>
         {dashboard.groups.length ? (
           <>
             {dashboard.groups.length > 1 ? (
@@ -142,19 +142,19 @@ export function SplitScreen({ navigation }: Props) {
             ) : (
               <Text style={styles.addHelp}>For {dashboard.groups[0].name}</Text>
             )}
-            <AppButton icon="add-outline" loading={openingExpense} onPress={startExpense}>Add Expense</AppButton>
+            <AppButton icon="add-outline" loading={openingExpense} onPress={startExpense}>Add expense</AppButton>
             <AppButton icon="flash-outline" variant="outline" onPress={() => navigation.navigate('QuickSplit')}>Quick split with friends</AppButton>
           </>
         ) : (
           <>
             <Text style={styles.addHelp}>Create a group first, then you can split expenses with it.</Text>
-            <AppButton icon="people-outline" onPress={() => navigation.navigate('CreateGroup')}>Create Group</AppButton>
+            <AppButton icon="people-outline" onPress={() => navigation.navigate('CreateGroup')}>Create group</AppButton>
             <AppButton icon="flash-outline" variant="outline" onPress={() => navigation.navigate('QuickSplit')}>Quick split with friends</AppButton>
           </>
         )}
       </Card>
 
-      <Text style={styles.sectionTitle}>Who Owes Who</Text>
+      <Text style={styles.sectionTitle}>Who owes who</Text>
       {activePeople.length ? activePeople.map(person => {
         const isExpanded = expandedUserId === person.user_id;
         const isMultiGroup = person.groups.length > 1;
@@ -168,21 +168,21 @@ export function SplitScreen({ navigation }: Props) {
               <View style={styles.groupMain}>
                 <Text style={styles.personName}>{person.name}</Text>
                 <Text style={styles.muted}>
-                  {positive ? 'owes you' : 'you owe'} - {person.groups.length} group{person.groups.length === 1 ? '' : 's'}
+                  {positive ? 'owes you' : 'you owe'} · {person.groups.length} group{person.groups.length === 1 ? '' : 's'}
                 </Text>
               </View>
               <Text style={[styles.personNet, { color: positive ? colors.success : colors.danger }]}>
                 {money(Math.abs(person.net))}
               </Text>
               {isMultiGroup ? (
-                <Ionicons
+                <Icon
                   name={isExpanded ? 'chevron-up' : 'chevron-down'}
                   size={18}
                   color={colors.muted}
                   style={styles.chevron}
                 />
               ) : (
-                <Ionicons name="chevron-forward" size={18} color={colors.muted} style={styles.chevron} />
+                <Icon name="chevron-forward" size={18} color={colors.muted} style={styles.chevron} />
               )}
             </Pressable>
             {isMultiGroup && isExpanded ? (
@@ -210,7 +210,7 @@ export function SplitScreen({ navigation }: Props) {
         </Text>
       ) : null}
 
-      <Text style={styles.sectionTitle}>This Month</Text>
+      <Text style={styles.sectionTitle}>This month</Text>
       {dashboard.monthly_spending.length ? dashboard.monthly_spending.map(item => (
         <Card key={item.group_id} style={styles.spendingRow}>
           <View style={styles.groupMain}>
@@ -221,13 +221,13 @@ export function SplitScreen({ navigation }: Props) {
         </Card>
       )) : <EmptyState label="No spending recorded this month." />}
 
-      <Text style={styles.sectionTitle}>Recent Expenses</Text>
+      <Text style={styles.sectionTitle}>Recent expenses</Text>
       {dashboard.recent_expenses.length ? dashboard.recent_expenses.map(expense => (
         <Card key={expense.id}>
           <View style={styles.spendingRow}>
             <View style={styles.groupMain}>
               <Text style={styles.groupName}>{expense.description}</Text>
-              <Text style={styles.muted}>{expense.group_name} - {expense.category}</Text>
+              <Text style={styles.muted}>{expense.group_name} · {expense.category}</Text>
             </View>
             <Text style={styles.spendingAmount}>{money(expense.amount)}</Text>
           </View>

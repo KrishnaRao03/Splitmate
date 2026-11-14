@@ -2,13 +2,12 @@ import { DarkTheme, DefaultTheme, NavigationContainer, Theme } from '@react-navi
 import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  Inter_800ExtraBold,
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
   useFonts
-} from '@expo-google-fonts/inter';
+} from '@expo-google-fonts/manrope';
 
 import { AppNavigator } from '@/navigation/AppNavigator';
 import { AuthProvider } from '@/state/AuthContext';
@@ -31,11 +30,10 @@ const navigationTheme: Theme = {
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold
   });
 
   if (!fontsLoaded && !fontError) {

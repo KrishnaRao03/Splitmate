@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -55,10 +55,10 @@ export function GroupsScreen({ navigation }: Props) {
 
   return (
     <Screen onRefresh={refresh} refreshing={refreshing}>
-      <AppButton icon="add-outline" onPress={() => navigation.navigate('CreateGroup')}>Create Group</AppButton>
+      <AppButton icon="add-outline" onPress={() => navigation.navigate('CreateGroup')}>Create group</AppButton>
       <AppButton icon="mail-open-outline" variant="outline" onPress={() => navigation.navigate('Invites')}>Join with an invite</AppButton>
 
-      <Text style={styles.sectionTitle}>Your Groups</Text>
+      <Text style={styles.sectionTitle}>Your groups</Text>
       {groups.length ? groups.map(group => (
         <Pressable
           key={group.id}
@@ -72,7 +72,7 @@ export function GroupsScreen({ navigation }: Props) {
               <Text style={styles.groupName}>{group.name}</Text>
               <Text style={styles.muted}>{group.members.length} members</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+            <Icon name="chevron-forward" size={20} color={colors.muted} />
           </Card>
         </Pressable>
       )) : <EmptyState label="No groups yet. Create your first group above." />}

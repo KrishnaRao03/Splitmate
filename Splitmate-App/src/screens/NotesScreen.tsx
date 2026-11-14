@@ -2,7 +2,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -221,7 +221,7 @@ export function NotesScreen() {
       <View style={styles.rowBetween}>
         <Text style={styles.sectionTitle}>Notes</Text>
         {groups.length && !adding ? (
-          <AppButton icon="add-outline" onPress={() => setAdding(true)}>Add Note</AppButton>
+          <AppButton icon="add-outline" onPress={() => setAdding(true)}>Add note</AppButton>
         ) : null}
       </View>
 
@@ -301,7 +301,7 @@ export function NotesScreen() {
         groups.length && !adding ? (
           <Card style={styles.filterCard}>
             <EmptyState label="No notes yet. Keep shared lists, codes and reminders here." />
-            <AppButton icon="add-outline" onPress={() => setAdding(true)}>Add Your First Note</AppButton>
+            <AppButton icon="add-outline" onPress={() => setAdding(true)}>Add your first note</AppButton>
           </Card>
         ) : null
       ) : filteredNotes.length === 0 ? (
@@ -321,22 +321,22 @@ export function NotesScreen() {
             <>
               <Pressable onPress={() => runAction(() => api.toggleNote(note.id), 'Could not update note')} style={styles.rowBetween}>
                 <Text style={[styles.title, note.is_completed && styles.completed]}>{note.title}</Text>
-                <Ionicons name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />
+                <Icon name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />
               </Pressable>
               {note.description ? <Text style={styles.description}>{note.description}</Text> : null}
-              <Text style={styles.muted}>{note.group_name} - by {note.created_by}</Text>
+              <Text style={styles.muted}>{note.group_name} · by {note.created_by}</Text>
               <View style={styles.iconActionRow}>
                 {note.can_compare_prices ? (
                   <Pressable accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}>
-                    <Ionicons name={comparisons[note.id] ? 'close-outline' : 'cart-outline'} size={20} color={colors.primaryDark} />
+                    <Icon name={comparisons[note.id] ? 'close-outline' : 'cart-outline'} size={20} color={colors.primaryDark} />
                   </Pressable>
                 ) : null}
                 <Pressable accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}>
-                  <Ionicons name="pencil-outline" size={20} color={colors.primaryDark} />
+                  <Icon name="pencil-outline" size={20} color={colors.primaryDark} />
                 </Pressable>
                 {note.can_delete ? (
                   <Pressable accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}>
-                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                    <Icon name="trash-outline" size={20} color={colors.danger} />
                   </Pressable>
                 ) : null}
               </View>
@@ -349,7 +349,7 @@ export function NotesScreen() {
     </Screen>
       {groups.length ? (
         <Pressable style={styles.fab} onPress={() => setAdding(true)} accessibilityRole="button" accessibilityLabel="Add note">
-          <Ionicons name="add" size={30} color={colors.surface} />
+          <Icon name="add" size={30} color={colors.surface} />
         </Pressable>
       ) : null}
     </View>
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     bottom: spacing.lg,
     width: 58,
     height: 58,
-    borderRadius: 29,
+    borderRadius: 9999,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,

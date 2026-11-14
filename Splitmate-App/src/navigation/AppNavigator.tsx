@@ -45,12 +45,12 @@ export function AppNavigator() {
       ) : (
         <>
           <Stack.Screen name="Main" component={TabNavigator} options={{ headerShown: false }} />
-          <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Your Groups' }} />
-          <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create Group' }} />
+          <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Your groups' }} />
+          <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create group' }} />
           <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={({ route }) => ({ title: route.params.groupName })} />
-          <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Add Expense' }} />
-          <Stack.Screen name="QuickSplit" component={QuickSplitScreen} options={{ title: 'Quick Split' }} />
-          <Stack.Screen name="AddTask" component={AddTaskScreen} options={{ title: 'Add Task' }} />
+          <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Add expense' }} />
+          <Stack.Screen name="QuickSplit" component={QuickSplitScreen} options={{ title: 'Quick split' }} />
+          <Stack.Screen name="AddTask" component={AddTaskScreen} options={{ title: 'Add task' }} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
           <Stack.Screen name="GroupSettings" component={GroupSettingsScreen} options={({ route }) => ({ title: `${route.params.groupName} Settings` })} />
           <Stack.Screen name="Insights" component={InsightsScreen} options={({ route }) => ({ title: `${route.params.groupName} Insights` })} />
@@ -58,7 +58,7 @@ export function AppNavigator() {
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
           <Stack.Screen name="Membership" component={MembershipScreen} options={{ title: 'Membership' }} />
           <Stack.Screen name="HelpChat" component={HelpChatScreen} options={{ title: 'Splitmate Help' }} />
-          <Stack.Screen name="Invites" component={InvitesScreen} options={{ title: 'Group Invites' }} />
+          <Stack.Screen name="Invites" component={InvitesScreen} options={{ title: 'Group invites' }} />
         </>
       )}
     </Stack.Navigator>

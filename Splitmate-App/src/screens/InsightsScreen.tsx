@@ -94,7 +94,7 @@ export function InsightsScreen({ route }: Props) {
       </View>
 
       <Card>
-        <Text style={styles.sectionTitle}>Search History</Text>
+        <Text style={styles.sectionTitle}>Search history</Text>
         <TextField label="Description" value={query} onChangeText={setQuery} placeholder="Rent, dinner, groceries" />
         <ChoiceChips
           label="Category"
@@ -117,11 +117,11 @@ export function InsightsScreen({ route }: Props) {
           <View style={styles.field}><TextField label="Maximum" value={maxAmount} onChangeText={setMaxAmount} keyboardType="decimal-pad" /></View>
         </View>
         <AppButton icon="search-outline" loading={loading} onPress={() => load(true)}>Search</AppButton>
-        <AppButton icon="refresh-outline" variant="outline" onPress={resetFilters}>Reset Filters</AppButton>
+        <AppButton icon="refresh-outline" variant="outline" onPress={resetFilters}>Reset filters</AppButton>
       </Card>
 
       <Card>
-        <Text style={styles.sectionTitle}>By Category</Text>
+        <Text style={styles.sectionTitle}>By category</Text>
         {analytics?.category_totals.length ? analytics.category_totals.map(item => (
           <View key={item.category} style={styles.barBlock}>
             <View style={styles.rowBetween}><Text style={styles.barLabel}>{item.category}</Text><Text style={styles.amount}>{money(item.total)}</Text></View>
@@ -131,7 +131,7 @@ export function InsightsScreen({ route }: Props) {
       </Card>
 
       <Card>
-        <Text style={styles.sectionTitle}>Last Six Months</Text>
+        <Text style={styles.sectionTitle}>Last six months</Text>
         <View style={styles.monthRow}>
           {analytics?.monthly_totals.map(item => (
             <View key={item.month} style={styles.monthColumn}>
@@ -144,7 +144,7 @@ export function InsightsScreen({ route }: Props) {
         </View>
       </Card>
 
-      <Text style={styles.sectionTitle}>Transaction History</Text>
+      <Text style={styles.sectionTitle}>Transaction history</Text>
       {activity?.transactions.length ? activity.transactions.map((item, index) => (
         <Card key={`${item.type}-${item.id}-${index}`}>
           <View style={styles.rowBetween}>
@@ -153,8 +153,8 @@ export function InsightsScreen({ route }: Props) {
           </View>
           <Text style={styles.meta}>
             {item.type === 'expense'
-              ? `${item.category || 'General'} - Paid by ${item.paid_by}`
-              : `${item.payer} paid ${item.receiver} - ${item.status}`}
+              ? `${item.category || 'General'} · Paid by ${item.paid_by}`
+              : `${item.payer} paid ${item.receiver} · ${item.status}`}
           </Text>
           <Text style={styles.meta}>{formatDateTime(item.date)}</Text>
         </Card>

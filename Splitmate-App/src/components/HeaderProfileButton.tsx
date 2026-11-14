@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -15,7 +15,7 @@ export function HeaderProfileButton() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   return (
     <Pressable accessibilityLabel="Profile" style={styles.button} onPress={() => navigation.navigate('Profile')}>
-      <Ionicons name="person-outline" size={22} color={colors.primaryDark} />
+      <Icon name="person-outline" size={22} color={colors.primaryDark} />
     </Pressable>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { AppText as Text } from '@/components/AppText';
 import { TextField } from '@/components/TextField';
@@ -39,7 +39,7 @@ export function CountryPicker({ label = 'Country', value, onChange, hint }: Prop
         <Text style={selected ? styles.value : styles.placeholder}>
           {selected ? `${selected.name} (${selected.currency})` : 'Choose your country'}
         </Text>
-        <Ionicons name="chevron-down" size={18} color={colors.muted} />
+        <Icon name="chevron-down" size={18} color={colors.muted} />
       </Pressable>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
 
@@ -49,7 +49,7 @@ export function CountryPicker({ label = 'Country', value, onChange, hint }: Prop
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Choose your country</Text>
               <Pressable accessibilityLabel="Close" onPress={() => setOpen(false)} hitSlop={8}>
-                <Ionicons name="close" size={22} color={colors.secondary} />
+                <Icon name="close" size={22} color={colors.secondary} />
               </Pressable>
             </View>
             <TextField label="Search" value={search} onChangeText={setSearch} placeholder="Canada, India, USD..." autoCorrect={false} />

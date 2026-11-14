@@ -2,7 +2,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -131,7 +131,7 @@ export function TasksScreen() {
     <Screen onRefresh={refresh} refreshing={refreshing}>
       <View style={styles.headerRow}>
         <Text style={styles.sectionTitle}>Tasks</Text>
-        <AppButton icon="add-outline" onPress={addTask}>Add Task</AppButton>
+        <AppButton icon="add-outline" onPress={addTask}>Add task</AppButton>
       </View>
 
       {tasks.length ? (
@@ -151,7 +151,7 @@ export function TasksScreen() {
             />
           ) : null}
           <Pressable accessibilityRole="button" onPress={() => setShowCompleted(current => !current)} style={styles.completedToggle}>
-            <Ionicons name={showCompleted ? 'checkbox' : 'square-outline'} size={20} color={colors.primary} />
+            <Icon name={showCompleted ? 'checkbox' : 'square-outline'} size={20} color={colors.primary} />
             <Text style={styles.completedToggleLabel}>Show completed</Text>
           </Pressable>
         </Card>
@@ -160,7 +160,7 @@ export function TasksScreen() {
       {tasks.length === 0 ? (
         <Card style={styles.filterCard}>
           <EmptyState label="No tasks yet. Add chores, bills or reminders for your group." />
-          <AppButton icon="add-outline" onPress={addTask}>Add Your First Task</AppButton>
+          <AppButton icon="add-outline" onPress={addTask}>Add your first task</AppButton>
         </Card>
       ) : filteredTasks.length === 0 ? (
         <EmptyState label="No tasks match your filters." />
@@ -168,7 +168,7 @@ export function TasksScreen() {
         <Card key={task.id} style={styles.taskCard}>
           <View style={styles.rowBetween}>
             <Pressable onPress={() => toggleTask(task)} style={styles.taskMain}>
-              <Ionicons name={task.is_completed ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
+              <Icon name={task.is_completed ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
               <View style={styles.headerText}>
                 <Text style={[styles.title, task.is_completed && styles.completed]}>{task.title}</Text>
                 <Text style={styles.muted}>{task.group_name}</Text>
@@ -176,7 +176,7 @@ export function TasksScreen() {
             </Pressable>
             {task.can_delete ? (
               <Pressable accessibilityLabel={`Delete ${task.title}`} onPress={() => confirmDeleteTask(task)} style={styles.iconButton}>
-                <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                <Icon name="trash-outline" size={20} color={colors.danger} />
               </Pressable>
             ) : null}
           </View>
@@ -187,13 +187,13 @@ export function TasksScreen() {
           {task.reminder_time ? <Text style={styles.muted}>Reminder: {formatDateTime(task.reminder_time)}</Text> : null}
           <Text style={styles.muted}>
             {task.priority.toUpperCase()}{task.assigned_to ? ` - Assigned to ${task.assigned_to}` : ' - Anyone'}
-            {REPEAT_LABELS[task.recurrence] ? ` - ${REPEAT_LABELS[task.recurrence]}` : ''}
+            {REPEAT_LABELS[task.recurrence] ? ` · ${REPEAT_LABELS[task.recurrence]}` : ''}
           </Text>
         </Card>
       ))}
     </Screen>
       <Pressable style={styles.fab} onPress={addTask} accessibilityRole="button" accessibilityLabel="Add task">
-        <Ionicons name="add" size={30} color={colors.surface} />
+        <Icon name="add" size={30} color={colors.surface} />
       </Pressable>
     </View>
   );
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     bottom: spacing.lg,
     width: 58,
     height: 58,
-    borderRadius: 29,
+    borderRadius: 9999,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,

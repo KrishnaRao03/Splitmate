@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import type { ApiError } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -65,7 +65,7 @@ export function AuthScreen() {
         onPress={onPress}
         style={styles.passwordToggle}
       >
-        <Ionicons name={isVisible ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.primaryDark} />
+        <Icon name={isVisible ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.primaryDark} />
       </Pressable>
     );
   }
@@ -215,7 +215,7 @@ export function AuthScreen() {
             />
             {mode === 'register' ? (
               <TextField
-                label="Confirm Password"
+                label="Confirm password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
@@ -238,7 +238,7 @@ export function AuthScreen() {
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <AppButton loading={loading} onPress={submit}>
-          {mode === 'login' ? 'Sign In' : mode === 'register' ? 'Create Account' : mode === 'forgot' ? 'Send Reset Link' : 'Verify Email'}
+          {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : 'Verify email'}
         </AppButton>
         {mode === 'verify' ? (
           <AppButton icon="refresh-outline" variant="ghost" onPress={resendOtp}>
@@ -257,9 +257,9 @@ export function AuthScreen() {
           onPress={() => setShowConnection(value => !value)}
           style={styles.advancedToggle}
         >
-          <Ionicons name="settings-outline" size={16} color={colors.muted} />
+          <Icon name="settings-outline" size={16} color={colors.muted} />
           <Text style={styles.advancedToggleText}>Connection settings</Text>
-          <Ionicons name={showConnection ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
+          <Icon name={showConnection ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
         </Pressable>
         {showConnection ? (
           <View style={styles.advancedBody}>
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     ...typography.h3
   },
   meter: {
-    gap: 6
+    gap: spacing.sm
   },
   meterTrack: {
     height: 3,
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     borderRadius: radius.sm,
-    paddingVertical: 10,
+    paddingVertical: spacing.sm,
     backgroundColor: 'transparent'
   },
   modeActive: {

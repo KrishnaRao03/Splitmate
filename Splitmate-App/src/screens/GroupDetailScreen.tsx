@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, Share, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -102,7 +102,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       title: groupName,
       headerRight: () => (
         <Pressable onPress={openManage} accessibilityRole="button" accessibilityLabel="Manage group" hitSlop={8} style={styles.headerButton}>
-          <Ionicons name="settings-outline" size={20} color={colors.primary} />
+          <Icon name="settings-outline" size={20} color={colors.primary} />
           <Text style={styles.headerButtonText}>Manage</Text>
         </Pressable>
       )
@@ -396,7 +396,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                   {balance.net >= 0 ? '+' : ''}{money(balance.net)}
                 </Text>
               </View>
-              <Text style={styles.muted}>Paid {money(balance.paid)} - Owes {money(balance.owes)}</Text>
+              <Text style={styles.muted}>Paid {money(balance.paid)} · Owes {money(balance.owes)}</Text>
             </Card>
           ))}
           {settleUpCard}
@@ -415,7 +415,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
               </View>
             ))}
             <AppButton icon="settings-outline" variant="outline" onPress={openManage}>
-              {isAdmin ? 'Manage Group' : 'Group Info & Leave'}
+              {isAdmin ? 'Manage group' : 'Group info & leave'}
             </AppButton>
           </Card>
         </>
@@ -424,13 +424,13 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       {tab === 'expenses' ? (
         <>
           <View style={styles.actionRow}>
-            <AppButton icon="add-outline" style={styles.actionButton} onPress={navigateToExpense}>Add Expense</AppButton>
+            <AppButton icon="add-outline" style={styles.actionButton} onPress={navigateToExpense}>Add expense</AppButton>
             <AppButton icon="share-outline" variant="outline" style={styles.actionButton} loading={exportingCsv} onPress={shareActivityCsv}>Share Activity CSV</AppButton>
-            <AppButton icon="trash-outline" variant="danger" style={styles.actionButton} onPress={clearRecentExpenses}>Clear Recent</AppButton>
+            <AppButton icon="trash-outline" variant="danger" style={styles.actionButton} onPress={clearRecentExpenses}>Clear recent</AppButton>
           </View>
 
           <Card>
-            <Text style={styles.cardLabel}>Search All Expenses</Text>
+            <Text style={styles.cardLabel}>Search all expenses</Text>
             <TextField
               label="Search"
               placeholder="Search by description"
@@ -449,7 +449,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
 
           {searchResults !== null ? (
             <>
-              <Text style={styles.sectionTitle}>Search Results</Text>
+              <Text style={styles.sectionTitle}>Search results</Text>
               {searchError ? (
                 <ErrorState message={searchError} onRetry={runExpenseSearch} />
               ) : searchResults.length ? searchResults.map(result => (
@@ -461,7 +461,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                     </View>
                     <Text style={styles.amountNeutral}>{money(result.amount)}</Text>
                   </View>
-                  <Text style={styles.muted}>Paid by {result.paid_by}{result.date ? ` - ${formatDate(result.date)}` : ''}</Text>
+                  <Text style={styles.muted}>Paid by {result.paid_by}{result.date ? ` · ${formatDate(result.date)}` : ''}</Text>
                 </Card>
               )) : <EmptyState label="No expenses match your search." />}
             </>
@@ -475,17 +475,17 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                   </View>
                   <Text style={styles.amountNeutral}>{money(expense.amount)}</Text>
                 </View>
-                <Text style={styles.muted}>Paid by {expense.paid_by}{expense.date ? ` - ${formatDate(expense.date)}` : ''}</Text>
+                <Text style={styles.muted}>Paid by {expense.paid_by}{expense.date ? ` · ${formatDate(expense.date)}` : ''}</Text>
                 {expense.splits.map(split => (
                   <Text key={split.id} style={styles.memberLine}>
                     {split.user}: {money(split.amount)} {split.is_settled ? 'Settled' : 'Outstanding'}
                   </Text>
                 ))}
-                {expense.receipt_url ? <AppButton icon="receipt-outline" variant="ghost" onPress={() => Linking.openURL(api.resolveUrl(expense.receipt_url || ''))}>Open Receipt</AppButton> : null}
+                {expense.receipt_url ? <AppButton icon="receipt-outline" variant="ghost" onPress={() => Linking.openURL(api.resolveUrl(expense.receipt_url || ''))}>Open receipt</AppButton> : null}
                 {expense.paid_by_id === detail.current_user_id || isAdmin ? (
                   <View style={styles.iconActionRow}>
-                    <Pressable accessibilityLabel={`Edit ${expense.description}`} onPress={() => editExpense(expense)} style={styles.iconButton}><Ionicons name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
-                    <Pressable accessibilityLabel={`Delete ${expense.description}`} onPress={() => confirmDeleteExpense(expense)} style={styles.iconButton}><Ionicons name="trash-outline" size={20} color={colors.danger} /></Pressable>
+                    <Pressable accessibilityLabel={`Edit ${expense.description}`} onPress={() => editExpense(expense)} style={styles.iconButton}><Icon name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
+                    <Pressable accessibilityLabel={`Delete ${expense.description}`} onPress={() => confirmDeleteExpense(expense)} style={styles.iconButton}><Icon name="trash-outline" size={20} color={colors.danger} /></Pressable>
                   </View>
                 ) : null}
               </Card>
@@ -497,14 +497,14 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       {tab === 'tasks' ? (
         <>
           <View style={styles.actionRow}>
-            <AppButton icon="add-outline" style={styles.actionButton} onPress={() => navigation.navigate('AddTask', { groupId, members: detail.group.members })}>Add Task</AppButton>
+            <AppButton icon="add-outline" style={styles.actionButton} onPress={() => navigation.navigate('AddTask', { groupId, members: detail.group.members })}>Add task</AppButton>
             <AppButton icon="calendar-outline" variant="outline" style={styles.actionButton} onPress={() => navigation.navigate('TaskCalendar', { groupId, groupName: detail.group.name })}>Calendar</AppButton>
           </View>
           {detail.tasks.length ? detail.tasks.map(task => (
             <Card key={task.id}>
               <View style={styles.rowBetween}>
                 <Pressable onPress={() => runAction(() => api.toggleTask(task.id), 'Could not update task')} style={styles.taskMain}>
-                  <Ionicons name={task.is_completed ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
+                  <Icon name={task.is_completed ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
                   <View style={styles.headerText}>
                     <Text style={[styles.itemTitle, task.is_completed && styles.completed]}>{task.title}</Text>
                     <Text style={styles.muted}>{formatDateTime(task.due_date)}</Text>
@@ -512,7 +512,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                 </Pressable>
                 {task.can_delete ? (
                   <Pressable accessibilityLabel={`Delete ${task.title}`} onPress={() => confirmDeleteTask(task.id, task.title)} style={styles.iconButton}>
-                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                    <Icon name="trash-outline" size={20} color={colors.danger} />
                   </Pressable>
                 ) : null}
               </View>
@@ -532,10 +532,10 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       {tab === 'notes' ? (
         <>
           <Card>
-            <Text style={styles.cardLabel}>New Note</Text>
+            <Text style={styles.cardLabel}>New note</Text>
             <TextField label="Title" value={noteTitle} onChangeText={setNoteTitle} />
             <TextField label="Description" value={noteDescription} onChangeText={setNoteDescription} multiline />
-            <AppButton icon="add-outline" onPress={addNote}>Add Note</AppButton>
+            <AppButton icon="add-outline" onPress={addNote}>Add note</AppButton>
           </Card>
           {detail.notes.length ? detail.notes.map(note => (
             <Card key={note.id}>
@@ -552,17 +552,17 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                 <>
                   <Pressable onPress={() => runAction(() => api.toggleNote(note.id), 'Could not update note')} style={styles.rowBetween}>
                     <Text style={[styles.itemTitle, note.is_completed && styles.completed]}>{note.title}</Text>
-                    <Ionicons name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />
+                    <Icon name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />
                   </Pressable>
                   {note.description ? <Text style={styles.muted}>{note.description}</Text> : null}
                   <Text style={styles.memberLine}>By {note.created_by}</Text>
                   <View style={styles.iconActionRow}>
                     {note.can_compare_prices !== false ? (
-                      <Pressable accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}><Ionicons name="cart-outline" size={20} color={colors.primaryDark} /></Pressable>
+                      <Pressable accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}><Icon name="cart-outline" size={20} color={colors.primaryDark} /></Pressable>
                     ) : null}
-                    <Pressable accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}><Ionicons name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
+                    <Pressable accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}><Icon name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
                     {note.can_delete ? (
-                      <Pressable accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}><Ionicons name="trash-outline" size={20} color={colors.danger} /></Pressable>
+                      <Pressable accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}><Icon name="trash-outline" size={20} color={colors.danger} /></Pressable>
                     ) : null}
                   </View>
                 </>
@@ -577,7 +577,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       {tab === 'pay' ? (
         <>
           {settleUpCard}
-          <Text style={styles.sectionTitle}>Outstanding Splits</Text>
+          <Text style={styles.sectionTitle}>Outstanding splits</Text>
           {outstanding.length ? outstanding.map(item => (
             <Card key={item.split_id}>
               <View style={styles.rowBetween}>
@@ -587,7 +587,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
               <Text style={styles.muted}>{item.expense}</Text>
               {/* Only the person who is owed can confirm a split was paid. */}
               {item.payer_id === user?.id ? (
-                <AppButton icon="checkmark-outline" variant="outline" onPress={() => runAction(() => api.settleSplit(item.split_id), 'Could not settle split')}>Mark Settled</AppButton>
+                <AppButton icon="checkmark-outline" variant="outline" onPress={() => runAction(() => api.settleSplit(item.split_id), 'Could not settle split')}>Mark settled</AppButton>
               ) : null}
             </Card>
           )) : <EmptyState label="No outstanding balances." />}
@@ -598,14 +598,14 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                 <Card key={`confirm-${payment.id}`}>
                   <Text style={styles.itemTitle}>{payment.payer} says they paid you {money(payment.amount)}</Text>
                   <Text style={styles.muted}>Check that the money arrived before confirming. Balances only change once you do.</Text>
-                  <AppButton icon="checkmark-circle-outline" onPress={() => runAction(() => api.confirmPayment(payment.id), 'Could not confirm payment')}>Confirm Received</AppButton>
-                  <AppButton icon="close-circle-outline" variant="outline" onPress={() => runAction(() => api.declinePayment(payment.id), 'Could not decline payment')}>Not Received</AppButton>
+                  <AppButton icon="checkmark-circle-outline" onPress={() => runAction(() => api.confirmPayment(payment.id), 'Could not confirm payment')}>Confirm received</AppButton>
+                  <AppButton icon="close-circle-outline" variant="outline" onPress={() => runAction(() => api.declinePayment(payment.id), 'Could not decline payment')}>Not received</AppButton>
                 </Card>
               ))}
             </>
           ) : null}
           <Card>
-            <Text style={styles.cardLabel}>Pay Someone</Text>
+            <Text style={styles.cardLabel}>Pay someone</Text>
             {detail.payment_options.length ? (
               <>
                 <ChoiceChips<number>
@@ -660,7 +660,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
           </Card>
           {detail.money_requests.length ? (
             <Card>
-              <Text style={styles.cardLabel}>Request Money</Text>
+              <Text style={styles.cardLabel}>Request money</Text>
               <Text style={styles.muted}>Ask someone who owes you to pay. They approve it in Splitmate first, then you see their Interac email and send a request from your own bank.</Text>
               <ChoiceChips<number>
                 label="Request from"
@@ -700,12 +700,12 @@ export function GroupDetailScreen({ navigation, route }: Props) {
               })()}
             </Card>
           ) : null}
-          <Text style={styles.sectionTitle}>Payment History</Text>
+          <Text style={styles.sectionTitle}>Payment history</Text>
           {detail.payments.length ? detail.payments.map(payment => (
             <Card key={payment.id}>
               <Text style={styles.itemTitle}>{payment.payer} paid {payment.receiver}</Text>
               <Text style={styles.muted}>
-                {money(payment.amount)} - {payment.method === 'stripe' ? 'Stripe' : 'Manual'} - {payment.status_label}
+                {money(payment.amount)} · {payment.method === 'stripe' ? 'Stripe' : 'Manual'} · {payment.status_label}
                 {payment.reward_points_awarded ? ` - +${payment.reward_points_awarded} pts` : ''}
               </Text>
               <Text style={styles.memberLine}>{formatDateTime(payment.date)}</Text>
@@ -865,7 +865,7 @@ const styles = StyleSheet.create({
   },
   adminPill: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    paddingVertical: 2,
     borderRadius: radius.pill,
     backgroundColor: colors.primarySoft
   },

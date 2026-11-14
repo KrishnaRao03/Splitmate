@@ -55,7 +55,7 @@ const WEB_NO_OUTLINE = { outlineStyle: 'none' } as unknown as TextInputProps['st
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: 7
+    gap: spacing.sm
   },
   label: {
     color: colors.ink,
@@ -80,14 +80,14 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 16,
+    lineHeight: 24,
     fontFamily: fonts.regular,
     fontWeight: 'normal',
-    paddingVertical: 11
+    paddingVertical: spacing.md
   },
   error: {
     color: colors.danger,
-    fontSize: 12,
-    fontWeight: '700'
+    ...typography.caption
   }
 });

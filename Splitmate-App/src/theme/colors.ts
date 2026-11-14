@@ -61,17 +61,17 @@ const darkNeutrals: Partial<typeof colors> = {
   dangerSoft: 'rgba(251, 113, 133, 0.16)',
   warning: '#f59e0b',
   warningSoft: 'rgba(245, 158, 11, 0.16)',
-  bg: '#18191c',
-  surface: '#222327',
-  surfaceGlass: 'rgba(34, 35, 39, 0.94)',
-  surfaceBlue: '#2c2e33',
-  surfaceAlt: '#2c2e33',
-  hoverSurface: '#2c2e33',
-  border: '#2f3136',
-  borderStrong: '#3d4046',
-  input: '#1d1e21',
+  bg: '#181818',
+  surface: '#1F1F1F',
+  surfaceGlass: 'rgba(31, 31, 31, 0.94)',
+  surfaceBlue: '#272727',
+  surfaceAlt: '#272727',
+  hoverSurface: '#272727',
+  border: '#272727',
+  borderStrong: '#313131',
+  input: '#181818',
   placeholder: '#6b6f78',
-  pageTint: '#222327'
+  pageTint: '#1F1F1F'
 };
 
 let activeScheme: 'light' | 'dark' = 'light';
@@ -134,21 +134,18 @@ export const spacing = {
 };
 
 export const radius = {
-  sm: 10,
-  md: 16,
-  lg: 20,
+  sm: 8,
+  md: 12,
+  lg: 16,
   pill: 999
 };
 
 export const fonts = {
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semiBold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
-  extraBold: 'Inter_800ExtraBold'
+  regular: 'Manrope_400Regular',
+  medium: 'Manrope_500Medium',
+  semiBold: 'Manrope_600SemiBold',
+  bold: 'Manrope_700Bold',
+  // The design guide caps weight at bold, so the heaviest style is bold too.
+  extraBold: 'Manrope_700Bold'
 };
 
-/** The yellow gradient of the balance card on Home. */
-export const gradients = {
-  balance: ['#ffd65c', '#ffc83d', '#ffb81f']
-} as const;

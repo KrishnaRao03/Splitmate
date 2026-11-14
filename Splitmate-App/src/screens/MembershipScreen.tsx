@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { Linking, Platform, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -106,7 +106,7 @@ export function MembershipScreen() {
           </Text>
           {plan.features.map(feature => (
             <View key={feature} style={styles.featureRow}>
-              <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+              <Icon name="checkmark-circle" size={18} color={colors.success} />
               <Text style={styles.feature}>{feature}</Text>
             </View>
           ))}

@@ -1,7 +1,7 @@
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { createElement } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { AppText as Text } from '@/components/AppText';
 import { colors, radius, spacing } from '@/theme/colors';
@@ -109,7 +109,7 @@ export function DateTimeField({ label, value, onChange, minimumDate }: Props) {
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <Pressable style={styles.button} onPress={openAndroid} accessibilityRole="button" accessibilityLabel={`${label}: ${value ? value.toLocaleString() : 'not set'}`}>
-        <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+        <Icon name="calendar-outline" size={20} color={colors.primary} />
         <Text style={value ? styles.value : styles.placeholder}>
           {value ? value.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Pick a date and time'}
         </Text>

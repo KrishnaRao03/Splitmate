@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -110,7 +110,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Make Admin',
+          text: 'Make admin',
           onPress: async () => {
             try {
               await api.transferAdmin(groupId, member.id);
@@ -243,9 +243,9 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
 
       {isAdmin ? (
         <Card>
-          <Text style={styles.sectionTitle}>Invite People</Text>
+          <Text style={styles.sectionTitle}>Invite people</Text>
           <TextField label="Their email" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-          <AppButton icon="mail-outline" onPress={inviteMember} disabled={!inviteEmail.trim()}>Send Invite</AppButton>
+          <AppButton icon="mail-outline" onPress={inviteMember} disabled={!inviteEmail.trim()}>Send invite</AppButton>
           <Text style={styles.help}>Works for new and existing Splitmate accounts. They join once they accept.</Text>
           {lastInvite ? (
             <View style={styles.invitePanel}>
@@ -253,7 +253,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
               <Text style={styles.help}>Show this QR code, or share the link, so they can join right away.</Text>
               {lastInvite.qrRows.length ? <View style={styles.qrWrap}><QrCode rows={lastInvite.qrRows} size={180} /></View> : null}
               <Text style={styles.help} selectable>{lastInvite.url}</Text>
-              <AppButton icon="share-social-outline" variant="outline" onPress={shareInvite}>Share Invite Link</AppButton>
+              <AppButton icon="share-social-outline" variant="outline" onPress={shareInvite}>Share invite link</AppButton>
             </View>
           ) : null}
         </Card>
@@ -272,7 +272,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
                 <Text style={styles.adminLabel}>Admin</Text>
               ) : isAdmin ? (
                 <Pressable accessibilityLabel={`Remove ${member.full_name}`} onPress={() => removeMember(member)} style={styles.iconButton}>
-                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                  <Icon name="trash-outline" size={20} color={colors.danger} />
                 </Pressable>
               ) : null}
             </View>
@@ -289,7 +289,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
               </View>
             ) : null}
             {isAdmin && member.id !== detail.group.admin_id ? (
-              <AppButton icon="shield-checkmark-outline" variant="ghost" onPress={() => makeAdmin(member)}>Make Admin</AppButton>
+              <AppButton icon="shield-checkmark-outline" variant="ghost" onPress={() => makeAdmin(member)}>Make admin</AppButton>
             ) : null}
           </View>
         ))}
@@ -298,7 +298,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
 
       {isAdmin && detail.pending_invites.length ? (
         <Card>
-          <Text style={styles.sectionTitle}>Pending Invites</Text>
+          <Text style={styles.sectionTitle}>Pending invites</Text>
           {detail.pending_invites.map(invite => (
             <View key={invite.id} style={styles.inviteRow}>
               <View style={styles.memberMain}>
@@ -316,19 +316,19 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
 
       {isAdmin ? (
       <Card>
-        <Text style={styles.sectionTitle}>Default Expense Split</Text>
+        <Text style={styles.sectionTitle}>Default expense split</Text>
         <ChoiceChips<SplitType>
           value={splitType}
           onChange={setSplitType}
           options={[
             { label: 'Equal', value: 'equal' },
-            { label: 'Selected People', value: 'selected' },
+            { label: 'Selected people', value: 'selected' },
             { label: 'Percentage', value: 'percentage' }
           ]}
         />
         {splitType === 'selected' ? detail.group.members.map(member => (
           <Pressable key={member.id} onPress={() => toggleMember(member)} style={styles.selectRow}>
-            <Ionicons name={selectedIds.has(member.id) ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
+            <Icon name={selectedIds.has(member.id) ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
             <Text style={styles.memberName}>{member.name}</Text>
           </Pressable>
         )) : null}
@@ -341,7 +341,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
             keyboardType="decimal-pad"
           />
         )) : null}
-        <AppButton icon="save-outline" loading={saving} onPress={saveDefaultSplit}>Save Default</AppButton>
+        <AppButton icon="save-outline" loading={saving} onPress={saveDefaultSplit}>Save default</AppButton>
         <AppButton icon="refresh-outline" variant="outline" onPress={async () => {
           await api.clearDefaultSplit(groupId);
           await load();
@@ -350,7 +350,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       ) : null}
 
       <Card>
-        <Text style={styles.sectionTitle}>{isAdmin ? 'Delete Group' : 'Leave Group'}</Text>
+        <Text style={styles.sectionTitle}>{isAdmin ? 'Delete group' : 'Leave group'}</Text>
         {isAdmin ? (
           <>
             <Text style={styles.help}>
@@ -358,12 +358,12 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
                 ? "You're the only member, so you can delete this group along with all its expenses, payments, notes and tasks."
                 : 'While other members are here, a group with expenses or payments can\'t be deleted, so nobody\'s history is lost. Once everyone else has settled up and left, you can delete it. Want to leave instead? Tap "Make Admin" on another member first.'}
             </Text>
-            <AppButton icon="trash-outline" variant="danger" onPress={deleteGroup}>Delete Group</AppButton>
+            <AppButton icon="trash-outline" variant="danger" onPress={deleteGroup}>Delete group</AppButton>
           </>
         ) : (
           <>
             <Text style={styles.help}>You can leave once you've settled up everything you owe or are owed here.</Text>
-            <AppButton icon="exit-outline" variant="danger" onPress={leaveGroup}>Leave Group</AppButton>
+            <AppButton icon="exit-outline" variant="danger" onPress={leaveGroup}>Leave group</AppButton>
           </>
         )}
       </Card>

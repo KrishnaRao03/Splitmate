@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { api, type ApiError } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -155,7 +155,7 @@ export function QuickSplitScreen({ navigation }: Props) {
                 style={styles.chip}
               >
                 <Text style={styles.chipText}>{item}</Text>
-                <Ionicons name="close" size={14} color={colors.primaryDark} />
+                <Icon name="close" size={14} color={colors.primaryDark} />
               </Pressable>
             ))}
           </View>
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
+    paddingVertical: 4,
     borderRadius: radius.pill,
     backgroundColor: colors.primarySoft,
     borderWidth: 1,

@@ -1,15 +1,16 @@
 import { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, ViewStyle } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, IconName } from '@/components/Icon';
 
 import { AppText as Text } from '@/components/AppText';
 import { useTheme } from '@/state/ThemeContext';
+import { typography } from '@/theme/typography';
 import { colors, radius, spacing } from '@/theme/colors';
 
 type Props = {
   children: ReactNode;
   disabled?: boolean;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: IconName;
   loading?: boolean;
   variant?: 'primary' | 'outline' | 'ghost' | 'danger';
   onPress?: () => void;
@@ -34,6 +35,7 @@ export function AppButton({ children, disabled, icon, loading, onPress, style, v
         styles.button,
         styles[variant],
         variant === 'primary' && { backgroundColor: sunshine ? colors.highlight : accentColor },
+        pressed && styles.pressed,
         (pressed || disabled) && styles.dimmed,
         style
       ]}
@@ -42,7 +44,7 @@ export function AppButton({ children, disabled, icon, loading, onPress, style, v
         <ActivityIndicator color={foreground} />
       ) : (
         <>
-          {icon ? <Ionicons name={icon} size={18} color={foreground} /> : null}
+          {icon ? <Icon name={icon} size={18} color={foreground} /> : null}
           <Text style={[styles.text, { color: foreground }]}>{children}</Text>
         </>
       )}
@@ -52,21 +54,17 @@ export function AppButton({ children, disabled, icon, loading, onPress, style, v
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 52,
+    minHeight: 44,
     flexDirection: 'row',
     gap: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.md,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md
   },
   primary: {
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3
+    backgroundColor: colors.primary
   },
   outline: {
     borderWidth: 1,
@@ -82,7 +80,10 @@ const styles = StyleSheet.create({
   dimmed: {
     opacity: 0.72
   },
+  pressed: {
+    transform: [{ scale: 0.98 }]
+  },
   text: {
-    fontWeight: '600'
+    ...typography.button
   }
 });

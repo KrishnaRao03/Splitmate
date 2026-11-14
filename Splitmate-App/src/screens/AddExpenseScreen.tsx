@@ -1,7 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -194,7 +194,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (editing) {
-      navigation.setOptions({ title: 'Edit Expense' });
+      navigation.setOptions({ title: 'Edit expense' });
     }
   }, [editing, navigation]);
 
@@ -307,7 +307,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
 
       {scannedItems.length ? (
         <Card style={styles.section}>
-          <Text style={styles.title}>Receipt Items</Text>
+          <Text style={styles.title}>Receipt items</Text>
           {scannedItems.map(item => (
             <View key={item.key} style={styles.itemRow}>
               <Pressable
@@ -315,7 +315,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
                 onPress={() => updateItem(item.key, { keep: !item.keep })}
                 hitSlop={8}
               >
-                <Ionicons name={item.keep ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
+                <Icon name={item.keep ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
               </Pressable>
               {item.quantity > 1 ? <Text style={styles.itemQuantity}>{item.quantity}×</Text> : null}
               <TextInput
@@ -341,7 +341,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       <Card style={styles.section}>
         <Text style={styles.step}>2. Who paid, and who shares it?</Text>
         <View style={styles.summary}>
-          <Ionicons name="people-outline" size={20} color={colors.primary} />
+          <Icon name="people-outline" size={20} color={colors.primary} />
           <Text style={styles.summaryText}>{splitSummary}</Text>
         </View>
         <ChoiceChips label="Paid by" value={paidById} onChange={setPaidById} options={members.map(member => ({ label: member.id === currentUserId ? 'You' : member.name, value: member.id }))} />
@@ -367,7 +367,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: included }}
                 >
-                  <Ionicons name={included ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
+                  <Icon name={included ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
                   <Text style={[styles.memberName, !included && styles.memberOff]}>{member.id === currentUserId ? 'You' : member.name}</Text>
                   <Text style={[styles.memberShare, !included && styles.memberOff]}>
                     {included && equalShare ? money(equalShare) : included ? '' : 'Not included'}
@@ -411,7 +411,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
             <Text style={styles.step}>More options</Text>
             <Text style={styles.helper}>{category.trim() || 'General'}{receipt || receiptUrl ? ' - receipt attached' : ''}</Text>
           </View>
-          <Ionicons name={showMore ? 'chevron-up' : 'chevron-down'} size={20} color={colors.primary} />
+          <Icon name={showMore ? 'chevron-up' : 'chevron-down'} size={20} color={colors.primary} />
         </Pressable>
         {showMore ? (
           <>
@@ -425,7 +425,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
                 ))}
               </View>
             ) : null}
-            <AppButton icon="attach-outline" variant="outline" onPress={chooseReceipt}>{receipt ? 'Change Receipt File' : 'Attach Receipt (Image or PDF)'}</AppButton>
+            <AppButton icon="attach-outline" variant="outline" onPress={chooseReceipt}>{receipt ? 'Change receipt file' : 'Attach Receipt (Image or PDF)'}</AppButton>
             {receipt ? <Text style={styles.helper}>{receipt.name}</Text> : null}
             <TextField label="Receipt link (optional)" value={receiptUrl} onChangeText={setReceiptUrl} autoCapitalize="none" placeholder="https://" />
           </>
@@ -433,7 +433,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       </Card>
 
       <AppButton icon={editing ? 'save-outline' : 'add-outline'} loading={saving} onPress={save}>
-        {`${editing ? 'Save Changes' : 'Add Expense'}${parsedAmount ? ` - ${money(parsedAmount)}` : ''}`}
+        {`${editing ? 'Save changes' : 'Add expense'}${parsedAmount ? ` · ${money(parsedAmount)}` : ''}`}
       </AppButton>
     </Screen>
   );

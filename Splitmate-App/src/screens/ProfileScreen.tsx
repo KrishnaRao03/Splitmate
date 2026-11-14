@@ -2,7 +2,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, IconName } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
@@ -23,7 +23,6 @@ import type { ProfileQr, RewardsSummary, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
 type OpenSection = 'details' | 'password' | 'rewards' | 'qr' | 'invite';
-type IconName = keyof typeof Ionicons.glyphMap;
 
 export function ProfileScreen({ navigation }: Props) {
   const auth = useAuth();
@@ -209,12 +208,12 @@ export function ProfileScreen({ navigation }: Props) {
     const open = openSection === section;
     return (
       <Pressable onPress={() => toggle(section)} style={styles.navRow} accessibilityState={{ expanded: open }}>
-        <Ionicons name={icon} size={20} color={colors.primary} />
+        <Icon name={icon} size={20} color={colors.primary} />
         <View style={styles.identityMain}>
           <Text style={styles.navTitle}>{title}</Text>
           {subtitle ? <Text style={styles.status}>{subtitle}</Text> : null}
         </View>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
       </Pressable>
     );
   }
@@ -222,9 +221,9 @@ export function ProfileScreen({ navigation }: Props) {
   function linkRow(icon: IconName, title: string, onPress: () => void) {
     return (
       <Pressable onPress={onPress} style={styles.navRow}>
-        <Ionicons name={icon} size={20} color={colors.primary} />
+        <Icon name={icon} size={20} color={colors.primary} />
         <Text style={[styles.navTitle, styles.identityMain]}>{title}</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        <Icon name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
     );
   }
@@ -326,7 +325,7 @@ export function ProfileScreen({ navigation }: Props) {
               <View>
                 <Text style={styles.rewardsPoints}>{rewards.points} pts</Text>
                 <Text style={styles.help}>
-                  {rewards.membership_plan === 'free' ? 'Free plan' : rewards.membership_plan} - {rewards.membership_status}
+                  {rewards.membership_plan === 'free' ? 'Free plan' : rewards.membership_plan} · {rewards.membership_status}
                 </Text>
               </View>
               <Text style={styles.rewardsPercent}>{rewards.progress.percent}%</Text>
@@ -357,7 +356,7 @@ export function ProfileScreen({ navigation }: Props) {
             {(rewards.tiers?.length || rewards.recent_transactions) ? (
               <Pressable onPress={() => toggle('rewards')} style={styles.inlineToggle}>
                 <Text style={styles.status}>{openSection === 'rewards' ? 'Hide tiers and history' : 'Show tiers and history'}</Text>
-                <Ionicons name={openSection === 'rewards' ? 'chevron-up' : 'chevron-down'} size={16} color={colors.primary} />
+                <Icon name={openSection === 'rewards' ? 'chevron-up' : 'chevron-down'} size={16} color={colors.primary} />
               </Pressable>
             ) : null}
 
@@ -392,7 +391,7 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         ) : null}
         <View style={styles.divider} />
-        {linkRow('star-outline', `Membership - ${planName} plan`, () => navigation.navigate('Membership'))}
+        {linkRow('star-outline', `Membership · ${planName} plan`, () => navigation.navigate('Membership'))}
       </Card>
 
       <Text style={styles.groupLabel}>Share</Text>
@@ -426,7 +425,7 @@ export function ProfileScreen({ navigation }: Props) {
       <Card style={styles.list}>
         {linkRow('mail-open-outline', 'Group invites', () => navigation.navigate('Invites'))}
         <View style={styles.divider} />
-        {linkRow('chatbubbles-outline', 'Help Chat', () => navigation.navigate('HelpChat'))}
+        {linkRow('chatbubbles-outline', 'Help chat', () => navigation.navigate('HelpChat'))}
         <View style={styles.divider} />
         {linkRow('settings-outline', 'App settings', () => navigation.navigate('Settings'))}
       </Card>

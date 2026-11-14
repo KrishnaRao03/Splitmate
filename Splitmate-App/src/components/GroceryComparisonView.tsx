@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/Icon';
 
 import { AppText as Text } from '@/components/AppText';
 import { colors, spacing } from '@/theme/colors';
@@ -14,7 +14,7 @@ export function GroceryComparisonView({ comparison }: { comparison: GroceryCompa
 
   return (
     <View style={styles.comparison}>
-      <Text style={styles.cardLabel}>Best Grocery Match</Text>
+      <Text style={styles.cardLabel}>Best grocery match</Text>
       {comparison.top_store ? (
         <Text style={styles.memberLine}>{comparison.top_store.store_name}{comparison.top_store.location ? ` (${comparison.top_store.location})` : ''}: {formatMoney(comparison.top_store.total ?? 0, comparison.currency)}</Text>
       ) : null}
@@ -40,11 +40,11 @@ export function GroceryComparisonView({ comparison }: { comparison: GroceryCompa
                 </Text>
               </View>
               <Text style={styles.amountNeutral}>{formatMoney(store.total, comparison.currency)}</Text>
-              {store.items?.length ? <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} /> : null}
+              {store.items?.length ? <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} /> : null}
             </Pressable>
             {open && store.items ? store.items.map((line, index) => (
               <View key={`${store.rank}-${index}`} style={styles.groceryLine}>
-                <Ionicons
+                <Icon
                   name={line.status === 'available' ? 'checkmark-circle' : line.status === 'unavailable' ? 'remove-circle' : 'help-circle'}
                   size={16}
                   color={line.status === 'available' ? colors.success : line.status === 'unavailable' ? colors.warning : colors.muted}

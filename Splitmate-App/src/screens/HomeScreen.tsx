@@ -3,20 +3,19 @@ import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps, useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, IconName } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppButton } from '@/components/AppButton';
 import { AppText as Text } from '@/components/AppText';
 import { BrandMark } from '@/components/BrandMark';
-import { GradientView } from '@/components/GradientView';
 import { Card } from '@/components/Card';
 import { BarList, MonthBars } from '@/components/Charts';
 import { Screen } from '@/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { configureNotifications, scheduleTaskReminders } from '@/services/notifications';
 import { useAuth } from '@/state/AuthContext';
-import { colors, fonts, gradients, radius, spacing } from '@/theme/colors';
+import { colors, fonts, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
@@ -93,24 +92,23 @@ export function HomeScreen({ navigation }: Props) {
 
   return (
     <Screen onRefresh={refresh} refreshing={refreshing}>
-      <GradientView colors={gradients.balance} style={styles.hero}>
-        <View style={styles.heroShape} />
+      <View style={styles.hero}>
         <Text style={styles.heroLabel}>Hi {firstName}, your balance</Text>
         <Text style={styles.heroAmount}>{net < 0 ? '-' : net > 0 ? '+' : ''}{money(Math.abs(net))}</Text>
         <Text style={styles.heroMeta}>{net > 0 ? 'You are owed overall' : net < 0 ? 'You owe overall' : 'All settled up'}</Text>
-      </GradientView>
+      </View>
 
       {invites.length ? (
         <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Invites')}>
           <Card style={styles.inviteBanner}>
-            <Ionicons name="mail-unread-outline" size={22} color={colors.primary} />
+            <Icon name="mail-unread-outline" size={22} color={colors.primary} />
             <View style={styles.groupMain}>
               <Text style={styles.groupName}>
                 {invites.length === 1 ? `You're invited to ${invites[0].group_name}` : `You have ${invites.length} group invites`}
               </Text>
               <Text style={styles.muted}>Tap to review and join.</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            <Icon name="chevron-forward" size={18} color={colors.muted} />
           </Card>
         </Pressable>
       ) : null}
@@ -126,10 +124,10 @@ export function HomeScreen({ navigation }: Props) {
 
       <View style={styles.homeActions}>
         <AppButton icon="flash-outline" style={styles.homeAction} onPress={() => navigation.navigate('QuickSplit')}>Quick split</AppButton>
-        <AppButton icon="add-outline" variant="outline" style={styles.homeAction} onPress={() => navigation.navigate('CreateGroup')}>Create Group</AppButton>
+        <AppButton icon="add-outline" variant="outline" style={styles.homeAction} onPress={() => navigation.navigate('CreateGroup')}>Create group</AppButton>
       </View>
 
-      <Text style={styles.sectionTitle}>This Month</Text>
+      <Text style={styles.sectionTitle}>This month</Text>
       {dashboard?.monthly_spending.length ? dashboard.monthly_spending.map(item => (
         <Card key={item.group_id} style={styles.spendingRow}>
           <View style={styles.groupMain}>
@@ -140,20 +138,20 @@ export function HomeScreen({ navigation }: Props) {
         </Card>
       )) : <EmptyState label="No spending recorded this month." />}
 
-      <Text style={styles.sectionTitle}>Recent Expenses</Text>
+      <Text style={styles.sectionTitle}>Recent expenses</Text>
       {dashboard?.recent_expenses.length ? dashboard.recent_expenses.slice(0, 10).map(expense => (
         <Card key={expense.id}>
           <View style={styles.spendingRow}>
             <View style={styles.groupMain}>
               <Text style={styles.groupName}>{expense.description}</Text>
-              <Text style={styles.muted}>{expense.group_name} - {expense.category}</Text>
+              <Text style={styles.muted}>{expense.group_name} · {expense.category}</Text>
             </View>
             <Text style={styles.spendingAmount}>{money(expense.amount)}</Text>
           </View>
         </Card>
       )) : <EmptyState label="No recent expenses." />}
 
-      <Text style={styles.sectionTitle}>Spending Insights</Text>
+      <Text style={styles.sectionTitle}>Spending insights</Text>
       {insights.count ? (
         <>
           <View style={styles.statsGrid}>
@@ -177,31 +175,31 @@ export function HomeScreen({ navigation }: Props) {
             </View>
           </View>
           <Card style={styles.insightCard}>
-            <Text style={styles.cardTitle}>By Category</Text>
+            <Text style={styles.cardTitle}>By category</Text>
             <BarList rows={insights.category_totals.map(row => ({ label: row.category, total: row.total }))} format={money} emptyLabel="No categories yet." />
           </Card>
           <Card style={styles.insightCard}>
-            <Text style={styles.cardTitle}>By Group</Text>
+            <Text style={styles.cardTitle}>By group</Text>
             <BarList rows={(insights.group_totals || []).map(row => ({ label: row.name, total: row.total }))} format={money} emptyLabel="No group spending yet." />
           </Card>
           {insights.monthly_totals?.length ? (
             <Card style={styles.insightCard}>
-              <Text style={styles.cardTitle}>Monthly Trend</Text>
+              <Text style={styles.cardTitle}>Monthly trend</Text>
               <MonthBars rows={insights.monthly_totals} />
             </Card>
           ) : null}
           <Card style={styles.insightCard}>
-            <Text style={styles.cardTitle}>Paid By</Text>
+            <Text style={styles.cardTitle}>Paid by</Text>
             <BarList rows={insights.payer_totals.map(row => ({ label: row.name, total: row.total }))} format={money} emptyLabel="No payers yet." />
           </Card>
         </>
       ) : <EmptyState label="Add an expense to see spending insights." />}
 
-      <Text style={styles.sectionTitle}>Upcoming Reminders</Text>
+      <Text style={styles.sectionTitle}>Upcoming reminders</Text>
       {reminders.length ? reminders.slice(0, 5).map(task => (
         <Card key={task.id}>
           <Text style={styles.groupName}>{task.title}</Text>
-          <Text style={styles.muted}>{task.group_name} - {formatDateTime(task.reminder_time, 'No reminder')}</Text>
+          <Text style={styles.muted}>{task.group_name} · {formatDateTime(task.reminder_time, 'No reminder')}</Text>
         </Card>
       )) : <EmptyState label="No upcoming reminders. Task reminders will appear here." />}
     </Screen>
@@ -210,14 +208,14 @@ export function HomeScreen({ navigation }: Props) {
 
 /** One line of the summary card: a small icon, a label, and the value on the right. */
 function SummaryRow({ icon, label, value, color, chevron, last }: {
-  icon: keyof typeof Ionicons.glyphMap; label: string; value: string; color?: string; chevron?: boolean; last?: boolean;
+  icon: IconName; label: string; value: string; color?: string; chevron?: boolean; last?: boolean;
 }) {
   return (
     <View style={[styles.summaryRow, !last && styles.summaryDivider]}>
-      <View style={styles.summaryIcon}><Ionicons name={icon} size={16} color={colors.primary} /></View>
+      <View style={styles.summaryIcon}><Icon name={icon} size={16} color={colors.primary} /></View>
       <Text style={styles.summaryLabel}>{label}</Text>
       <Text style={[styles.summaryValue, color ? { color } : null]}>{value}</Text>
-      {chevron ? <Ionicons name="chevron-forward" size={16} color={colors.muted} /> : null}
+      {chevron ? <Icon name="chevron-forward" size={16} color={colors.muted} /> : null}
     </View>
   );
 }
@@ -229,16 +227,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.lg,
-    overflow: 'hidden'
-  },
-  heroShape: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    right: -90,
-    top: -40,
-    transform: [{ rotate: '45deg' }],
-    backgroundColor: 'rgba(255, 255, 255, 0.22)'
+    backgroundColor: colors.highlight
   },
   heroLabel: {
     ...typography.label,
@@ -246,8 +235,8 @@ const styles = StyleSheet.create({
   },
   heroAmount: {
     fontFamily: fonts.medium,
-    fontSize: 38,
-    lineHeight: 46,
+    fontSize: 36,
+    lineHeight: 40,
     color: colors.onHighlight
   },
   heroMeta: {
@@ -270,7 +259,7 @@ const styles = StyleSheet.create({
   summaryIcon: {
     width: 30,
     height: 30,
-    borderRadius: 9,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primarySoft

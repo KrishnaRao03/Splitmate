@@ -1,5 +1,5 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, IconName } from '@/components/Icon';
 
 import { BrandLogo } from '@/components/BrandMark';
 import { HeaderProfileButton } from '@/components/HeaderProfileButton';
@@ -13,7 +13,7 @@ import type { MainTabParamList } from '@/types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
+const ICONS: Record<keyof MainTabParamList, IconName> = {
   Home: 'home-outline',
   Split: 'cash-outline',
   Tasks: 'checkbox-outline',
@@ -33,7 +33,7 @@ export function TabNavigator() {
         tabBarActiveTintColor: accentColor,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-        tabBarIcon: ({ color, size }) => <Ionicons name={ICONS[route.name]} size={size} color={color} />
+        tabBarIcon: ({ color, size }) => <Icon name={ICONS[route.name]} size={size} color={color} />
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Splitmate', tabBarLabel: 'Home', headerTitle: () => <BrandLogo size={132} /> }} />
