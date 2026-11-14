@@ -370,19 +370,19 @@ def send_payment_recorded_email(receiver, payer, group, amount):
     link = app_url()
     return send_email(
         receiver.email,
-        f'{payer.name} says they paid you {amount_text}',
-        f'Hi {receiver.name},\n\n{payer.name} marked {amount_text} as paid to you in "{group.name}".\n'
-        f'Check your bank, then confirm or decline it in Splitmate: {link}\n'
-        'Balances only change once you confirm.\n',
+        f'{payer.name} says they sent you {amount_text}',
+        f'Hi {receiver.name},\n\n{payer.name} says they sent you {amount_text} for "{group.name}".\n'
+        f'Confirm it in Splitmate to settle up: {link}\n'
+        'Check the money arrived first. Balances only change once you confirm.\n',
         render_email(
-            f'{payer.name} says they paid you {amount_text}.',
-            'Payment waiting for your confirmation',
-            [f'{payer.name} marked a payment to you in "{group.name}".',
-             'Check that the money arrived in your account, then confirm it in Splitmate. '
-             'Balances only change once you confirm.'],
+            f'{payer.name} says they sent you {amount_text}.',
+            f'{payer.name} says they sent you {amount_text}',
+            ['Confirm it in Splitmate to settle up.',
+             f'Check the money arrived in your account first. The payment is for "{group.name}", '
+             'and balances only change once you confirm.'],
             highlight=amount_text,
-            details=[('From', payer.name), ('Group', group.name), ('Status', 'Waiting for you')],
-            button=('Confirm or decline', link),
+            details=[('From', payer.name), ('Group', group.name), ('Status', 'Waiting for you to confirm')],
+            button=('Confirm in Splitmate', link),
         ),
     )
 
@@ -390,23 +390,22 @@ def send_payment_recorded_email(receiver, payer, group, amount):
 def send_payment_confirmed_email(user, other_person, group, amount, paid_by_user):
     """Sent to both sides once the receiver confirms: the payment is done and the balance is settled."""
     amount_text = format_amount(amount, getattr(group, 'currency', None))
+    headline = f'{amount_text} received and settled'
     if paid_by_user:
-        subject = f'{other_person.name} confirmed your payment of {amount_text}'
-        line = f'{other_person.name} confirmed they received {amount_text} from you in "{group.name}".'
+        line = f'{other_person.name} confirmed they received your {amount_text} for "{group.name}".'
         counterpart = ('Paid to', other_person.name)
     else:
-        subject = f'You confirmed {amount_text} from {other_person.name}'
-        line = f'You confirmed receiving {amount_text} from {other_person.name} in "{group.name}".'
+        line = f'You confirmed receiving {amount_text} from {other_person.name} for "{group.name}".'
         counterpart = ('Paid by', other_person.name)
     return send_email(
         user.email,
-        subject,
-        f'Hi {user.name},\n\n{line}\nThe balance is updated and this payment is settled.\n\nView it in Splitmate: {app_url()}\n',
+        headline,
+        f'Hi {user.name},\n\n{headline}.\n{line}\nThe balance is updated.\n\nView it in Splitmate: {app_url()}\n',
         render_email(
-            subject + '.',
-            'Payment settled',
-            [line, 'The balance is updated in Splitmate and this payment is settled.'],
-            highlight=f'{amount_text} settled',
+            headline + '.',
+            headline,
+            [line, 'The balance is updated in Splitmate.'],
+            highlight=headline,
             details=[counterpart, ('Group', group.name), ('Status', 'Confirmed')],
             button=('View in Splitmate', app_url()),
         ),
