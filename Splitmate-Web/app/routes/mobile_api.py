@@ -1689,6 +1689,7 @@ def record_payment(group_id):
         return json_error(payment_error)
 
     db.session.commit()
+    split_routes.notify_payment_recorded(payment)
     # Balances only change once the receiver confirms the money arrived.
     return jsonify({'id': payment.id, 'recorded': True, 'status': payment.status}), 201
 
@@ -1710,6 +1711,7 @@ def confirm_payment(payment_id):
     if confirm_error:
         return json_error(confirm_error, 403 if 'Only' in confirm_error else 409)
     db.session.commit()
+    split_routes.notify_payment_confirmed(payment)
     return jsonify({'confirmed': True, 'status': payment.status})
 
 
@@ -1931,9 +1933,11 @@ def settle_split(split_id):
     if split.expense.paid_by_id != request.mobile_user.id:
         return json_error('Only the person who paid for this expense can mark it settled.', 403)
 
+    settled_amount = split.amount_owed
     split.is_settled = True
     split.amount_owed = 0.0
     db.session.commit()
+    split_routes.notify_split_settled(split, settled_amount)
     return jsonify({'settled': True})
 
 

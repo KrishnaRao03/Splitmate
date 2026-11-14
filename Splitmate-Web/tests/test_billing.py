@@ -122,6 +122,15 @@ class BillingTests(unittest.TestCase):
         self.send('customer.subscription.deleted', self.subscription(status='canceled'))
         self.assertEqual(self.rewards()['membership_plan'], 'free')
 
+    def test_turning_pro_on_sends_one_welcome_email(self):
+        with patch('app.email_utils.send_membership_confirmation_email') as welcome:
+            self.send('customer.subscription.created', self.subscription())
+            self.send('customer.subscription.updated', self.subscription())
+        self.assertEqual(welcome.call_count, 1)
+        user, plan_label = welcome.call_args.args
+        self.assertEqual(plan_label, 'Splitmate Pro')
+        self.assertIn('/ year', welcome.call_args.kwargs['amount_text'])
+
     def test_website_upgrade_redirects_to_stripe(self):
         self.client.post('/login', data={'email': 'buyer@example.com', 'password': 'Strong-pass-1'})
         with patch('stripe.Customer.create', return_value=SimpleNamespace(id='cus_1')), \

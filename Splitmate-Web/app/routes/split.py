@@ -273,6 +273,31 @@ def confirm_payment(payment, user):
     payment.status = 'recorded'
     return None
 
+def _send_quietly(send, *args):
+    """Payment emails are a courtesy: a failed send never undoes the payment."""
+    try:
+        send(*args)
+    except Exception as exc:
+        current_app.logger.exception('Failed to send payment email: %s', exc)
+
+def notify_payment_recorded(payment):
+    """Tell the person being paid that a payment is waiting for their confirmation."""
+    from app.email_utils import send_payment_recorded_email
+    _send_quietly(send_payment_recorded_email, payment.receiver, payment.payer, payment.group, payment.amount)
+
+def notify_payment_confirmed(payment):
+    """Both sides hear that the money arrived and the debt is settled."""
+    from app.email_utils import send_payment_confirmed_email
+    _send_quietly(send_payment_confirmed_email, payment.payer, payment.receiver, payment.group, payment.amount, True)
+    _send_quietly(send_payment_confirmed_email, payment.receiver, payment.payer, payment.group, payment.amount, False)
+
+def notify_split_settled(split, amount):
+    """The person who owed a share hears that the person they owed marked it settled."""
+    from app.email_utils import send_payment_confirmed_email
+    expense = split.expense
+    payer = db.session.get(User, expense.paid_by_id)
+    _send_quietly(send_payment_confirmed_email, split.user, payer, expense.group, amount, True)
+
 def decline_payment(payment, user):
     """Either side can withdraw a pending payment (the receiver didn't get it, or the payer made a mistake)."""
     if user.id not in (payment.receiver_id, payment.payer_id):
@@ -645,12 +670,13 @@ def record_payment():
         return redirect(url_for('split.index'))
 
     receiver = db.session.get(User, receiver_id) if receiver_id else None
-    _, error = request_payment(group, current_user, receiver, amount if amount else 0)
+    payment, error = request_payment(group, current_user, receiver, amount if amount else 0)
     if error:
         flash(error, 'error')
         return redirect(url_for('split.index'))
 
     db.session.commit()
+    notify_payment_recorded(payment)
     flash(f'Payment recorded. {receiver.name} needs to confirm it before your balance changes.', 'success')
     return redirect(url_for('split.index'))
 
@@ -669,6 +695,7 @@ def confirm_payment_view(payment_id):
         flash(error, 'error')
     else:
         db.session.commit()
+        notify_payment_confirmed(payment)
         flash('Payment confirmed and balances updated.', 'success')
     return redirect(url_for('split.index'))
 
@@ -693,9 +720,11 @@ def settle_split(split_id):
         flash('Only the person who paid for this expense can mark it settled.', 'error')
         return redirect(url_for('split.index'))
 
+    settled_amount = split.amount_owed
     split.is_settled = True
     split.amount_owed = 0.0
     db.session.commit()
+    notify_split_settled(split, settled_amount)
     flash('Marked as settled.', 'success')
     return redirect(url_for('split.index'))
 

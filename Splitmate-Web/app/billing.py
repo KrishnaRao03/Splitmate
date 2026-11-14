@@ -226,6 +226,7 @@ def handle_webhook(payload, signature):
     obj = (event.get('data') or {}).get('object') or {}
     kind = event.get('type')
 
+    newly_pro = None
     if kind == 'checkout.session.completed' and obj.get('mode') == 'subscription':
         user = _user_for(obj)
         if user and obj.get('customer'):
@@ -236,6 +237,26 @@ def handle_webhook(payload, signature):
         stale = (user is not None and user.stripe_subscription_id not in (None, obj.get('id'))
                  and is_pro(user) and obj.get('status') not in PRO_STATUSES)
         if user and not stale:
+            was_pro = is_pro(user)
             _apply_subscription(user, obj)
+            if is_pro(user) and not was_pro:
+                newly_pro = user
     db.session.commit()
+    if newly_pro:
+        _send_welcome_to_pro(newly_pro)
     return True, 'ok'
+
+
+def _send_welcome_to_pro(user):
+    """Confirmation email once Pro switches on. Best effort: Stripe has already taken the payment."""
+    from app.email_utils import send_membership_confirmation_email
+    interval = user.membership_interval or 'month'
+    try:
+        send_membership_confirmation_email(
+            user,
+            'Splitmate Pro',
+            renews_on=user.membership_renews_at.strftime('%b %d, %Y') if user.membership_renews_at else None,
+            amount_text=f'{price_label(interval)} / {interval}',
+        )
+    except Exception as exc:
+        current_app.logger.exception('Failed to send Pro welcome email: %s', exc)
