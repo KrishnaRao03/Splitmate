@@ -8,6 +8,7 @@ import { AddExpenseScreen } from '@/screens/AddExpenseScreen';
 import { QuickSplitScreen } from '@/screens/QuickSplitScreen';
 import { SplitRequestedScreen } from '@/screens/SplitRequestedScreen';
 import { AddTaskScreen } from '@/screens/AddTaskScreen';
+import { AddFriendScreen } from '@/screens/AddFriendScreen';
 import { AuthScreen } from '@/screens/AuthScreen';
 import { CreateGroupScreen } from '@/screens/CreateGroupScreen';
 import { GroupsScreen } from '@/screens/GroupsScreen';
@@ -53,6 +54,7 @@ export function AppNavigator() {
           <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Add expense', presentation: 'modal' }} />
           <Stack.Screen name="QuickSplit" component={QuickSplitScreen} options={{ title: 'Quick split', presentation: 'modal' }} />
           <Stack.Screen name="SplitRequested" component={SplitRequestedScreen} options={{ title: 'Money requested', headerBackVisible: false, headerLeft: () => null, gestureEnabled: false }} />
+          <Stack.Screen name="AddFriend" component={AddFriendScreen} options={{ title: 'Add friend' }} />
           <Stack.Screen name="AddTask" component={AddTaskScreen} options={{ title: 'Add task', presentation: 'modal' }} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
           <Stack.Screen name="GroupSettings" component={GroupSettingsScreen} options={({ route }) => ({ title: `${route.params.groupName} settings` })} />

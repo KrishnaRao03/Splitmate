@@ -84,7 +84,7 @@ export function ProfileScreen({ navigation }: Props) {
       return;
     }
     try {
-      await Share.share({ message: qr.payload, title: 'Splitmate contact' });
+      await Share.share({ message: `Add me on Splitmate: ${qr.payload}`, title: 'Add me on Splitmate' });
     } catch {
       // The share sheet was dismissed or is unavailable; nothing to undo.
     }
@@ -397,13 +397,13 @@ export function ProfileScreen({ navigation }: Props) {
 
       <Text style={styles.groupLabel}>Share</Text>
       <Card style={styles.list}>
-        {sectionRow('qr', 'qr-code-outline', 'Profile QR', 'Friends scan it to get your name and email')}
+        {sectionRow('qr', 'qr-code-outline', 'Profile QR', 'Friends scan it with their camera to add you')}
         {openSection === 'qr' ? (
           <View style={[styles.panel, styles.centered]}>
             {qr ? (
               <>
                 <QrCode rows={qr.rows} size={200} />
-                <AppButton icon="share-outline" variant="outline" onPress={shareContact}>Share contact card</AppButton>
+                <AppButton icon="share-outline" variant="outline" onPress={shareContact}>Share my add link</AppButton>
               </>
             ) : qrError ? (
               <AppButton icon="refresh-outline" variant="outline" onPress={loadQr}>Load QR code</AppButton>

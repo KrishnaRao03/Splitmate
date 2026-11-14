@@ -5,6 +5,7 @@ import type {
   Dashboard,
   DefaultSplit,
   Expense,
+  FriendPreview,
   ExpenseSearchResult,
   GroceryComparison,
   Group,
@@ -565,6 +566,11 @@ export class SplitmateApi {
 
   acceptInvite(inviteId: number) {
     return this.request<{ joined: boolean; message: string; group: Group }>(`/invites/${inviteId}/accept`, { method: 'POST' });
+  }
+
+  /** Who a scanned profile QR belongs to. */
+  friendPreview(code: string) {
+    return this.request<FriendPreview>(`/friends/preview?code=${encodeURIComponent(code)}`);
   }
 
   acceptInviteLink(link: string) {

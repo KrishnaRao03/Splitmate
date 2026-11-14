@@ -92,6 +92,10 @@ export function HomeScreen({ navigation }: Props) {
     } else if (membership === 'cancelled') {
       notify('Checkout cancelled', 'You were not charged.');
     }
+    const add = takeLaunchLink('add');
+    if (add) {
+      navigation.navigate('AddFriend', { code: add });
+    }
     const invite = takeLaunchLink('invite');
     if (invite) {
       api.acceptInviteLink(invite)

@@ -28,10 +28,10 @@ function contactError(value: string) {
 type Props = NativeStackScreenProps<RootStackParamList, 'QuickSplit'>;
 
 /** Split one bill equally with friends by email or phone, without making a group first. */
-export function QuickSplitScreen({ navigation }: Props) {
+export function QuickSplitScreen({ navigation, route }: Props) {
   const auth = useAuth();
   const [contact, setContact] = useState('');
-  const [contacts, setContacts] = useState<string[]>([]);
+  const [contacts, setContacts] = useState<string[]>(route.params?.contacts ?? []);
   const [description, setDescription] = useState('');
   const [amountText, setAmountText] = useState('');
   const [error, setError] = useState('');

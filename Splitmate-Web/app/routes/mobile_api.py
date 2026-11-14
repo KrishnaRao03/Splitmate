@@ -44,7 +44,7 @@ from app.routes.auth import (
     OTP_LOCKED_MESSAGE, complete_pending_registration, generate_password_reset_token, registered_account,
     send_user_otp, start_pending_registration,
 )
-from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload
+from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload, user_from_friend_code
 from app.receipt_scan import ReceiptScanError, scan_receipt_image
 from app.routes import split as split_routes
 from app.security import clean_payment_handles, csv_safe, display_name_error, is_safe_link, normalize_phone, password_error
@@ -709,6 +709,24 @@ def profile_qr():
     payload = profile_qr_payload(request.mobile_user)
     matrix = qr_rows(payload)
     return jsonify({'payload': payload, 'size': len(matrix), 'rows': matrix})
+
+
+@mobile_api_bp.route('/friends/preview')
+@mobile_login_required
+def friend_preview():
+    """Who a scanned profile QR belongs to, for the app's Add friend page."""
+    me = request.mobile_user
+    friend = user_from_friend_code(request.args.get('code'))
+    if not friend or getattr(friend, 'is_suspended', False):
+        return json_error('That QR code is not a Splitmate profile. Ask your friend to open Profile, then Profile QR.', 404)
+    shared = [group for group in me.groups.all() if friend in group.members]
+    return jsonify({
+        'id': friend.id,
+        'name': friend.name,
+        'email': friend.email,
+        'is_self': friend.id == me.id,
+        'shared_groups': [{'id': group.id, 'name': group.name} for group in shared],
+    })
 
 
 def qr_rows(text):

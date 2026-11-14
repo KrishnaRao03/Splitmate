@@ -8,6 +8,7 @@ from qrcode.image.svg import SvgPathImage
 
 from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, flash, redirect, send_from_directory, url_for
 from flask_login import login_required, current_user, login_user
+from itsdangerous import BadSignature, URLSafeSerializer
 from sqlalchemy import func, or_
 from app import db, limiter
 from app.regions import countries_payload, normalize_country, payment_fields_for
@@ -115,18 +116,25 @@ def vcard_escape(value):
     )
 
 
+FRIEND_CODE_SALT = 'splitmate-friend-qr'
+
+
+def friend_code(user):
+    """A signed, URL-safe code for someone's profile QR (no email or raw id in the link)."""
+    return URLSafeSerializer(current_app.config['SECRET_KEY'], salt=FRIEND_CODE_SALT).dumps(user.id)
+
+
+def user_from_friend_code(code):
+    try:
+        user_id = URLSafeSerializer(current_app.config['SECRET_KEY'], salt=FRIEND_CODE_SALT).loads(str(code or ''))
+    except BadSignature:
+        return None
+    return db.session.get(User, user_id) if isinstance(user_id, int) else None
+
+
 def profile_qr_payload(user):
-    profile_url = url_for('main.profile', _external=True)
-    return '\n'.join([
-        'BEGIN:VCARD',
-        'VERSION:3.0',
-        f'FN:{vcard_escape(user.name)}',
-        f'EMAIL:{vcard_escape(user.email)}',
-        'ORG:Splitmate',
-        f'URL:{vcard_escape(profile_url)}',
-        'NOTE:Splitmate profile contact',
-        'END:VCARD',
-    ])
+    """Scanning someone's profile QR with a phone camera opens the Splitmate app on an Add friend page."""
+    return app_url(f'/?add={friend_code(user)}')
 
 
 def invite_response(payload, status=200, redirect_target=None, category='success'):

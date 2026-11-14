@@ -647,15 +647,26 @@ class MobileApiParityTests(unittest.TestCase):
         # Newest first.
         self.assertEqual(rewards['recent_transactions'][0]['points'], 16)
 
-    def test_profile_qr_returns_contact_card_and_square_matrix(self):
+    def test_profile_qr_opens_the_app_on_add_friend(self):
         response = self.client.get('/api/mobile/me/qr', headers=self.headers)
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
-        self.assertIn('BEGIN:VCARD', data['payload'])
-        self.assertIn('EMAIL:admin@example.com', data['payload'])
+        self.assertTrue(data['payload'].startswith('https://splitmate-app.onrender.com/?add='))
+        self.assertNotIn('admin@example.com', data['payload'])
         self.assertEqual(len(data['rows']), data['size'])
         self.assertTrue(all(len(row) == data['size'] and set(row) <= {'0', '1'} for row in data['rows']))
         self.assertEqual(self.client.get('/api/mobile/me/qr').status_code, 401)
+
+        # The member scans the admin's code and sees who it is.
+        code = data['payload'].split('?add=')[1]
+        with self.app.app_context():
+            member_headers = {'Authorization': f'Bearer {mobile_token_for(db.session.get(User, self.member_id))}'}
+        preview = self.client.get(f'/api/mobile/friends/preview?code={code}', headers=member_headers).get_json()
+        self.assertEqual(preview['name'], 'Admin User')
+        self.assertFalse(preview['is_self'])
+        self.assertEqual([group['name'] for group in preview['shared_groups']], ['Parity Group'])
+        self.assertTrue(self.client.get(f'/api/mobile/friends/preview?code={code}', headers=self.headers).get_json()['is_self'])
+        self.assertEqual(self.client.get('/api/mobile/friends/preview?code=forged', headers=member_headers).status_code, 404)
 
     def test_invitee_can_list_and_accept_group_invites_in_app(self):
         with self.app.app_context():

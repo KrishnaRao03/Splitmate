@@ -358,6 +358,14 @@ export type MembershipPlan = {
   is_current: boolean;
 };
 
+export type FriendPreview = {
+  id: number;
+  name: string;
+  email: string;
+  is_self: boolean;
+  shared_groups: Array<{ id: number; name: string }>;
+};
+
 export type ProfileQr = {
   payload: string;
   size: number;
@@ -410,7 +418,10 @@ export type RootStackParamList = {
   Main: undefined;
   Groups: undefined;
   CreateGroup: undefined;
-  QuickSplit: undefined;
+  /** Optional people to start with, e.g. from Add friend. */
+  QuickSplit: { contacts?: string[] } | undefined;
+  /** Opened from a scanned profile QR (?add=<code>). */
+  AddFriend: { code: string };
   /** Confirmation after splitting a bill: who owes what, waiting on them to pay. */
   SplitRequested: { groupId: number; groupName: string; expense: Expense; currency?: string };
   GroupDetail: { groupId: number; groupName: string };

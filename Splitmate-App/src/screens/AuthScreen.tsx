@@ -159,7 +159,7 @@ export function AuthScreen() {
 
       <Card>
         <Text style={styles.cardTitle}>{loginTabActive ? 'Welcome back' : 'Create your account'}</Text>
-        {hasPendingInvite() ? <Text style={styles.notice}>Sign in or create an account with the invited email, and you'll join the group straight away.</Text> : null}
+        {hasPendingInvite() ? <Text style={styles.notice}>Sign in or create an account, and we'll take you straight to your invite.</Text> : null}
 
         <View style={styles.modeRow}>
           <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={[styles.modeButton, loginTabActive && styles.modeActive]}>
