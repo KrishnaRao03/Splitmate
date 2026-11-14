@@ -1,0 +1,670 @@
+{% extends "base.html" %}
+{% block title %}Split Expenses - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header page-header-action">
+    <div>
+        <h1>Split expenses</h1>
+        <p>Track and split expenses with your groups</p>
+    </div>
+    <div class="page-actions">
+        <button type="button" class="btn btn-text-action btn-sm" onclick="openModal('inviteSplitmateModal')">
+            Invite
+        </button>
+        <button type="button" class="btn btn-text-action btn-sm" id="inviteSelectedGroupBtn" hidden
+                onclick="openInviteMemberModal(this.dataset.groupId)">
+            Group invite
+        </button>
+        <button type="button" class="btn btn-primary btn-sm action-plus" onclick="openModal('createGroupModal')" aria-label="Create group" title="Create group">
+            <span aria-hidden="true">+</span>
+            <span class="action-plus-label">Group</span>
+        </button>
+    </div>
+</div>
+
+{% if groups %}
+<!-- Group List -->
+<div class="group-grid">
+    {% for group in groups %}
+    <div class="group-box" data-group-id="{{ group.id }}" onclick="selectGroup({{ group.id }})">
+        <h3>{{ group.name }}</h3>
+        <p>{{ group.members|length }} members</p>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="groupContent" style="display:none;">
+    <div class="split-primary-layout">
+        <div class="card split-add-card">
+            <div class="card-header">
+                <h2>Add expense</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('split.add_expense') }}" id="expenseForm" enctype="multipart/form-data">
+                    <input type="hidden" name="group_id" id="expenseGroupId" />
+
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" name="description" required placeholder="e.g., Dinner, Rent">
+                    </div>
+
+                    <div class="form-row-inline">
+                        <div class="form-group">
+                            <label>Amount (<span class="group-currency">{{ currency_code }}</span>)</label>
+                            <input type="number" name="amount" step="0.01" min="0.01" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select name="category" id="expenseCategory" class="form-select">
+                                {% for category in expense_categories %}
+                                    <option value="{{ category }}">{{ category }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row-inline">
+                        <div class="form-group">
+                            <label>Paid by</label>
+                            <select name="paid_by_id" id="expensePaidBySelect" class="form-select"></select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Split type</label>
+                            <select name="split_type" id="split_type" class="form-select">
+                                <option value="equal">Equal split</option>
+                                <option value="selected">Split with selected people</option>
+                                <option value="exact">Exact amount</option>
+                                <option value="percentage">By percentage</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Receipt (optional)</label>
+                        <input type="file" name="receipt" accept="image/*,.pdf">
+                    </div>
+
+                    <div id="splitOptions"></div>
+                    <button type="submit" class="btn btn-primary btn-full">Add expense</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card split-pay-card">
+            <div class="card-header"><h2>Pay</h2></div>
+            <div class="card-body">
+                <div class="payment-setup-panel">
+                    <span class="badge">Pay outside Splitmate</span>
+                    <p class="text-subtle">Send the money with Interac, PayPal or UPI, then record it here. The person you paid confirms it before balances change.</p>
+                </div>
+
+                <form method="POST" action="{{ url_for('split.record_payment') }}" id="manualPaymentForm">
+                    <input type="hidden" name="group_id" id="paymentGroupId">
+                    <div class="form-group">
+                        <label>Receiver</label>
+                        <select name="receiver_id" id="receiverSelect" class="form-select"
+                                onchange="updatePaymentAmount()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount (<span class="group-currency">{{ currency_code }}</span>)</label>
+                        <input type="number" step="0.01" min="0.01" name="amount"
+                               id="paymentAmount" required>
+                    </div>
+                    <div class="payment-methods" id="paymentMethods"></div>
+                    <div class="payment-actions">
+                        <button type="submit" class="btn btn-primary btn-full" id="recordPayButton">I've Paid &ndash; Ask Them to Confirm</button>
+                    </div>
+                    <p class="text-subtle payment-help" id="paymentHelp"></p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="split-secondary-layout">
+        <div class="card split-recent-card">
+            <div class="card-header">
+                <h2>Recent expenses</h2>
+                <form method="POST" id="clearForm">
+                    <button type="submit" class="btn btn-sm btn-outline">Clear recent history</button>
+                </form>
+            </div>
+            <div class="card-body">
+                <div id="expensesList" class="expenses-list"></div>
+            </div>
+        </div>
+
+        <div class="card expense-search-card">
+            <div class="card-header">
+                <h2>Expense search</h2>
+                <div class="card-actions">
+                    <span class="badge">History</span>
+                    <a href="#" class="btn btn-outline btn-sm" id="exportActivityCsvBtn">Export CSV</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <form id="expenseSearchForm" class="expense-search-form">
+                    <input type="text" id="expenseSearchQuery" placeholder="Search bills">
+                    <select id="expenseSearchCategory" class="form-select">
+                        <option value="all">All categories</option>
+                        {% for category in expense_categories %}
+                            <option value="{{ category }}">{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                    <select id="expenseSearchPayer" class="form-select"></select>
+                    <input type="date" id="expenseSearchFrom" aria-label="From date">
+                    <input type="date" id="expenseSearchTo" aria-label="To date">
+                    <input type="number" step="0.01" min="0" id="expenseSearchMin" placeholder="Min">
+                    <input type="number" step="0.01" min="0" id="expenseSearchMax" placeholder="Max">
+                    <button type="submit" class="btn btn-primary btn-sm">Search</button>
+                    <button type="button" class="btn btn-outline btn-sm" id="clearExpenseSearchBtn">Clear</button>
+                </form>
+                <p class="text-subtle expense-search-status" id="expenseSearchStatus"></p>
+                <div id="expenseSearchResults" class="expense-search-results"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Payment activity</h2>
+            <span class="badge">Splitmate ledger</span>
+        </div>
+        <div class="card-body">
+            <div id="paymentsList" class="payment-ledger-list"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2>Expense breakdown</h2></div>
+        <div class="card-body">
+            <div id="summaryList" class="summary-list"></div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="empty-state-full">
+    <p>No groups yet.</p>
+    <button type="button" class="btn btn-primary" onclick="openModal('createGroupModal')">
+        Create your first group
+    </button>
+</div>
+{% endif %}
+
+{% include "_create_group_modal.html" %}
+{% include "_invite_member_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const groups = {{ groups_json|tojson|safe }};
+    window.splitmateInviteGroupData = groups;
+    // Each group has its own currency; selectGroup() switches to it.
+    let currencyCode = {{ currency_code|tojson }};
+    const expenseCategories = {{ expense_categories|tojson }};
+    let currentGroupId = null;
+    let paymentOptions = [];
+    let selectedSplitMemberIds = new Set();
+    let splitValueDrafts = {};
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatMoney(amount) {
+        const value = Number(amount || 0);
+        return new Intl.NumberFormat(undefined, {
+            style: 'currency',
+            currency: currencyCode
+        }).format(value);
+    }
+
+    function selectedGroup() {
+        return groups.find(group => Number(group.id) === Number(currentGroupId));
+    }
+
+    function renderGroupMemberControls(group) {
+        const paidBySelect = document.getElementById('expensePaidBySelect');
+        const searchPayerSelect = document.getElementById('expenseSearchPayer');
+        if (!group) {
+            return;
+        }
+
+        const memberOptions = group.members.map(member => `
+            <option value="${member.id}">${escapeHtml(member.name)}</option>
+        `).join('');
+
+        paidBySelect.innerHTML = memberOptions;
+        const currentUserOption = group.members.find(member => Number(member.id) === Number(window.splitmateCurrentUserId));
+        paidBySelect.value = currentUserOption ? String(window.splitmateCurrentUserId) : String(group.members[0]?.id || '');
+
+        searchPayerSelect.innerHTML = `
+            <option value="">All payers</option>
+            ${memberOptions}
+        `;
+    }
+
+    async function fetchJson(url, options = {}) {
+        const response = await fetch(url, options);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.error || `Request failed: ${response.status}`);
+        }
+        return data;
+    }
+
+    function selectGroup(id) {
+        currentGroupId = id;
+        const group = selectedGroup();
+        currencyCode = (group && group.currency) || currencyCode;
+        document.querySelectorAll('.group-currency').forEach(label => { label.textContent = currencyCode; });
+        document.getElementById('groupContent').style.display = 'block';
+        document.querySelectorAll('.group-box').forEach(groupBox => {
+            groupBox.classList.toggle('selected', Number(groupBox.dataset.groupId) === Number(id));
+        });
+        updateSelectedGroupInviteButton(id);
+        document.getElementById('expenseGroupId').value = id;
+        document.getElementById('paymentGroupId').value = id;
+        renderGroupMemberControls(group);
+        const clearForm = document.getElementById('clearForm');
+        clearForm.action = `/split/clear_recent/${id}`;
+        clearForm.hidden = !group || Number(group.admin_id) !== Number(window.splitmateCurrentUserId);
+        document.getElementById('exportActivityCsvBtn').href = `/split/api/group/${id}/activity.csv`;
+        selectedSplitMemberIds = new Set((group ? group.members : []).map(member => String(member.id)));
+        splitValueDrafts = {};
+        document.getElementById('split_type').value = 'equal';
+        renderSplitOptions(false);
+        loadExpenses();
+        loadSummaries();
+        loadPaymentOptions();
+        loadPayments();
+        loadExpenseSearch();
+    }
+
+    async function loadExpenses() {
+        const data = await fetchJson(`/split/api/group/${currentGroupId}/expenses`);
+        const container = document.getElementById('expensesList');
+        if (!data.length) {
+            container.innerHTML = '<p class="empty-state">No expenses yet</p>';
+            return;
+        }
+        container.innerHTML = data.map(e => `
+            <div class="expense-item">
+                <div class="expense-info">
+                    <span class="expense-description">${escapeHtml(e.description)}</span>
+                    <span class="expense-meta">${formatMoney(e.amount)} by ${escapeHtml(e.paid_by)} &bull; ${escapeHtml(e.category || 'General')}</span>
+                    ${e.receipt_url && /^(https?:\/\/|\/(?!\/))/i.test(e.receipt_url) ? `<a class="receipt-link" href="${escapeHtml(e.receipt_url)}" target="_blank" rel="noopener">View receipt</a>` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function loadSummaries() {
+        const data = await fetchJson(`/split/api/group/${currentGroupId}/summaries`);
+        const container = document.getElementById('summaryList');
+        if (!data.length) {
+            container.innerHTML = '<p class="empty-state">No split records yet</p>';
+            return;
+        }
+        container.innerHTML = data.map(i => {
+            if (i.text) {
+                return `<div class="summary-item">${escapeHtml(i.text)}</div>`;
+            }
+            const isSettled = Boolean(i.is_settled || i.status === 'settled');
+            const routeLabel = isSettled ? 'settled with' : 'owes';
+            const amountLabel = isSettled
+                ? '<span class="breakdown-status-text">Settled</span>'
+                : `<span class="breakdown-amount">${formatMoney(i.amount_owed)}</span>`;
+
+            return `
+                <div class="summary-item breakdown-item ${isSettled ? 'settled' : ''}">
+                    <div class="breakdown-main">
+                        <div class="breakdown-route">
+                            <span class="breakdown-person">${escapeHtml(i.owed_by)}</span>
+                            <span class="breakdown-arrow">${routeLabel}</span>
+                            <span class="breakdown-person">${escapeHtml(i.payer)}</span>
+                        </div>
+                        ${amountLabel}
+                    </div>
+                    <div class="breakdown-meta">
+                        <span>${escapeHtml(i.expense)}</span>
+                        <span>${escapeHtml(i.date)}</span>
+                        <span class="badge ${isSettled ? 'badge-success' : ''}">${escapeHtml(i.status_label || (isSettled ? 'Settled' : 'Outstanding'))}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function loadPaymentOptions() {
+        const select = document.getElementById('receiverSelect');
+        const amount = document.getElementById('paymentAmount');
+        const recordButton = document.getElementById('recordPayButton');
+
+        paymentOptions = await fetchJson(`/split/api/group/${currentGroupId}/payment-options`);
+        if (!paymentOptions.length) {
+            select.innerHTML = '<option value="">No payments due</option>';
+            select.disabled = true;
+            amount.value = '';
+            amount.removeAttribute('max');
+            amount.disabled = true;
+            recordButton.disabled = true;
+            document.getElementById('paymentMethods').innerHTML = '';
+            document.getElementById('paymentHelp').textContent = '';
+            return;
+        }
+
+        select.disabled = false;
+        amount.disabled = false;
+        recordButton.disabled = false;
+        select.innerHTML = paymentOptions.map(option => `
+            <option value="${escapeHtml(option.receiver_id)}" data-amount="${escapeHtml(option.max_amount)}">
+                ${escapeHtml(option.receiver)} - ${formatMoney(option.owed)}
+            </option>
+        `).join('');
+        updatePaymentAmount();
+    }
+
+    // Interac emails are shown masked; Copy puts the full address on the clipboard for the bank app.
+    document.addEventListener('click', async event => {
+        const button = event.target.closest('[data-copy]');
+        if (!button) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(button.dataset.copy);
+            button.textContent = 'Copied';
+        } catch {
+            button.textContent = 'Copy failed';
+        }
+    });
+
+    function renderPaymentMethods(option) {
+        const container = document.getElementById('paymentMethods');
+        if (!option) {
+            container.innerHTML = '';
+            return;
+        }
+        const methods = option.payment_methods || [];
+        // Only http(s) links are rendered as links; upi:// opens a UPI app on phones.
+        container.innerHTML = methods.length ? methods.map(method => {
+            const safeUrl = method.url && /^(https:\/\/|upi:\/\/)/.test(method.url) ? method.url : '';
+            return `
+                <div class="payment-method-row">
+                    <strong>${escapeHtml(method.label)}</strong>
+                    <span class="text-subtle">${escapeHtml(method.masked || method.handle)}</span>
+                    ${method.type === 'interac' ? `<button type="button" class="btn btn-outline btn-sm" data-copy="${escapeHtml(method.handle)}">Copy</button>` : ''}
+                    ${safeUrl ? `<a class="btn btn-outline btn-sm" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener">Open</a>` : ''}
+                </div>
+            `;
+        }).join('') : `<p class="text-subtle">${escapeHtml(option.receiver)} hasn't added Interac, PayPal or UPI details yet. Pay them however you agreed.</p>`;
+    }
+
+    async function loadPayments() {
+        const data = await fetchJson(`/split/api/group/${currentGroupId}/payments`);
+        const container = document.getElementById('paymentsList');
+        if (!data.length) {
+            container.innerHTML = '<p class="empty-state">No payments yet</p>';
+            return;
+        }
+
+        container.innerHTML = data.map(payment => {
+            const statusClass = ['paid', 'recorded'].includes(payment.status) ? 'badge-success' : '';
+            const methodLabel = payment.method === 'stripe' ? 'Online' : 'Manual';
+            const dateLabel = payment.date ? new Date(payment.date).toLocaleString() : '';
+            const pointsLabel = payment.reward_points_awarded ? ` - +${payment.reward_points_awarded} points` : '';
+            const paymentId = Number(payment.id);
+            const confirmForm = payment.can_confirm ? `
+                <form method="POST" action="/split/payments/${paymentId}/confirm" class="inline-form">
+                    <button type="submit" class="btn btn-primary btn-sm">Confirm received</button>
+                </form>` : '';
+            const declineForm = payment.can_decline ? `
+                <form method="POST" action="/split/payments/${paymentId}/decline" class="inline-form">
+                    <button type="submit" class="btn btn-outline btn-sm">${payment.can_confirm ? 'Not received' : 'Cancel'}</button>
+                </form>` : '';
+
+            return `
+                <div class="payment-ledger-item">
+                    <div class="payment-ledger-main">
+                        <div>
+                            <span class="payment-ledger-route">${escapeHtml(payment.payer)} paid ${escapeHtml(payment.receiver)}</span>
+                            <span class="payment-ledger-meta">${escapeHtml(methodLabel)}${dateLabel ? ` &bull; ${escapeHtml(dateLabel)}` : ''}${escapeHtml(pointsLabel)}</span>
+                        </div>
+                        <span class="payment-ledger-amount">${formatMoney(payment.amount)}</span>
+                    </div>
+                    <span class="badge ${statusClass}">${escapeHtml(payment.status_label)}</span>
+                    ${confirmForm}${declineForm}
+                </div>
+            `;
+        }).join('');
+    }
+
+    function searchParamsFromForm() {
+        const params = new URLSearchParams();
+        const fields = [
+            ['q', 'expenseSearchQuery'],
+            ['category', 'expenseSearchCategory'],
+            ['paid_by_id', 'expenseSearchPayer'],
+            ['date_from', 'expenseSearchFrom'],
+            ['date_to', 'expenseSearchTo'],
+            ['min_amount', 'expenseSearchMin'],
+            ['max_amount', 'expenseSearchMax']
+        ];
+
+        fields.forEach(([name, id]) => {
+            const value = (document.getElementById(id)?.value || '').trim();
+            if (value && !(name === 'category' && value === 'all')) {
+                params.set(name, value);
+            }
+        });
+
+        return params;
+    }
+
+    async function loadExpenseSearch() {
+        const resultsEl = document.getElementById('expenseSearchResults');
+        const statusEl = document.getElementById('expenseSearchStatus');
+        if (!currentGroupId) {
+            return;
+        }
+
+        statusEl.textContent = 'Loading history...';
+        try {
+            const params = searchParamsFromForm();
+            const query = params.toString();
+            const data = await fetchJson(`/split/api/group/${currentGroupId}/expense-search${query ? `?${query}` : ''}`);
+
+            statusEl.textContent = data.length ? `${data.length} record${data.length === 1 ? '' : 's'} found` : 'No matching expenses';
+            resultsEl.innerHTML = data.length ? data.map(item => {
+                const dateLabel = item.date ? new Date(item.date).toLocaleDateString() : '';
+                return `
+                    <div class="expense-search-item">
+                        <div>
+                            <strong>${escapeHtml(item.description)}</strong>
+                            <span>${escapeHtml(item.category || 'General')} &bull; ${escapeHtml(item.paid_by || '')}${dateLabel ? ` &bull; ${escapeHtml(dateLabel)}` : ''}</span>
+                        </div>
+                        <b>${formatMoney(item.amount)}</b>
+                    </div>
+                `;
+            }).join('') : '<p class="empty-state">No expenses found</p>';
+        } catch (error) {
+            statusEl.textContent = error.message;
+            resultsEl.innerHTML = '';
+        }
+    }
+
+    function updatePaymentAmount() {
+        const select = document.getElementById('receiverSelect');
+        const amount = document.getElementById('paymentAmount');
+        const selected = select.options[select.selectedIndex];
+        const owed = selected ? Number(selected.dataset.amount || 0) : 0;
+        const option = selected ? paymentOptions.find(item => String(item.receiver_id) === selected.value) : null;
+        const help = document.getElementById('paymentHelp');
+
+        amount.max = owed.toFixed(2);
+        amount.value = owed ? owed.toFixed(2) : '';
+        document.getElementById('recordPayButton').disabled = !owed;
+        renderPaymentMethods(option);
+        help.textContent = option && option.pending_amount
+            ? `${formatMoney(option.pending_amount)} is already waiting for ${option.receiver} to confirm.`
+            : '';
+    }
+
+    function renderSplitOptions(captureExisting = true) {
+        if (captureExisting) {
+            captureSplitInputValues();
+        }
+        const splitType = document.getElementById('split_type').value;
+        const container = document.getElementById('splitOptions');
+        const group = selectedGroup();
+
+        if (!group) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const isSelectedSplit = splitType === 'selected';
+        const effectiveSplitType = isSelectedSplit ? 'equal' : splitType;
+        const fieldPrefix = effectiveSplitType === 'percentage' ? 'percent' : 'amount';
+        const suffix = effectiveSplitType === 'percentage' ? '%' : currencyCode;
+        const selectedMembers = group.members.filter(member => selectedSplitMemberIds.has(String(member.id)));
+        const splitInputMembers = isSelectedSplit ? selectedMembers : group.members;
+
+        if (effectiveSplitType === 'equal' && !isSelectedSplit) {
+            container.innerHTML = `
+                <p class="split-helper-text split-type-note">
+                    The amount will be divided equally between all ${group.members.length} group ${group.members.length === 1 ? 'member' : 'members'}.
+                </p>
+            `;
+            return;
+        }
+
+        const splitInputRows = effectiveSplitType === 'equal'
+            ? `<p class="split-helper-text">The amount will be divided equally between ${selectedMembers.length} selected ${selectedMembers.length === 1 ? 'person' : 'people'}.</p>`
+            : `
+                <div class="split-inputs">
+                    ${splitInputMembers.map(member => {
+                        const inputName = `${fieldPrefix}_${member.id}`;
+                        return `
+                            <div class="split-input-row">
+                                <label for="${inputName}">${escapeHtml(member.name)}</label>
+                                <input type="number" step="0.01" min="0"
+                                       id="${inputName}"
+                                       name="${inputName}"
+                                       data-split-value="1"
+                                       value="${escapeHtml(splitValueDrafts[inputName] || '')}"
+                                       placeholder="${suffix}">
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
+        if (!isSelectedSplit) {
+            container.innerHTML = splitInputRows;
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="split-with-panel">
+                <div class="split-with-header">
+                    <div>
+                        <label>Split with</label>
+                        <p>${selectedMembers.length} of ${group.members.length} selected</p>
+                    </div>
+                    <div class="split-with-actions">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="selectEverySplitMember()">Select all</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="clearSplitMembers()">Clear</button>
+                    </div>
+                </div>
+                <div class="split-member-grid">
+                    ${group.members.map(member => `
+                        <label class="split-member-check ${selectedSplitMemberIds.has(String(member.id)) ? 'selected' : ''}">
+                            <input type="checkbox"
+                                   name="split_user_ids"
+                                   value="${member.id}"
+                                   ${selectedSplitMemberIds.has(String(member.id)) ? 'checked' : ''}
+                                   onchange="toggleSplitMember('${member.id}', this.checked)">
+                            <span>${escapeHtml(member.name)}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                ${selectedMembers.length ? splitInputRows : '<p class="empty-state">Choose at least one person to split with.</p>'}
+            </div>
+        `;
+    }
+
+    function captureSplitInputValues() {
+        document.querySelectorAll('#splitOptions input[data-split-value]').forEach(input => {
+            splitValueDrafts[input.name] = input.value;
+        });
+    }
+
+    function toggleSplitMember(memberId, checked) {
+        captureSplitInputValues();
+        if (checked) {
+            selectedSplitMemberIds.add(String(memberId));
+        } else {
+            selectedSplitMemberIds.delete(String(memberId));
+        }
+        renderSplitOptions();
+    }
+
+    function selectEverySplitMember() {
+        const group = selectedGroup();
+        if (!group) {
+            return;
+        }
+        captureSplitInputValues();
+        selectedSplitMemberIds = new Set(group.members.map(member => String(member.id)));
+        renderSplitOptions();
+    }
+
+    function clearSplitMembers() {
+        captureSplitInputValues();
+        selectedSplitMemberIds = new Set();
+        renderSplitOptions();
+    }
+
+    const expenseForm = document.getElementById('expenseForm');
+    if (expenseForm) {
+        expenseForm.addEventListener('submit', event => {
+            const splitType = document.getElementById('split_type').value;
+            const checkedMembers = document.querySelectorAll('input[name="split_user_ids"]:checked');
+            if (splitType === 'selected' && !checkedMembers.length) {
+                event.preventDefault();
+                alert('Choose at least one person in Split with.');
+            }
+        });
+    }
+
+    const splitTypeSelect = document.getElementById('split_type');
+    if (splitTypeSelect) {
+        splitTypeSelect.addEventListener('change', renderSplitOptions);
+    }
+
+    const expenseSearchForm = document.getElementById('expenseSearchForm');
+    if (expenseSearchForm) {
+        expenseSearchForm.addEventListener('submit', event => {
+            event.preventDefault();
+            loadExpenseSearch();
+        });
+    }
+
+    const clearExpenseSearchBtn = document.getElementById('clearExpenseSearchBtn');
+    if (clearExpenseSearchBtn) {
+        clearExpenseSearchBtn.addEventListener('click', () => {
+            expenseSearchForm.reset();
+            loadExpenseSearch();
+        });
+    }
+
+</script>
+
+{% endblock %}

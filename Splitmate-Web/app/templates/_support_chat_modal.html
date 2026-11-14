@@ -1,0 +1,14 @@
+<div id="supportChatModal" class="modal support-chat-modal">
+    <div class="modal-content support-chat-content">
+        <div class="modal-header">
+            <h2>Splitmate help</h2>
+            <button class="modal-close" type="button" onclick="closeModal('supportChatModal')">&times;</button>
+        </div>
+        <div class="support-chat-log" id="supportChatLog" aria-live="polite"></div>
+        <form class="support-chat-form" id="supportChatForm">
+            <input type="text" id="supportChatInput" autocomplete="off"
+                   placeholder="Tell me what is not working..." aria-label="Support message">
+            <button type="submit" class="btn btn-primary btn-sm">Send</button>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} - Splitmate{% endblock %}
+
+{% macro legal_body() %}
+<div class="legal-page">
+    <div class="page-header">
+        <h1>{{ page_title }}</h1>
+        <p>Last updated August 6, 2026</p>
+    </div>
+
+    {% if legal_kind == 'privacy' %}
+    <section class="card">
+        <div class="card-body legal-content">
+            <h2>What Splitmate stores</h2>
+            <p>Splitmate stores your account details, groups, expenses, payments, notes, tasks, device notification tokens, rewards balance, and settings needed to run the app.</p>
+
+            <h2>Payments</h2>
+            <p>Splitmate never collects or holds money. Members pay each other directly with services such as Interac e-Transfer, PayPal or UPI; Splitmate stores the payment details you choose to share (your Interac email, PayPal.Me username or UPI ID) and a record of each payment, which the person paid confirms.</p>
+
+            <h2>Grocery prices</h2>
+            <p>Grocery comparison may use retailer or grocery price APIs. Notes are used only to identify grocery-list items when price comparison is requested.</p>
+
+            <h2>Ads and analytics</h2>
+            <p>Splitmate may show ads in the free app and may use app analytics to understand performance, crashes, and usage patterns.</p>
+
+            <h2>Your data</h2>
+            <p>You can export account data from Profile & Settings. Account deletion support must be completed before public app-store launch.</p>
+        </div>
+    </section>
+    {% else %}
+    <section class="card">
+        <div class="card-body legal-content">
+            <h2>Use of Splitmate</h2>
+            <p>Splitmate helps groups track shared expenses, tasks, notes, payments, grocery comparisons, rewards, and memberships.</p>
+
+            <h2>Payments and rewards</h2>
+            <p>Earning Splitmate Points is paused. Points you already have are kept. Rewards, gift cards, and cash redemption may require identity, fraud, and provider checks.</p>
+
+            <h2>Membership</h2>
+            <p>Premium membership benefits depend on the active plan shown in the app. Mobile app subscriptions must be connected through approved app-store billing before public launch.</p>
+
+            <h2>Ads</h2>
+            <p>The free version may include ads. Premium plans may reduce or remove ads depending on the final plan.</p>
+
+            <h2>Accuracy</h2>
+            <p>Expense balances and grocery prices should be reviewed before payment or purchase. Retail prices can change and may vary by location.</p>
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+{{ legal_body() }}
+{% endblock %}
+
+{% block auth_content %}
+{{ legal_body() }}
+{% endblock %}

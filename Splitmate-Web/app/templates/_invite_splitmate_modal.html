@@ -1,0 +1,32 @@
+<div id="inviteSplitmateModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Invite to Splitmate</h2>
+            <button class="modal-close" type="button" onclick="closeModal('inviteSplitmateModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('main.invite_splitmate') }}" id="inviteSplitmateForm">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="form-group">
+                <label for="splitmateInviteEmail">Email</label>
+                <input type="email" id="splitmateInviteEmail" name="email" required maxlength="120"
+                       placeholder="friend@example.com" autocomplete="email">
+                <small>They will get a link to create a Splitmate account.</small>
+            </div>
+            <div id="splitmateInviteResult" class="invite-result" hidden>
+                <div>
+                    <strong id="splitmateInviteResultTitle">Invite link ready</strong>
+                    <p id="splitmateInviteResultText"></p>
+                </div>
+                <div class="invite-link-row">
+                    <input type="text" id="splitmateInviteLink" readonly>
+                    <button type="button" class="btn btn-sm btn-outline" id="copySplitmateInviteLinkBtn">Copy</button>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline"
+                        onclick="closeModal('inviteSplitmateModal')">Close</button>
+                <button type="submit" class="btn btn-primary" id="sendSplitmateInviteBtn">Send invite</button>
+            </div>
+        </form>
+    </div>
+</div>

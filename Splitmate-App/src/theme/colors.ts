@@ -1,32 +1,151 @@
 export const colors = {
-  ink: '#062033',
-  text: '#14324a',
-  muted: '#66788a',
-  primary: '#0e7aa6',
-  primaryDark: '#0b5e86',
-  primarySoft: '#e5f5fa',
-  accent: '#1fb6a6',
-  success: '#1e9c6e',
-  danger: '#d92d5c',
-  warning: '#f0a11f',
-  bg: '#f6f9fb',
+  ink: '#1f2023',
+  text: '#1f2023',
+  secondary: '#4a4d55',
+  muted: '#8b8f98',
+  primary: '#2b2d31',
+  primaryDark: '#1f2023',
+  primaryStrong: '#1f2023',
+  primarySoft: '#fff6d6',
+  primaryFocus: 'rgba(43, 45, 49, 0.14)',
+  primaryBorder: 'rgba(43, 45, 49, 0.22)',
+  accent: '#2b2d31',
+  accentSoft: '#fff6d6',
+  // Teal: money owed to you and settled amounts, the second colour of the logo.
+  success: '#0d9488',
+  successSoft: '#ccfbf1',
+  danger: '#e11d48',
+  dangerDark: '#be123c',
+  dangerSoft: '#fff1f3',
+  warning: '#d97706',
+  warningSoft: '#fffbeb',
+  bg: '#f7f7f5',
   surface: '#ffffff',
-  surfaceBlue: '#eef7fb',
-  border: '#d8e4ec',
-  input: '#f8fbfd',
-  white: '#ffffff'
+  surfaceGlass: 'rgba(255, 255, 255, 0.92)',
+  surfaceBlue: '#f1f1ef',
+  surfaceAlt: '#f1f1ef',
+  hoverSurface: '#f1f1ef',
+  border: '#ececea',
+  borderStrong: '#dcdcd8',
+  input: '#ffffff',
+  placeholder: '#b9bcc2',
+  pageTint: '#fff9e6',
+  white: '#ffffff',
+  // Sunshine yellow for main buttons and the balance card, with graphite text on it.
+  highlight: '#ffc83d',
+  onHighlight: '#1f2023',
+  // Text and icons drawn on a primary-coloured fill.
+  onPrimary: '#ffffff'
 };
 
+export type ThemeMode = 'system' | 'light' | 'dark';
+export type AccentKey = 'indigo' | 'blue' | 'green' | 'rose';
+
+/** color/dark/soft are the light-mode shades; night/nightLight are used in dark mode. */
+export const ACCENT_PRESETS: Record<AccentKey, { label: string; color: string; dark: string; soft: string; night: string; nightLight: string }> = {
+  indigo: { label: 'Sunshine', color: '#2b2d31', dark: '#1f2023', soft: '#fff6d6', night: '#ffc83d', nightLight: '#ffe08a' },
+  blue: { label: 'Blue', color: '#2563eb', dark: '#1d4ed8', soft: '#eff6ff', night: '#3b82f6', nightLight: '#93c5fd' },
+  green: { label: 'Green', color: '#16a34a', dark: '#15803d', soft: '#f0fdf4', night: '#22c55e', nightLight: '#86efac' },
+  rose: { label: 'Rose', color: '#e11d48', dark: '#be123c', soft: '#fff1f3', night: '#f43f5e', nightLight: '#fda4af' }
+};
+
+const darkNeutrals: Partial<typeof colors> = {
+  ink: '#f4f4f2',
+  text: '#ececea',
+  secondary: '#c4c6cb',
+  muted: '#8b8f98',
+  success: '#2dd4bf',
+  successSoft: 'rgba(45, 212, 191, 0.16)',
+  danger: '#fb7185',
+  dangerDark: '#f43f5e',
+  dangerSoft: 'rgba(251, 113, 133, 0.16)',
+  warning: '#f59e0b',
+  warningSoft: 'rgba(245, 158, 11, 0.16)',
+  bg: '#181818',
+  surface: '#1F1F1F',
+  surfaceGlass: 'rgba(31, 31, 31, 0.94)',
+  surfaceBlue: '#272727',
+  surfaceAlt: '#272727',
+  hoverSurface: '#272727',
+  border: '#272727',
+  borderStrong: '#313131',
+  input: '#181818',
+  placeholder: '#6b6f78',
+  pageTint: '#1F1F1F'
+};
+
+let activeScheme: 'light' | 'dark' = 'light';
+
+/** The scheme applied at startup (screens read `colors` once, when they load). */
+export function activeColorScheme() {
+  return activeScheme;
+}
+
+/**
+ * Rewrites the shared `colors` object in place. Screens build their StyleSheets
+ * from `colors` when their module loads, so this must run before App is imported
+ * (see src/theme/bootstrap.ts); later changes apply on the next app start.
+ */
+export function applyTheme(scheme: 'light' | 'dark', accent: AccentKey) {
+  const preset = ACCENT_PRESETS[accent] || ACCENT_PRESETS.indigo;
+  activeScheme = scheme;
+  if (scheme === 'dark') {
+    Object.assign(colors, darkNeutrals, {
+      primary: preset.night,
+      primaryDark: preset.nightLight,
+      primaryStrong: preset.nightLight,
+      primarySoft: hexToRgba(preset.night, 0.18),
+      primaryFocus: hexToRgba(preset.night, 0.24),
+      primaryBorder: hexToRgba(preset.night, 0.4),
+      accent: preset.night,
+      accentSoft: hexToRgba(preset.night, 0.18),
+      onPrimary: accent === 'indigo' ? '#1f2023' : '#ffffff'
+    });
+    return;
+  }
+  Object.assign(colors, {
+    primary: preset.color,
+    primaryDark: preset.dark,
+    primaryStrong: preset.dark,
+    primarySoft: preset.soft,
+    primaryFocus: hexToRgba(preset.color, 0.14),
+    primaryBorder: hexToRgba(preset.color, 0.22),
+    accent: preset.color,
+    accentSoft: preset.soft,
+    onPrimary: '#ffffff'
+  });
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const value = hex.replace('#', '');
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export const spacing = {
-  xs: 6,
-  sm: 10,
-  md: 16,
-  lg: 22,
-  xl: 30
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32
 };
 
 export const radius = {
   sm: 8,
   md: 12,
-  lg: 18
+  lg: 16,
+  pill: 999
 };
+
+export const fonts = {
+  regular: 'Manrope_400Regular',
+  medium: 'Manrope_500Medium',
+  semiBold: 'Manrope_600SemiBold',
+  bold: 'Manrope_700Bold',
+  // The design guide caps weight at bold, so the heaviest style is bold too.
+  extraBold: 'Manrope_700Bold'
+};
+

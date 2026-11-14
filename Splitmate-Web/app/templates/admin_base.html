@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+        (function () {
+            var token = document.querySelector('meta[name="csrf-token"]').content;
+            document.addEventListener('submit', function (event) {
+                var form = event.target;
+                if ((form.method || '').toLowerCase() !== 'post' || form.querySelector('input[name="csrf_token"]')) {
+                    return;
+                }
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'csrf_token';
+                input.value = token;
+                form.appendChild(input);
+            }, true);
+            var nativeFetch = window.fetch.bind(window);
+            window.fetch = function (resource, options) {
+                options = options || {};
+                var method = (options.method || 'GET').toUpperCase();
+                var url = new URL(typeof resource === 'string' ? resource : resource.url, window.location.href);
+                if (method !== 'GET' && method !== 'HEAD' && url.origin === window.location.origin) {
+                    var headers = new Headers(options.headers || {});
+                    headers.set('X-CSRFToken', token);
+                    options = Object.assign({}, options, { headers: headers });
+                }
+                return nativeFetch(resource, options);
+            };
+        })();
+    </script>
+    <title>{% block title %}Splitmate Admin{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/splitmate-logo-mark.png') }}?v=20261114b">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='images/splitmate-logo-mark.png') }}?v=20261114b">
+    <script>
+        (function () {
+            try {
+                var savedTheme = localStorage.getItem('splitmate-theme');
+                var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.dataset.theme = savedTheme || (prefersDark ? 'dark' : 'light');
+            } catch (error) {
+                document.documentElement.dataset.theme = 'light';
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261114b">
+</head>
+<body>
+<div class="admin-shell">
+    <header class="admin-topbar">
+        <a class="admin-brand" href="{{ url_for('admin.dashboard') if admin_user else url_for('admin.login') }}">
+            <img class="logo-mark" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114b" alt="Splitmate">
+            <span>
+                <strong>Admin</strong>
+                <small>Operations dashboard</small>
+            </span>
+        </a>
+        <div class="admin-topbar-actions">
+            <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch theme" title="Switch theme">
+                <span class="theme-toggle-icon theme-toggle-light" aria-hidden="true"></span>
+                <span class="theme-toggle-icon theme-toggle-dark" aria-hidden="true"></span>
+            </button>
+            {% if admin_user %}
+            <span class="admin-session-user">{{ admin_user.email }}</span>
+            <form method="POST" action="{{ url_for('admin.logout') }}" class="inline-form">
+                <button type="submit" class="btn btn-outline btn-sm">Admin logout</button>
+            </form>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="{% if admin_user %}admin-layout{% else %}admin-layout-public{% endif %}">
+        {% if admin_user %}
+        <aside class="admin-sidebar" aria-label="Admin navigation">
+            <nav class="admin-nav">
+                <a class="admin-nav-link {% if active_admin_page == 'dashboard' %}active{% endif %}" href="{{ url_for('admin.dashboard') }}">
+                    <span class="admin-nav-icon">O</span>
+                    <span>
+                        <strong>Overview</strong>
+                        <small>Growth and totals</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'users' %}active{% endif %}" href="{{ url_for('admin.users') }}">
+                    <span class="admin-nav-icon">U</span>
+                    <span>
+                        <strong>Users</strong>
+                        <small>Tables and segments</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'emails' %}active{% endif %}" href="{{ url_for('admin.emails') }}">
+                    <span class="admin-nav-icon">E</span>
+                    <span>
+                        <strong>Email reminders</strong>
+                        <small>Inactive user outreach</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'groups' %}active{% endif %}" href="{{ url_for('admin.groups') }}">
+                    <span class="admin-nav-icon">G</span>
+                    <span>
+                        <strong>Groups</strong>
+                        <small>Members, spending, invites</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'activity' %}active{% endif %}" href="{{ url_for('admin.activity') }}">
+                    <span class="admin-nav-icon">$</span>
+                    <span>
+                        <strong>Activity</strong>
+                        <small>Expenses and payments</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'audit' %}active{% endif %}" href="{{ url_for('admin.audit_log') }}">
+                    <span class="admin-nav-icon">L</span>
+                    <span>
+                        <strong>Audit log</strong>
+                        <small>Every admin action</small>
+                    </span>
+                </a>
+                <a class="admin-nav-link {% if active_admin_page == 'system' %}active{% endif %}" href="{{ url_for('admin.system') }}">
+                    <span class="admin-nav-icon">S</span>
+                    <span>
+                        <strong>System</strong>
+                        <small>Health and settings</small>
+                    </span>
+                </a>
+            </nav>
+            <div class="admin-sidebar-footer">
+                <a href="{{ url_for('main.home') }}" class="btn btn-outline btn-sm btn-full">Open Splitmate</a>
+            </div>
+        </aside>
+        {% endif %}
+
+        <main class="admin-main">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash-message flash-{{ category }}">
+                    {{ message }}
+                    <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script>
+    (function () {
+        var toggle = document.getElementById('themeToggle');
+        if (!toggle) {
+            return;
+        }
+
+        function updateTheme(theme) {
+            document.documentElement.dataset.theme = theme;
+            toggle.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+            toggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+
+            try {
+                localStorage.setItem('splitmate-theme', theme);
+            } catch (error) {
+                return;
+            }
+        }
+
+        updateTheme(document.documentElement.dataset.theme || 'light');
+
+        toggle.addEventListener('click', function () {
+            updateTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+        });
+    })();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

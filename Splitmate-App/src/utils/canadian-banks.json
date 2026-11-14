@@ -1,0 +1,9 @@
+[
+  { "id": "rbc", "name": "RBC", "androidPackage": "com.rbc.mobile.android", "website": "https://www.rbcroyalbank.com" },
+  { "id": "td", "name": "TD", "androidPackage": "com.td", "website": "https://www.td.com/ca/en/personal-banking" },
+  { "id": "scotiabank", "name": "Scotiabank", "androidPackage": "com.scotiabank.banking", "website": "https://www.scotiabank.com" },
+  { "id": "bmo", "name": "BMO", "androidPackage": "com.bmo.mobile", "website": "https://www.bmo.com" },
+  { "id": "cibc", "name": "CIBC", "androidPackage": "com.cibc.android.mobi", "website": "https://www.cibc.com" },
+  { "id": "tangerine", "name": "Tangerine", "androidPackage": "ca.tangerine.clients.banking.app", "website": "https://www.tangerine.ca" },
+  { "id": "desjardins", "name": "Desjardins", "androidPackage": "com.desjardins.mobile", "website": "https://www.desjardins.com" }
+]

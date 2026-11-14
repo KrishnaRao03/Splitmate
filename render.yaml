@@ -1,0 +1,82 @@
+# Render Blueprint: deploys the Flask backend (Splitmate-Web) with a PostgreSQL database,
+# plus a web build of the Expo app (Splitmate-App) that runs in a phone browser.
+# In Render: New > Blueprint > pick this repo. Fill in the "sync: false" values when asked.
+services:
+  - type: web
+    name: splitmate-web
+    autoDeploy: true
+    runtime: python
+    rootDir: Splitmate-Web
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 1 --threads 4 --timeout 60 --bind 0.0.0.0:$PORT run:app
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.7
+      - key: DATABASE_URL
+        fromDatabase:
+          name: splitmate-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FIELD_ENCRYPTION_KEY_SEED
+        generateValue: true
+      - key: SECURE_COOKIES
+        value: "true"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      # Render's free plan blocks SMTP, so email goes through Brevo's HTTPS API when this is set.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      # Splitmate Pro through Stripe. Start with test keys (sk_test_...); prices are in cents.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: PRO_PRICE_MONTHLY_CENTS
+        value: "299"
+      - key: PRO_PRICE_YEARLY_CENTS
+        value: "2499"
+      # The web build of the app (splitmate-app below) calls the API from the browser.
+      # If Render gives the static site a different address, update this value.
+      - key: MOBILE_API_CORS_ORIGINS
+        value: https://splitmate-app.onrender.com
+
+  # Web build of the Expo app, for using Splitmate in a phone browser (Safari: Share > Add to Home Screen).
+  - type: web
+    name: splitmate-app
+    autoDeploy: true
+    runtime: static
+    buildCommand: cd Splitmate-App && npm ci && npx expo export --platform web
+    staticPublishPath: Splitmate-App/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    # The iPhone home-screen app otherwise keeps showing an old build. Bundles have hashed names,
+    # so asking the browser to re-check costs little.
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Public backend address, inlined into the app at build time.
+      # If Render gives the backend a different address, update this and redeploy.
+      - key: EXPO_PUBLIC_SPLITMATE_API_URL
+        value: https://splitmate-web.onrender.com/api/mobile
+
+databases:
+  - name: splitmate-db
+    databaseName: splitmate
+    plan: free

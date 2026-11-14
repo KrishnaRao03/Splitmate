@@ -1,49 +1,79 @@
-import { ReactNode } from 'react';
-import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import { ReactNode, useState } from 'react';
+import { Platform, StyleSheet, TextInput, TextInputProps, View } from 'react-native';
 
-import { colors, radius, spacing } from '@/theme/colors';
+import { AppText as Text } from '@/components/AppText';
+import { colors, fonts, radius, spacing } from '@/theme/colors';
+import { typography } from '@/theme/typography';
 
 type Props = TextInputProps & {
   label: string;
   error?: string;
   right?: ReactNode;
+  /** Overrides the border colour, e.g. to show password strength. */
+  borderColor?: string;
+  /** Shown under the field, above any error. */
+  footer?: ReactNode;
 };
 
-export function TextField({ label, error, right, style, ...props }: Props) {
+export function TextField({ label, error, right, borderColor, footer, style, onFocus, onBlur, ...props }: Props) {
+  const [focused, setFocused] = useState(false);
+
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputWrap, Boolean(error) && styles.invalid]}>
+      <View
+        style={[
+          styles.inputWrap,
+          focused && styles.focused,
+          Boolean(error) && styles.invalid,
+          borderColor ? { borderColor } : null
+        ]}
+      >
         <TextInput
-          placeholderTextColor="#8aa0af"
-          style={[styles.input, style]}
+          placeholderTextColor={colors.placeholder}
+          style={[styles.input, Platform.OS === 'web' && WEB_NO_OUTLINE, style]}
+          onFocus={(event) => {
+            setFocused(true);
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
+          }}
           {...props}
         />
         {right}
       </View>
+      {footer}
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 }
 
+// The coloured border already shows focus; the browser's own black focus box would sit inside it.
+const WEB_NO_OUTLINE = { outlineStyle: 'none' } as unknown as TextInputProps['style'];
+
 const styles = StyleSheet.create({
   wrap: {
-    gap: 7
+    gap: spacing.sm
   },
   label: {
     color: colors.ink,
-    fontSize: 13,
-    fontWeight: '800'
+    ...typography.label
   },
   inputWrap: {
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.input,
     paddingHorizontal: spacing.sm
+  },
+  focused: {
+    borderColor: colors.primary
   },
   invalid: {
     borderColor: colors.danger
@@ -51,12 +81,14 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: colors.text,
-    fontSize: 15,
-    paddingVertical: 11
+    fontSize: 16,
+    lineHeight: 24,
+    fontFamily: fonts.regular,
+    fontWeight: 'normal',
+    paddingVertical: spacing.md
   },
   error: {
     color: colors.danger,
-    fontSize: 12,
-    fontWeight: '700'
+    ...typography.caption
   }
 });

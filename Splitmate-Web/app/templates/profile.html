@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block title %}Profile - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Profile & settings</h1>
+    <p>Account details and app preferences</p>
+</div>
+
+<div class="profile-page-grid">
+    <section class="card profile-identity-card">
+        <div class="card-body">
+            <div class="profile-hero">
+                <div class="profile-avatar-lg">{{ current_user.name[0].upper() }}</div>
+                <div class="profile-hero-details">
+                    <span class="profile-hero-name">{{ current_user.name }}</span>
+                    <span class="profile-hero-email">{{ current_user.email }}</span>
+                    <span class="profile-status {% if current_user.is_email_verified %}is-verified{% else %}is-pending{% endif %}">
+                        {% if current_user.is_email_verified %}Verified{% else %}Pending verification{% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="profile-details profile-details-panel">
+                <div class="profile-detail">
+                    <span class="profile-detail-label">Name</span>
+                    <span class="profile-detail-value">{{ current_user.name }}</span>
+                </div>
+                <div class="profile-detail">
+                    <span class="profile-detail-label">Email</span>
+                    <span class="profile-detail-value">{{ current_user.email }}</span>
+                </div>
+                <div class="profile-detail">
+                    <span class="profile-detail-label">Joined</span>
+                    <span class="profile-detail-value">
+                        {% if current_user.created_at %}
+                        {{ current_user.created_at.strftime('%b %d, %Y') }}
+                        {% else %}
+                        Not available
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="profile-qr-panel">
+                <div>
+                    <h2>Profile qr</h2>
+                    <p>Scan to share your Splitmate contact.</p>
+                </div>
+                <div class="profile-qr-frame">
+                    <img src="{{ url_for('main.profile_qr') }}" alt="QR code for {{ current_user.name }} profile">
+                </div>
+                <a class="btn btn-outline btn-sm btn-full"
+                   href="{{ url_for('main.profile_qr') }}"
+                   download="splitmate-profile-qr.svg">
+                    Download qr
+                </a>
+            </div>
+
+            <div class="rewards-panel">
+                <div class="rewards-head">
+                    <div>
+                        <h2>Splitmate points</h2>
+                        <p>Earning points is paused. Points you already have are kept.</p>
+                    </div>
+                    <span class="rewards-balance">{{ reward_progress.balance }}</span>
+                </div>
+                <div class="rewards-progress" aria-label="Reward progress">
+                    <span style="width: {{ reward_progress.percent }}%"></span>
+                </div>
+                <div class="rewards-progress-meta">
+                    {% if reward_progress.redeemable %}
+                    <span>Reward available</span>
+                    {% else %}
+                    <span>{{ reward_progress.remaining }} points to {{ reward_progress.tier.label }}</span>
+                    {% endif %}
+                    <strong>{{ reward_progress.target }} pts</strong>
+                </div>
+
+                <div class="reward-tier-list">
+                    {% for tier in reward_tiers %}
+                    <div class="reward-tier {% if reward_progress.balance >= tier.points %}is-unlocked{% endif %}">
+                        <span>{{ tier.points }} pts</span>
+                        <strong>{{ tier.label }}</strong>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if recent_reward_transactions %}
+                <div class="reward-history">
+                    {% for transaction in recent_reward_transactions %}
+                    <div class="reward-history-row">
+                        <span>+{{ transaction.points }} points</span>
+                        <small>{{ transaction.created_at.strftime('%b %d') }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <div class="profile-form-stack">
+        <section class="card" id="membership-panel">
+            <div class="card-header">
+                <h2>Membership</h2>
+                <span class="badge">{{ 'Pro' if membership.membership_plan == 'pro' else 'Free' }}</span>
+            </div>
+            <div class="card-body">
+                {% if request.args.get('membership') == 'success' %}
+                <p class="text-subtle">Thanks! Your payment went through. Pro switches on within a minute; refresh if it still says Free.</p>
+                {% elif request.args.get('membership') == 'cancelled' %}
+                <p class="text-subtle">Checkout cancelled. You were not charged.</p>
+                {% endif %}
+                {% if membership.membership_plan == 'pro' %}
+                <p class="text-subtle">
+                    Splitmate Pro, billed {{ 'yearly' if membership.membership_interval == 'year' else 'monthly' }}.
+                    {% if membership.membership_renews_at %}{{ 'Ends' if membership.membership_cancel_at_period_end else 'Renews' }} on {{ membership.membership_renews_at[:10] }}.{% endif %}
+                    {% if membership.membership_status == 'past_due' %}Your last payment failed; update your card to keep Pro.{% endif %}
+                </p>
+                <form method="POST" action="{{ url_for('billing.portal') }}">
+                    <button type="submit" class="btn btn-outline btn-sm">Manage subscription</button>
+                </form>
+                {% endif %}
+                {% if membership.membership_plan != 'pro' %}
+                <p class="text-subtle">
+                    Left this month: {{ membership.usage.receipt_scan.remaining }} of {{ membership.usage.receipt_scan.limit }} receipt scans,
+                    {{ membership.usage.grocery_compare.remaining }} of {{ membership.usage.grocery_compare.limit }} grocery price comparisons.
+                </p>
+                {% endif %}
+                <div class="membership-plan-grid">
+                    {% for plan in membership.membership_plans %}
+                    <div class="membership-plan {% if plan.is_current %}is-current{% endif %}">
+                        <div class="membership-plan-head">
+                            <div>
+                                <span class="membership-plan-name">{{ plan.name }}</span>
+                                <span class="membership-plan-badge">{{ plan.badge }}</span>
+                            </div>
+                            <div class="membership-price">
+                                <strong>{{ plan.price }}</strong>
+                                <span>{{ plan.interval }}</span>
+                            </div>
+                        </div>
+                        <ul class="membership-features">
+                            {% for feature in plan.features %}
+                            <li>{{ feature }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% if plan.is_current %}
+                        <button type="button" class="btn btn-outline btn-sm btn-full" disabled>Current plan</button>
+                        {% elif plan.checkout_interval and membership.membership_plan != 'pro' %}
+                        <form method="POST" action="{{ url_for('billing.checkout') }}">
+                            <input type="hidden" name="interval" value="{{ plan.checkout_interval }}">
+                            <button type="submit" class="btn btn-primary btn-sm btn-full" {% if not membership.billing_enabled %}disabled{% endif %}>
+                                {{ 'Upgrade' if membership.billing_enabled else 'Coming soon' }}
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <p class="text-subtle">Payments are handled by Stripe. Splitmate never sees your card number. Cancel any time from Manage subscription.</p>
+            </div>
+        </section>
+
+        <section class="card" id="settings-panel">
+            <div class="card-header">
+                <h2>Settings</h2>
+            </div>
+            <div class="card-body">
+                <div class="settings-list">
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Theme</span>
+                            <span class="settings-meta" id="themeSettingValue">Light</span>
+                        </div>
+                        <button class="theme-toggle settings-theme-toggle" id="themeToggle" type="button" aria-label="Switch theme" title="Switch theme">
+                            <span class="theme-toggle-icon theme-toggle-light" aria-hidden="true"></span>
+                            <span class="theme-toggle-icon theme-toggle-dark" aria-hidden="true"></span>
+                        </button>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Task notifications</span>
+                            <span class="settings-meta" data-notification-status>Off</span>
+                        </div>
+                        <label class="switch-control" for="notificationToggle">
+                            <input type="checkbox" id="notificationToggle" data-notification-toggle>
+                            <span class="switch-slider" aria-hidden="true"></span>
+                            <span class="sr-only">Task notifications</span>
+                        </label>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Browser permission</span>
+                            <span class="settings-meta" data-notification-permission-status>Not requested</span>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" data-notification-permission>
+                            Allow
+                        </button>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Help chat</span>
+                            <span class="settings-meta">Get quick help when something feels stuck</span>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="openModal('supportChatModal')">
+                            Open
+                        </button>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Account data</span>
+                            <span class="settings-meta">Export profile, groups, expenses, notes, tasks, and rewards</span>
+                        </div>
+                        <a class="btn btn-outline btn-sm" href="{{ url_for('main.export_profile_data') }}">
+                            Download
+                        </a>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Privacy policy</span>
+                            <span class="settings-meta">Data, payments, grocery prices, ads, and analytics</span>
+                        </div>
+                        <a class="btn btn-outline btn-sm" href="{{ url_for('main.privacy_policy') }}">
+                            View
+                        </a>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">Terms</span>
+                            <span class="settings-meta">Payments, rewards, memberships, and app usage</span>
+                        </div>
+                        <a class="btn btn-outline btn-sm" href="{{ url_for('main.terms') }}">
+                            View
+                        </a>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">App version</span>
+                            <span class="settings-meta">MVP 0.1</span>
+                        </div>
+                        <span class="badge">Launch prep</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Edit details</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="profile-form">
+                    <input type="hidden" name="form_type" value="details">
+
+                    <div class="form-group">
+                        <label for="profileName">Full name</label>
+                        <input type="text" id="profileName" name="name" required
+                               value="{{ current_user.name }}" autocomplete="name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileEmail">Email</label>
+                        <input type="email" id="profileEmail" name="email" required
+                               maxlength="120" value="{{ current_user.email }}" autocomplete="email">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileCountry">Country</label>
+                        <select id="profileCountry" name="country">
+                            {% for country in countries %}
+                            <option value="{{ country.code }}" {% if country.code == current_user.country %}selected{% endif %}>{{ country.name }} ({{ country.currency }})</option>
+                            {% endfor %}
+                        </select>
+                        <small>Sets your currency and which payment apps you can add. Changing it needs your current password.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileEmailPassword">Current password <span class="text-subtle">(needed to change your email or payment details)</span></label>
+                        <input type="password" id="profileEmailPassword" name="current_password"
+                               autocomplete="current-password">
+                    </div>
+
+                    <h3>How people can pay you</h3>
+                    <p class="text-subtle">Shown to members who owe you money. Splitmate never handles the money itself. Changes need your current password and we email you about them.</p>
+                    {% if 'interac_email' in payment_fields %}
+                    <div class="form-group">
+                        <label for="profileInterac">Interac e-Transfer email</label>
+                        <input type="email" id="profileInterac" name="interac_email" maxlength="120"
+                               value="{{ current_user.interac_email or '' }}">
+                    </div>
+                    {% if current_user.interac_email %}
+                    <p class="text-subtle">{% if current_user.interac_email_verified %}Verified: {{ current_user.interac_email }}{% else %}Not verified yet, so hidden from others: {{ current_user.interac_email }}{% endif %}</p>
+                    {% endif %}
+                    {% endif %}
+                    <div class="form-group">
+                        <label for="profilePaypal">PayPal.Me username</label>
+                        <input type="text" id="profilePaypal" name="paypal_username" maxlength="40"
+                               value="{{ current_user.paypal_username or '' }}">
+                    </div>
+                    {% if 'upi_id' in payment_fields %}
+                    <div class="form-group">
+                        <label for="profileUpi">UPI ID</label>
+                        <input type="text" id="profileUpi" name="upi_id" maxlength="120" placeholder="name@bank"
+                               value="{{ current_user.upi_id or '' }}">
+                    </div>
+                    {% endif %}
+
+                    <button type="submit" class="btn btn-primary">Save details</button>
+                </form>
+                {% if current_user.pending_interac_email %}
+                <h3>Confirm your new Interac email</h3>
+                <p class="text-subtle">Enter the code we sent to {{ current_user.pending_interac_email }}. Others keep seeing your old Interac email until you do.</p>
+                <form method="POST" class="profile-form">
+                    <input type="hidden" name="form_type" value="interac_verify">
+                    <div class="form-group">
+                        <label for="interacOtp">6-digit code</label>
+                        <input type="text" id="interacOtp" name="otp" inputmode="numeric" maxlength="6" required autocomplete="one-time-code">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Confirm Interac email</button>
+                </form>
+                <form method="POST" class="profile-form">
+                    <input type="hidden" name="form_type" value="interac_resend">
+                    <button type="submit" class="btn btn-outline">Resend code</button>
+                </form>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Change password</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="profile-form">
+                    <input type="hidden" name="form_type" value="password">
+
+                    <div class="form-group">
+                        <label for="currentPassword">Current password</label>
+                        <input type="password" id="currentPassword" name="current_password" required
+                               autocomplete="current-password">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="newPassword">New password</label>
+                            <input type="password" id="newPassword" name="new_password" required
+                                   minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character (like ! @ # $)." autocomplete="new-password">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirm password</label>
+                            <input type="password" id="confirmPassword" name="confirm_password" required
+                                   minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters with an uppercase letter, a lowercase letter, a number and a special character (like ! @ # $)." autocomplete="new-password">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-outline">Update password</button>
+                </form>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

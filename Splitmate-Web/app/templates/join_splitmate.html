@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block auth_content %}
+<div class="auth-container">
+    <div class="auth-card invite-auth-card">
+        <div class="auth-header">
+            <div class="auth-logo"><img class="logo-mark logo-mark-auth" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114b" alt="Splitmate"></div>
+            <h1>Join Splitmate</h1>
+            <p>Track shared expenses, notes, and tasks with your group.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="invite-landing-panel">
+            <span class="badge badge-success">Splitmate invite</span>
+            <p>Create an account to start sharing expenses and group work in one place.</p>
+        </div>
+
+        <div class="invite-auth-actions">
+            <a class="btn btn-primary btn-full" href="{{ register_url }}">Create account</a>
+            <a class="btn btn-outline btn-full" href="{{ login_url }}">Sign in</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

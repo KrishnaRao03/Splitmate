@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <p>Welcome back, {{ current_user.name }}!</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card stat-positive">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7"/></svg></div>
+        <div class="stat-content">
+            <span class="stat-label">You're Owed</span>
+            <span class="stat-value">{{ total_owed_to_user|money }}</span>
+        </div>
+    </div>
+    <div class="stat-card stat-negative">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+        <div class="stat-content">
+            <span class="stat-label">You owe</span>
+            <span class="stat-value">{{ total_user_owes|money }}</span>
+        </div>
+    </div>
+    <a class="stat-card stat-card-link" href="#spending-insights">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 4.5a3.5 3.5 0 010 7M21.5 20a6.5 6.5 0 00-4-6"/></svg></div>
+        <div class="stat-content">
+            <span class="stat-label">Groups</span>
+            <span class="stat-value">{{ groups|length }}</span>
+        </div>
+    </a>
+</div>
+
+<div class="content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2>Monthly spending</h2>
+            <span class="badge">This month</span>
+        </div>
+        <div class="card-body">
+            {% if monthly_spending %}
+            <div class="spending-list">
+                {% for group_name, amount in monthly_spending.items() %}
+                <div class="spending-item">
+                    <span class="spending-group">{{ group_name }}</span>
+                    <span class="spending-amount">{{ amount|money }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">No spending this month</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Recent activity</h2>
+        </div>
+        <div class="card-body">
+            {% if recent_expenses %}
+            <div class="activity-list">
+                {% for expense in recent_expenses %}
+                <div class="activity-item">
+                    <div class="activity-icon">{{ currency_symbol }}</div>
+                    <div class="activity-content">
+                        <span class="activity-title">{{ expense.description }}</span>
+                        <span class="activity-meta">
+                                {{ expense.added_by.name }} &bull; {{ expense.group.name }}
+                            </span>
+                    </div>
+                    <span class="activity-amount">{{ expense.amount|money }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state">No recent activity</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card spending-insights-card" id="spending-insights">
+    <div class="card-header">
+        <h2>Spending insights</h2>
+        <span class="badge">{{ spending_insights.count }} expenses</span>
+    </div>
+    <div class="card-body">
+        <div class="analytics-stats">
+            <div class="analytics-stat">
+                <span>Total</span>
+                <strong>{{ spending_insights.total|money }}</strong>
+            </div>
+            <div class="analytics-stat">
+                <span>Top category</span>
+                <strong>{{ spending_insights.top_category }}</strong>
+            </div>
+            <div class="analytics-stat">
+                <span>Average expense</span>
+                <strong>{{ spending_insights.average|money }}</strong>
+            </div>
+        </div>
+
+        {% if spending_insights.count %}
+        <div class="analytics-grid">
+            <section class="analytics-panel">
+                <h3>By category</h3>
+                <div class="splitmate-bar-chart">
+                    {% for row in spending_insights.category_totals %}
+                    <div class="bar-row">
+                        <div class="bar-row-label">
+                            <span>{{ row.category }}</span>
+                            <strong>{{ row.total|money }}</strong>
+                        </div>
+                        <div class="bar-track"><span style="width: {{ row.percent }}%"></span></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="analytics-panel">
+                <h3>Monthly trend</h3>
+                <div class="splitmate-column-chart">
+                    {% for row in spending_insights.monthly_totals %}
+                    <div class="column-row">
+                        <div class="column-track"><span style="height: {{ row.percent }}%"></span></div>
+                        <strong>{{ row.label }}</strong>
+                        <small>{{ row.total|money }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            {% if spending_insights.group_totals|length > 1 %}
+            <section class="analytics-panel">
+                <h3>By group</h3>
+                <div class="splitmate-bar-chart">
+                    {% for row in spending_insights.group_totals %}
+                    <div class="bar-row">
+                        <div class="bar-row-label">
+                            <span>{{ row.name }}</span>
+                            <strong>{{ row.total|money }}</strong>
+                        </div>
+                        <div class="bar-track"><span style="width: {{ row.percent }}%"></span></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            <section class="analytics-panel">
+                <h3>Paid by</h3>
+                <div class="splitmate-bar-chart">
+                    {% for row in spending_insights.payer_totals %}
+                    <div class="bar-row">
+                        <div class="bar-row-label">
+                            <span>{{ row.name }}</span>
+                            <strong>{{ row.total|money }}</strong>
+                        </div>
+                        <div class="bar-track"><span style="width: {{ row.percent }}%"></span></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+        {% else %}
+        <p class="empty-state">No spending insights yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Your groups</h2>
+        <div class="page-actions">
+            <button type="button" class="btn btn-text-action btn-sm" onclick="openModal('inviteSplitmateModal')">
+                Invite
+            </button>
+            <button class="btn btn-primary btn-sm action-plus" onclick="openModal('createGroupModal')" aria-label="Create group" title="Create group">
+                <span aria-hidden="true">+</span>
+                <span class="action-plus-label">Group</span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if groups %}
+        <div class="groups-grid">
+            {% for group in groups %}
+            <div class="group-card">
+                <div class="group-header">
+                    <h3>{{ group.name }}</h3>
+                    {% if group.admin_id == current_user.id %}
+                    <span class="badge badge-admin">Admin</span>
+                    {% endif %}
+                </div>
+                <div class="group-members">
+                    <span class="members-count">{{ group.members|length }} members</span>
+                    <div class="members-avatars">
+                        {% for member in group.members[:4] %}
+                        <div class="mini-avatar" title="{{ member.name }}">
+                            {{ member.name[0].upper() }}
+                        </div>
+                        {% endfor %}
+                        {% if group.members|length > 4 %}
+                        <div class="mini-avatar more">+{{ group.members|length - 4 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if group.admin_id == current_user.id %}
+                <div class="group-actions">
+                    <button class="btn btn-sm btn-outline"
+                            type="button"
+                            onclick="openInviteMemberModal({{ group.id }})">
+                        Invite
+                    </button>
+                    {% set g_json = groups_json | selectattr('id', 'equalto', group.id) | first %}
+                    <button class="btn btn-sm btn-outline js-manage-members"
+                            type="button"
+                            data-group-id="{{ g_json.id }}">
+                        Manage
+                    </button>
+
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>You're not part of any groups yet.</p>
+            <button class="btn btn-primary" onclick="openModal('createGroupModal')">
+                Create your first group
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Group Modal -->
+<div id="createGroupModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Create new group</h2>
+            <button class="modal-close" onclick="closeModal('createGroupModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('main.create_group') }}">
+            <div class="form-group">
+                <label for="groupName">Group name</label>
+                <input type="text" id="groupName" name="name" required
+                       placeholder="e.g., Apartment 4B, Trip to Paris">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline"
+                        onclick="closeModal('createGroupModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create group</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% include "_invite_member_modal.html" %}
+
+<!-- Manage Members Modal -->
+<div id="manageMembersModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Manage <span id="manageMembersGroupName"></span></h2>
+            <button class="modal-close" onclick="closeModal('manageMembersModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="membersList" class="members-list"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const homeGroups = {{ groups_json|tojson|safe }};
+    window.splitmateInviteGroupData = homeGroups;
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function findHomeGroup(groupId) {
+        return homeGroups.find(group => Number(group.id) === Number(groupId));
+    }
+
+    function openManageMembersModal(groupId) {
+        const group = findHomeGroup(groupId);
+        if (!group) return;
+
+        document.getElementById('manageMembersGroupName').textContent = group.name;
+        const membersList = document.getElementById('membersList');
+
+        const memberRows = group.members.map(member => {
+            const isAdmin = Number(member.id) === Number(group.admin_id);
+            const adminBadge = '<span class="badge badge-admin">Admin</span>';
+            const fullName = member.full_name || member.name;
+            const nicknameForm = `
+                <form method="POST" action="/group/${group.id}/members/${member.id}/nickname" class="nickname-form">
+                    <label for="nickname_${group.id}_${member.id}">Nickname</label>
+                    <div class="nickname-form-row">
+                        <input type="text"
+                               id="nickname_${group.id}_${member.id}"
+                               name="nickname"
+                               value="${escapeHtml(member.nickname || member.name)}"
+                               placeholder="${escapeHtml(fullName)}">
+                        <button type="submit" class="btn btn-xs btn-outline">Save</button>
+                    </div>
+                </form>
+            `;
+            const removeForm = `
+                <form method="POST" action="/group/${group.id}/members/${member.id}/remove">
+                    <button type="submit" class="btn btn-xs btn-ghost">Remove</button>
+                </form>
+            `;
+
+            return `
+                <div class="member-item member-item-manage">
+                    <div class="member-info">
+                        <div class="member-avatar">${escapeHtml(member.name.charAt(0).toUpperCase())}</div>
+                        <div class="member-details">
+                            <span class="member-name">${escapeHtml(member.name)}</span>
+                            <span class="member-email">${escapeHtml(fullName)}</span>
+                            <span class="member-email">${escapeHtml(member.email)}</span>
+                        </div>
+                    </div>
+                    <div class="member-manage-actions">
+                        ${nicknameForm}
+                        ${isAdmin ? adminBadge : removeForm}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const pendingInvites = group.pending_invites || [];
+        const inviteRows = pendingInvites.length
+            ? `
+                <div class="pending-invites">
+                    <h3>Pending invites</h3>
+                    ${pendingInvites.map(invite => `
+                        <div class="pending-invite-item">
+                            <div>
+                                <strong>${escapeHtml(invite.email)}</strong>
+                                <span>Expires ${new Date(invite.expires_at).toLocaleDateString()}</span>
+                            </div>
+                            <form method="POST" action="/group/${group.id}/invites/${invite.id}/revoke">
+                                <input type="hidden" name="next" value="/">
+                                <button type="submit" class="btn btn-xs btn-ghost">Revoke</button>
+                            </form>
+                        </div>
+                    `).join('')}
+                </div>
+            `
+            : '';
+
+        membersList.innerHTML = memberRows + inviteRows;
+
+        openModal('manageMembersModal');
+    }
+
+    document.querySelectorAll('.js-manage-members').forEach(button => {
+        button.addEventListener('click', () => openManageMembersModal(button.dataset.groupId));
+    });
+</script>
+{% endblock %}
+
+{% block scripts %}{% endblock %}

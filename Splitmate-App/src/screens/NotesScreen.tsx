@@ -1,0 +1,441 @@
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Icon } from '@/components/Icon';
+
+import { api } from '@/api/client';
+import { AppButton } from '@/components/AppButton';
+import { UpgradePrompt, isLimitReached } from '@/components/UpgradePrompt';
+import { AppText as Text } from '@/components/AppText';
+import { Card } from '@/components/Card';
+import { ChoiceChips } from '@/components/ChoiceChips';
+import { GroceryComparisonView } from '@/components/GroceryComparisonView';
+import { Screen } from '@/components/Screen';
+import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { TextField } from '@/components/TextField';
+import { colors, radius, spacing } from '@/theme/colors';
+import { typography } from '@/theme/typography';
+import type { GroceryComparison, Group, Note, RootStackParamList } from '@/types';
+import { currentPositionText, getGroceryLocation, setGroceryLocation } from '@/utils/groceryLocation';
+import { notify, useUndo } from '@/state/UndoToast';
+
+export function NotesScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [comparisons, setComparisons] = useState<Record<number, GroceryComparison>>({});
+  // Notes deleted in the last few seconds stay hidden while their Undo toast is showing.
+  const [removed, setRemoved] = useState<number[]>([]);
+  const showUndo = useUndo();
+  const [priceItems, setPriceItems] = useState('');
+  const [limitMessage, setLimitMessage] = useState('');
+  const [noteLimit, setNoteLimit] = useState<{ noteId: number; message: string } | null>(null);
+  const [priceResult, setPriceResult] = useState<GroceryComparison | null>(null);
+  const [priceLocation, setPriceLocation] = useState(getGroceryLocation);
+  const [locating, setLocating] = useState(false);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState('');
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [newGroupId, setNewGroupId] = useState<number | null>(null);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [savingNew, setSavingNew] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const hasLoaded = useRef(false);
+  const [search, setSearch] = useState('');
+  const [groupFilter, setGroupFilter] = useState<number | 'all'>('all');
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const [data, groupData] = await Promise.all([api.allNotes(), api.groups()]);
+      setNotes(data);
+      setGroups(groupData);
+      hasLoaded.current = true;
+      setLoadError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Try again.';
+      setLoadError(message);
+      if (hasLoaded.current) {
+        notify('Could not refresh Notes', message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
+  useFocusEffect(useCallback(() => {
+    load();
+  }, [load]));
+
+  async function runAction(action: () => Promise<unknown>, title: string) {
+    try {
+      await action();
+      await load();
+    } catch (error) {
+      notify(title, error instanceof Error ? error.message : 'Try again.');
+      // Undo any optimistic change by showing what the server really has.
+      load().catch(() => undefined);
+    }
+  }
+
+  async function addNote() {
+    const groupId = newGroupId ?? (groups.length === 1 ? groups[0].id : null);
+    const title = newTitle.trim();
+    if (!groupId) {
+      notify('Choose a group', 'Pick which group this note belongs to.');
+      return;
+    }
+    if (!title) {
+      notify('Title required', 'Enter a title for this note.');
+      return;
+    }
+    setSavingNew(true);
+    await runAction(async () => {
+      await api.addNote(groupId, { title, description: newDescription.trim() });
+      setNewTitle('');
+      setNewDescription('');
+      setAdding(false);
+    }, 'Could not add note');
+    setSavingNew(false);
+  }
+
+  function beginEditNote(note: Note) {
+    setEditingNoteId(note.id);
+    setEditTitle(note.title);
+    setEditDescription(note.description);
+  }
+
+  async function saveNote(noteId: number) {
+    const title = editTitle.trim();
+    if (!title) {
+      notify('Title required', 'Enter a title for this note.');
+      return;
+    }
+    await runAction(async () => {
+      await api.updateNote(noteId, title, editDescription.trim());
+      setEditingNoteId(null);
+    }, 'Could not update note');
+  }
+
+  // Same grocery price comparison as the website, for shopping-list notes.
+  async function compareNote(noteId: number) {
+    if (comparisons[noteId]) {
+      setComparisons(({ [noteId]: _hidden, ...rest }) => rest);
+      return;
+    }
+    try {
+      const comparison = await api.compareGroceries(noteId, getGroceryLocation());
+      setComparisons(current => ({ ...current, [noteId]: comparison }));
+    } catch (error) {
+      if (isLimitReached(error)) {
+        setNoteLimit({ noteId, message: (error as Error).message });
+        return;
+      }
+      notify('Could not compare groceries', error instanceof Error ? error.message : 'Try again.');
+    }
+  }
+
+  // Type a list, get real prices from Toronto grocery stores, cheapest store first.
+  async function comparePrices() {
+    if (!priceItems.trim()) {
+      setPriceError('Type a few items, like: apple, banana, milk');
+      return;
+    }
+    setPriceError('');
+    setPriceLoading(true);
+    try {
+      setGroceryLocation(priceLocation);
+      setPriceResult(await api.compareGroceryList(priceItems, priceLocation));
+    } catch (error) {
+      setPriceResult(null);
+      if (isLimitReached(error)) {
+        setLimitMessage((error as Error).message);
+      } else {
+        setPriceError(error instanceof Error ? error.message : 'Could not compare prices. Try again.');
+      }
+    } finally {
+      setPriceLoading(false);
+    }
+  }
+
+  async function locateMe() {
+    setLocating(true);
+    setPriceError('');
+    try {
+      const position = await currentPositionText();
+      setPriceLocation(position);
+      setGroceryLocation(position);
+    } catch (error) {
+      setPriceError(error instanceof Error ? error.message : 'Could not get your location.');
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  function confirmDeleteNote(note: Note) {
+    setRemoved(ids => [...ids, note.id]);
+    showUndo('Note deleted', {
+      commit: () => { runAction(() => api.deleteNote(note.id), 'Could not delete note').finally(() => setRemoved(ids => ids.filter(id => id !== note.id))); },
+      undo: () => setRemoved(ids => ids.filter(id => id !== note.id))
+    });
+  }
+
+  const groupOptions = useMemo(() => {
+    const seen = new Map<number, string>();
+    notes.forEach(note => {
+      if (!seen.has(note.group_id)) {
+        seen.set(note.group_id, note.group_name);
+      }
+    });
+    return [{ label: 'All groups', value: 'all' as const }, ...Array.from(seen.entries()).map(([id, name]) => ({ label: name, value: id }))];
+  }, [notes]);
+
+  const filteredNotes = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return notes.filter(note => !removed.includes(note.id)).filter(note => {
+      if (groupFilter !== 'all' && note.group_id !== groupFilter) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return note.title.toLowerCase().includes(query) || note.description.toLowerCase().includes(query);
+    });
+  }, [notes, groupFilter, search, removed]);
+
+  if (loading && !hasLoaded.current) {
+    return <LoadingState label="Loading your notes..." />;
+  }
+  if (loadError && !hasLoaded.current) {
+    return <ErrorState message={loadError} onRetry={() => { setLoading(true); load(); }} />;
+  }
+
+  return (
+    <View style={styles.page}>
+    <Screen onRefresh={refresh} refreshing={refreshing}>
+      <View style={styles.rowBetween}>
+        <Text style={styles.sectionTitle}>Notes</Text>
+        {groups.length && !adding ? (
+          <AppButton icon="add-outline" onPress={() => setAdding(true)}>Add note</AppButton>
+        ) : null}
+      </View>
+
+      <Card style={styles.filterCard}>
+        <Text style={styles.title}>Compare grocery prices</Text>
+        <Text style={styles.muted}>Type what you need and see which store is cheapest right now.</Text>
+        <TextField
+          label="Items"
+          value={priceItems}
+          onChangeText={setPriceItems}
+          placeholder="apple, banana, 2 milk, bread"
+          multiline
+          error={priceError}
+        />
+        <TextField
+          label="Your location"
+          value={priceLocation}
+          onChangeText={setPriceLocation}
+          placeholder="City or postal code, e.g. M5V 2T6 (default Toronto)"
+        />
+        <AppButton icon="locate-outline" variant="outline" loading={locating} onPress={locateMe}>Use my location</AppButton>
+        <AppButton icon="pricetags-outline" loading={priceLoading} onPress={comparePrices}>
+          {priceLoading ? 'Checking store prices...' : 'Compare prices'}
+        </AppButton>
+        {limitMessage ? <UpgradePrompt message={limitMessage} /> : null}
+        {priceResult ? <GroceryComparisonView comparison={priceResult} /> : null}
+      </Card>
+
+      {!groups.length ? (
+        <Card style={styles.filterCard}>
+          <EmptyState label="Notes belong to a group. Join or create a group to start adding notes." />
+          <AppButton icon="people-outline" onPress={() => navigation.navigate('CreateGroup')}>Create a Group</AppButton>
+        </Card>
+      ) : adding ? (
+        <Card style={styles.filterCard}>
+          <Text style={styles.title}>New note</Text>
+          {groups.length > 1 ? (
+            <ChoiceChips<number>
+              label="Group"
+              value={newGroupId}
+              onChange={setNewGroupId}
+              options={groups.map(group => ({ label: group.name, value: group.id }))}
+            />
+          ) : (
+            <Text style={styles.muted}>For {groups[0].name}</Text>
+          )}
+          <TextField label="Title" value={newTitle} onChangeText={setNewTitle} placeholder="Grocery list, Wi-Fi password" />
+          <TextField label="Description (optional)" value={newDescription} onChangeText={setNewDescription} multiline placeholder="milk, bread, eggs" />
+          <Text style={styles.muted}>Tip: call it a grocery or shopping list and put one item per line (or separate with commas) to compare store prices.</Text>
+          <View style={styles.actionRow}>
+            <AppButton icon="save-outline" style={styles.actionButton} loading={savingNew} onPress={addNote}>Save</AppButton>
+            <AppButton icon="close-outline" variant="outline" style={styles.actionButton} onPress={() => setAdding(false)}>Cancel</AppButton>
+          </View>
+        </Card>
+      ) : null}
+
+      {notes.length ? (
+        <Card style={styles.filterCard}>
+          <TextField
+            label="Search"
+            placeholder="Search notes"
+            value={search}
+            onChangeText={setSearch}
+          />
+          {groupOptions.length > 2 ? (
+            <ChoiceChips
+              label="Group"
+              options={groupOptions}
+              value={groupFilter}
+              onChange={setGroupFilter}
+            />
+          ) : null}
+        </Card>
+      ) : null}
+
+      {notes.length === 0 ? (
+        groups.length && !adding ? (
+          <Card style={styles.filterCard}>
+            <EmptyState label="No notes yet. Keep shared lists, codes and reminders here." />
+            <AppButton icon="add-outline" onPress={() => setAdding(true)}>Add your first note</AppButton>
+          </Card>
+        ) : null
+      ) : filteredNotes.length === 0 ? (
+        <EmptyState label="No notes match your search." />
+      ) : filteredNotes.map(note => (
+        <Card key={note.id} style={styles.noteCard}>
+          {editingNoteId === note.id ? (
+            <>
+              <TextField label="Title" value={editTitle} onChangeText={setEditTitle} />
+              <TextField label="Description" value={editDescription} onChangeText={setEditDescription} multiline />
+              <View style={styles.actionRow}>
+                <AppButton icon="save-outline" style={styles.actionButton} onPress={() => saveNote(note.id)}>Save</AppButton>
+                <AppButton icon="close-outline" variant="outline" style={styles.actionButton} onPress={() => setEditingNoteId(null)}>Cancel</AppButton>
+              </View>
+            </>
+          ) : (
+            <>
+              <Pressable hitSlop={8} onPress={() => {
+                setNotes(current => current.map(item => (item.id === note.id ? { ...item, is_completed: !item.is_completed } : item)));
+                runAction(() => api.toggleNote(note.id), 'Could not update note');
+              }} style={styles.rowBetween}>
+                <Text style={[styles.title, note.is_completed && styles.completed]}>{note.title}</Text>
+                <Icon name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />
+              </Pressable>
+              {note.description ? <Text style={styles.description}>{note.description}</Text> : null}
+              <Text style={styles.muted}>{note.group_name} · by {note.created_by}</Text>
+              <View style={styles.iconActionRow}>
+                {note.can_compare_prices ? (
+                  <Pressable hitSlop={8} accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}>
+                    <Icon name={comparisons[note.id] ? 'close-outline' : 'cart-outline'} size={20} color={colors.primaryDark} />
+                  </Pressable>
+                ) : null}
+                <Pressable hitSlop={8} accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}>
+                  <Icon name="pencil-outline" size={20} color={colors.primaryDark} />
+                </Pressable>
+                {note.can_delete ? (
+                  <Pressable hitSlop={8} accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}>
+                    <Icon name="trash-outline" size={20} color={colors.danger} />
+                  </Pressable>
+                ) : null}
+              </View>
+              {noteLimit?.noteId === note.id ? <UpgradePrompt message={noteLimit.message} /> : null}
+              {comparisons[note.id] ? <GroceryComparisonView comparison={comparisons[note.id]} /> : null}
+            </>
+          )}
+        </Card>
+      ))}
+    </Screen>
+      {groups.length ? (
+        <Pressable style={styles.fab} onPress={() => setAdding(true)} accessibilityRole="button" accessibilityLabel="Add note">
+          <Icon name="add" size={30} color={colors.surface} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  page: {
+    flex: 1
+  },
+  fab: {
+    position: 'absolute',
+    right: spacing.lg,
+    bottom: spacing.lg,
+    width: 58,
+    height: 58,
+    borderRadius: 9999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    elevation: 6,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 }
+  },
+  sectionTitle: {
+    color: colors.ink,
+    ...typography.h2
+  },
+  filterCard: {
+    gap: spacing.md
+  },
+  noteCard: {
+    gap: spacing.sm
+  },
+  title: {
+    color: colors.ink,
+    ...typography.h3
+  },
+  completed: {
+    color: colors.muted,
+    textDecorationLine: 'line-through'
+  },
+  description: {
+    color: colors.text,
+    ...typography.body
+  },
+  muted: {
+    color: colors.muted,
+    ...typography.caption
+  },
+  rowBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm
+  },
+  actionButton: {
+    flex: 1
+  },
+  iconActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceAlt
+  }
+});

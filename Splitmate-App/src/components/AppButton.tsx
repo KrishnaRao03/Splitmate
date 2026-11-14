@@ -1,18 +1,31 @@
 import { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, ViewStyle } from 'react-native';
+import { Icon, IconName } from '@/components/Icon';
 
+import { AppText as Text } from '@/components/AppText';
+import { useTheme } from '@/state/ThemeContext';
+import { typography } from '@/theme/typography';
 import { colors, radius, spacing } from '@/theme/colors';
 
 type Props = {
   children: ReactNode;
   disabled?: boolean;
+  icon?: IconName;
   loading?: boolean;
   variant?: 'primary' | 'outline' | 'ghost' | 'danger';
   onPress?: () => void;
   style?: ViewStyle;
 };
 
-export function AppButton({ children, disabled, loading, onPress, style, variant = 'primary' }: Props) {
+export function AppButton({ children, disabled, icon, loading, onPress, style, variant = 'primary' }: Props) {
+  const { accent, accentColor } = useTheme();
+  const sunshine = accent === 'indigo';
+  const foreground = variant === 'primary'
+    ? (sunshine ? colors.onHighlight : colors.white)
+    : variant === 'danger'
+      ? colors.white
+      : accentColor;
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -21,14 +34,19 @@ export function AppButton({ children, disabled, loading, onPress, style, variant
       style={({ pressed }) => [
         styles.button,
         styles[variant],
+        variant === 'primary' && { backgroundColor: sunshine ? colors.highlight : accentColor },
+        pressed && styles.pressed,
         (pressed || disabled) && styles.dimmed,
         style
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? colors.white : colors.primary} />
+        <ActivityIndicator color={foreground} />
       ) : (
-        <Text style={[styles.text, variant !== 'primary' && styles.textAlt]}>{children}</Text>
+        <>
+          {icon ? <Icon name={icon} size={18} color={foreground} /> : null}
+          <Text style={[styles.text, { color: foreground }]}>{children}</Text>
+        </>
       )}
     </Pressable>
   );
@@ -36,10 +54,14 @@ export function AppButton({ children, disabled, loading, onPress, style, variant
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 48,
+    minHeight: 44,
+    flexDirection: 'row',
+    gap: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md
   },
   primary: {
@@ -47,7 +69,7 @@ const styles = StyleSheet.create({
   },
   outline: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     backgroundColor: colors.surface
   },
   ghost: {
@@ -59,11 +81,10 @@ const styles = StyleSheet.create({
   dimmed: {
     opacity: 0.72
   },
-  text: {
-    color: colors.white,
-    fontWeight: '800'
+  pressed: {
+    transform: [{ scale: 0.98 }]
   },
-  textAlt: {
-    color: colors.primary
+  text: {
+    ...typography.button
   }
 });

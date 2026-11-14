@@ -1,109 +1,79 @@
 # Splitmate
 
-Splitmate is a Flask web application for managing shared group expenses, balances, notes, tasks, payments, and transaction history.
+Splitmate helps roommates, friends, travel groups and small teams share expenses, settle up, and keep group tasks and notes in one place.
 
-## Features
+This repository holds the two parts of the product:
 
-- User registration, login, email verification, and password reset
-- Group-based expense splitting
-- Equal, exact amount, and percentage expense splits
-- Recent expense tracking and transaction history
-- Balance overview for group members
-- Splitmate payment ledger with manual payments and optional Stripe Checkout processing
-- Admin dashboard with user growth, inactive-user lists, and reminder email controls
-- Group notes and task management
-- Gmail SMTP configuration through environment variables
-
-## Tech Stack
-
-- Python
-- Flask
-- Flask-SQLAlchemy
-- Flask-Login
-- SQLite for local development
-- Stripe SDK for optional online payments
-- HTML, CSS, and JavaScript templates
-
-## Project Structure
+| Folder | What it is | Stack |
+| --- | --- | --- |
+| [`Splitmate-Web/`](Splitmate-Web/README.md) | Backend server, website and admin dashboard. Also serves the JSON API the mobile app uses (`/api/mobile`). | Python 3.13, Flask, SQLAlchemy, SQLite or PostgreSQL |
+| [`Splitmate-App/`](Splitmate-App/README.md) | iOS and Android app. | Expo SDK 58, React Native 0.88, TypeScript |
 
 ```text
 Splitmate/
-  app/
-    routes/          Flask route modules
-    static/          CSS and JavaScript assets
-    templates/       Jinja HTML templates
-    __init__.py      App factory and database setup
-    models.py        SQLAlchemy models
-    email_utils.py   Email helper functions
-  config.py          Application configuration
-  run.py             Local application entry point
-  requirements.txt   Python dependencies
-  .env.example       Example environment variables
+├── Splitmate-Web/        Flask backend + website (see its README)
+├── Splitmate-App/        Expo mobile app (see its README)
+├── docs/                 Project proposal, website guide, older project notes
+├── assets/logo/          Logo source images
+├── .github/              Pull request template and CI workflow
+├── CONTRIBUTING.md       How to branch, commit and open a pull request
+└── CLAUDE.md             Coding guidelines for AI assistants working in this repo
 ```
 
-## Local Setup
-
-1. Create and activate a virtual environment.
-
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-2. Install dependencies.
-
-```bash
-pip install -r requirements.txt
-```
-
-3. Create a `.env` file using `.env.example` as a template.
+## How the pieces fit
 
 ```text
-SECRET_KEY=change-this-to-a-random-secret
-MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-gmail-app-password
-STRIPE_SECRET_KEY=
-STRIPE_PUBLISHABLE_KEY=
+  Browser ──HTML pages──▶ ┌──────────────────────────┐
+                          │ Splitmate-Web (Flask)    │──▶ SQLite / PostgreSQL
+  Splitmate-App ──JSON──▶ │   /api/mobile/*          │──▶ Gmail SMTP (codes, reminders)
+  (Bearer token)          └──────────────────────────┘──▶ Google Gemini (receipt scan)
 ```
 
-4. Run the app.
+The website and the app share one database and one set of accounts. The app never talks to the database directly; every call goes through `/api/mobile` (documented in [`Splitmate-Web/docs/API.md`](Splitmate-Web/docs/API.md)).
+
+## Quick start
+
+You need **Python 3.11+** (3.13 is used day to day), **Node.js 22** and **npm**. For a phone, install **Expo Go**.
+
+1. Start the backend (Windows shown; macOS/Linux commands are in the comments):
+
+   ```bash
+   cd Splitmate-Web
+   python -m venv venv
+   venv\Scripts\activate          # macOS/Linux: source venv/bin/activate
+   pip install -r requirements.txt
+   copy .env.example .env         # macOS/Linux: cp .env.example .env   (then edit it)
+   python run.py
+   ```
+
+   The site is now at http://127.0.0.1:5000.
+
+2. Start the app in a second terminal:
+
+   ```bash
+   cd Splitmate-App
+   npm install
+   copy .env.example .env         # set EXPO_PUBLIC_SPLITMATE_API_URL=http://<your-computer-ip>:5000/api/mobile
+   npm run start
+   ```
+
+   Scan the QR code with Expo Go. The phone must be on the same Wi-Fi as the computer.
+
+Each folder's README has the full setup, configuration and troubleshooting.
+
+## Checks
+
+Run both before opening a pull request. CI runs them on every pull request too.
 
 ```bash
-python run.py
+cd Splitmate-Web && python -m unittest discover -s tests
+cd Splitmate-App && npm run typecheck
 ```
 
-5. Open the app in a browser.
+## Contributing
 
-```text
-http://127.0.0.1:5000
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md). Never commit `.env` files, databases or anything in `instance/`.
 
-## Environment Variables
+## Security
 
-The app reads configuration from `.env`. Do not commit `.env` to GitHub.
-
-- `SECRET_KEY`: Flask session/security key
-- `MAIL_SERVER`: SMTP server, default is Gmail
-- `MAIL_PORT`: SMTP port, default is 587
-- `MAIL_USE_TLS`: Whether SMTP TLS is enabled
-- `MAIL_USERNAME`: Email account used to send OTP and reset emails
-- `MAIL_PASSWORD`: Gmail app password or SMTP password
-- `MAIL_DEFAULT_SENDER`: Default sender address
-- `ADMIN_EMAILS`: Comma-separated app admin email addresses. Defaults to `MAIL_USERNAME`.
-- `STRIPE_SECRET_KEY`: Optional Stripe secret key
-- `STRIPE_PUBLISHABLE_KEY`: Optional Stripe publishable key for client-side Stripe features
-- `STRIPE_CURRENCY`: Stripe currency, default is `cad`
-- `INACTIVITY_REMINDER_DAYS`: Days of no app activity before a reminder is eligible, default is `30`
-- `INACTIVITY_EMAIL_COOLDOWN_DAYS`: Days before another inactivity reminder can be sent to the same user, default is `14`
-- `INACTIVITY_EMAILS_ENABLED`: Enables the daily inactive-user email job, default is `true`
-- `INACTIVITY_EMAIL_HOUR_UTC`: UTC hour for the daily inactive-user email job, default is `14`
-
-## Security Notes
-
-- Never upload `.env`, real passwords, local database files, or virtual environments.
-- Rotate any password or app password that was ever stored in a plain text file.
-- Use `.env.example` only for placeholder values.
-
-## GitHub Repository Name
-
-Recommended repository name: `splitmate`
+Known issues and their fixes are tracked in [`Splitmate-Web/docs/SECURITY_AUDIT.md`](Splitmate-Web/docs/SECURITY_AUDIT.md). Report new security problems privately to the maintainer instead of opening a public issue.

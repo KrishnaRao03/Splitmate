@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block title %}Shared Notes - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header page-header-action">
+    <div>
+        <h1>Shared notes</h1>
+        <p>Save simple notes, lists, and shared details with your group</p>
+    </div>
+    <div class="page-actions">
+        <button type="button" class="btn btn-text-action btn-sm" onclick="openModal('inviteSplitmateModal')">
+            Invite
+        </button>
+        <button type="button" class="btn btn-text-action btn-sm" id="inviteSelectedGroupBtn" hidden
+                onclick="openInviteMemberModal(this.dataset.groupId)">
+            Group invite
+        </button>
+        <button type="button" class="btn btn-primary btn-sm action-plus" onclick="openModal('createGroupModal')" aria-label="Create group" title="Create group">
+            <span aria-hidden="true">+</span>
+            <span class="action-plus-label">Group</span>
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Compare grocery prices</h2>
+    </div>
+    <div class="card-body">
+        <form id="priceCompareForm" class="form-group" onsubmit="comparePriceList(event)">
+            <label for="priceCompareItems">Type what you need and see which store is cheapest right now.</label>
+            <textarea id="priceCompareItems" rows="2" maxlength="1000" placeholder="apple, banana, 2 milk, bread"></textarea>
+            <label for="priceCompareLocation">Your location</label>
+            <input type="text" id="priceCompareLocation" maxlength="80" placeholder="City or postal code, e.g. M5V 2T6 (default Toronto)">
+            <button type="button" class="btn btn-outline btn-sm" onclick="useCurrentLocation(this)">Use my location</button>
+            <button type="submit" class="btn btn-primary btn-sm" id="priceCompareButton">Compare prices</button>
+        </form>
+        <div id="groceryComparison-list" class="grocery-comparison" hidden></div>
+    </div>
+</div>
+
+{% if groups %}
+<div class="group-grid">
+    {% for group in groups %}
+    <div class="group-box" data-group-id="{{ group.id }}" onclick="selectGroup({{ group.id }})">
+        <h3>{{ group.name }}</h3>
+        <p>{{ group.members|length }} members</p>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="notesContent" style="display: none;">
+    <div class="card">
+        <div class="card-header">
+            <h2>Add note</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('notes.add_note') }}" class="add-note-form">
+                <input type="hidden" name="group_id" id="noteGroupId">
+                <div class="form-group">
+                    <label for="noteTitle">Title</label>
+                    <input type="text" id="noteTitle" name="title" required
+                           placeholder="e.g., Rent reminder, Grocery list">
+                </div>
+                <div class="form-group">
+                    <label for="noteDescription">Description</label>
+                    <textarea id="noteDescription" name="description" rows="3"
+                              placeholder="Add details..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Add note</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Notes</h2>
+        </div>
+        <div class="card-body">
+            <div id="notesList" class="notes-list"></div>
+        </div>
+    </div>
+</div>
+
+<div id="editNoteModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Edit note</h2>
+            <button class="modal-close" onclick="closeModal('editNoteModal')">&times;</button>
+        </div>
+        <form method="POST" id="editNoteForm">
+            <div class="form-group">
+                <label for="editNoteTitle">Title</label>
+                <input type="text" id="editNoteTitle" name="title" required>
+            </div>
+            <div class="form-group">
+                <label for="editNoteDescription">Description</label>
+                <textarea id="editNoteDescription" name="description" rows="4"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline"
+                        onclick="closeModal('editNoteModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% else %}
+<div class="empty-state-full">
+    <p>You need to join or create a group first.</p>
+    <button type="button" class="btn btn-primary" onclick="openModal('createGroupModal')">
+        Create your first group
+    </button>
+</div>
+{% endif %}
+
+{% include "_create_group_modal.html" %}
+{% include "_invite_member_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const groups = {{ groups_json|tojson|safe }};
+    window.splitmateInviteGroupData = groups;
+    let currentGroupId = null;
+    let currentNotes = [];
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function selectGroup(id) {
+        currentGroupId = id;
+        document.querySelectorAll('.group-box').forEach(box => {
+            box.classList.toggle('selected', Number(box.dataset.groupId) === Number(id));
+        });
+        updateSelectedGroupInviteButton(id);
+
+        document.getElementById('noteGroupId').value = currentGroupId;
+        document.getElementById('notesContent').style.display = 'block';
+
+        fetchNotes();
+    }
+
+    async function fetchNotes() {
+        const response = await fetch(`/notes/api/group/${currentGroupId}`);
+        currentNotes = await response.json();
+
+        const container = document.getElementById('notesList');
+
+        if (currentNotes.length === 0) {
+            container.innerHTML = '<p class="empty-state">No notes yet. Add one above!</p>';
+            return;
+        }
+
+        container.innerHTML = currentNotes.map(n => `
+        <div class="note-item-shell">
+            <div class="note-item ${n.is_completed ? 'completed' : ''}">
+                <div class="note-checkbox" onclick="toggleNote(${n.id})">
+                    ${n.is_completed ? '&check;' : ''}
+                </div>
+                <div class="note-content">
+                    <span class="note-text">${escapeHtml(n.title)}</span>
+                    ${n.description ? `<span class="note-description">${escapeHtml(n.description)}</span>` : ''}
+                    <span class="note-meta">Added by ${escapeHtml(n.created_by)}</span>
+                </div>
+                <div class="note-actions">
+                    ${n.can_compare_prices ? `
+                    <button type="button" class="btn btn-xs btn-outline"
+                            data-compare-note-id="${n.id}"
+                            onclick="compareGroceries(${n.id})">Compare prices</button>
+                    ` : ''}
+                    <button type="button" class="btn btn-xs btn-outline"
+                            onclick="openEditNoteModal(${n.id})">Edit</button>
+                    <form method="POST" action="/notes/delete/${n.id}">
+                        <button type="submit" class="btn btn-xs btn-ghost" aria-label="Delete note">&times;</button>
+                    </form>
+                </div>
+            </div>
+            <div id="groceryComparison-${n.id}" class="grocery-comparison" hidden></div>
+        </div>
+    `).join('');
+    }
+
+    function formatGroceryMoney(value, currency = 'CAD') {
+        return new Intl.NumberFormat('en-CA', {
+            style: 'currency',
+            currency
+        }).format(Number(value || 0));
+    }
+
+    function requestedItemLabel(item) {
+        const quantity = Number(item.quantity || 1);
+        const quantityText = quantity !== 1
+            ? `${quantity}${item.unit ? ` ${item.unit}` : ''} `
+            : '';
+        return `${quantityText}${item.name || item.raw || ''}`.trim();
+    }
+
+    async function compareGroceries(noteId) {
+        const panel = document.getElementById(`groceryComparison-${noteId}`);
+        const button = document.querySelector(`[data-compare-note-id="${noteId}"]`);
+        if (!panel) return;
+
+        panel.hidden = false;
+        panel.innerHTML = '<p class="grocery-status">Comparing prices...</p>';
+        if (button) button.disabled = true;
+
+        try {
+            const location = groceryLocation();
+            const query = location ? `?location=${encodeURIComponent(location)}` : '';
+            const response = await fetch(`/notes/api/${noteId}/grocery-comparison${query}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                panel.innerHTML = `<p class="grocery-status grocery-status-error">${escapeHtml(data.error || 'Could not compare this note.')}</p>`
+                    + (data.limit_reached ? `<a class="btn btn-primary btn-sm" href="{{ url_for('main.profile') }}#membership-panel">Upgrade to Pro</a>` : '');
+                return;
+            }
+
+            panel.innerHTML = renderGroceryComparison(data);
+        } catch (error) {
+            panel.innerHTML = '<p class="grocery-status grocery-status-error">Could not compare this note right now.</p>';
+        } finally {
+            if (button) button.disabled = false;
+        }
+    }
+
+    function groceryLocation() {
+        const field = document.getElementById('priceCompareLocation');
+        const value = field ? field.value.trim() : '';
+        try { localStorage.setItem('splitmate.groceryLocation', value); } catch (error) { /* only a convenience */ }
+        return value;
+    }
+
+    function useCurrentLocation(button) {
+        const field = document.getElementById('priceCompareLocation');
+        if (!navigator.geolocation) {
+            field.placeholder = 'Location is not available here. Type your city or postal code.';
+            return;
+        }
+        button.disabled = true;
+        navigator.geolocation.getCurrentPosition(position => {
+            field.value = `${position.coords.latitude.toFixed(3)}, ${position.coords.longitude.toFixed(3)}`;
+            groceryLocation();
+            button.disabled = false;
+        }, () => {
+            field.placeholder = 'Location permission was denied. Type your city or postal code.';
+            button.disabled = false;
+        }, { timeout: 15000, maximumAge: 600000 });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const field = document.getElementById('priceCompareLocation');
+        try { if (field) field.value = localStorage.getItem('splitmate.groceryLocation') || ''; } catch (error) { /* ignore */ }
+    });
+
+    async function comparePriceList(event) {
+        event.preventDefault();
+        const items = document.getElementById('priceCompareItems').value.trim();
+        const panel = document.getElementById('groceryComparison-list');
+        const button = document.getElementById('priceCompareButton');
+        panel.hidden = false;
+        if (!items) {
+            panel.innerHTML = '<p class="grocery-status grocery-status-error">Type a few items, like: apple, banana, milk</p>';
+            return;
+        }
+        button.disabled = true;
+        panel.innerHTML = '<p class="grocery-status">Checking store prices... this can take a few seconds.</p>';
+        try {
+            const response = await fetch('/notes/api/grocery-compare', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items, location: groceryLocation() })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                panel.innerHTML = `<p class="grocery-status grocery-status-error">${escapeHtml(data.error || 'Could not compare prices.')}</p>`
+                    + (data.limit_reached ? `<a class="btn btn-primary btn-sm" href="{{ url_for('main.profile') }}#membership-panel">Upgrade to Pro</a>` : '');
+                return;
+            }
+            panel.innerHTML = renderGroceryComparison({ ...data, note_id: "'list'" });
+        } catch (error) {
+            panel.innerHTML = '<p class="grocery-status grocery-status-error">Could not compare prices right now.</p>';
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    function renderGroceryComparison(data) {
+        const topStore = data.top_store;
+        const requestedItems = data.requested_items || [];
+        const stores = data.stores || [];
+        const sourceMeta = data.catalog_source_meta || {};
+        const sourceText = data.catalog_source || sourceMeta.label || '';
+        const sourceClass = sourceMeta.status === 'unavailable'
+            ? 'grocery-source grocery-source-warning'
+            : 'grocery-source';
+        const requestedList = requestedItems.map(item => `
+            <span class="grocery-chip">${escapeHtml(requestedItemLabel(item))}</span>
+        `).join('');
+
+        return `
+            <div class="grocery-comparison-header">
+                <div>
+                    <h3>Best grocery match</h3>
+                    ${topStore ? `<p>${escapeHtml(topStore.store_name)}${topStore.location ? ` (${escapeHtml(topStore.location)})` : ''} has ${topStore.available_count}/${topStore.requested_count} items for ${formatGroceryMoney(topStore.total, data.currency)}.</p>` : ''}
+                    ${sourceText ? `<p class="${sourceClass}">Source: ${escapeHtml(sourceText)}</p>` : ''}
+                    ${data.usage && data.usage.limit !== null ? `<p class="grocery-source">${data.usage.remaining} of ${data.usage.limit} free comparisons left this month.</p>` : ''}
+                </div>
+                <button type="button" class="btn btn-xs btn-ghost" onclick="closeGroceryComparison(${data.note_id})">Close</button>
+            </div>
+            <div class="grocery-chip-row">${requestedList}</div>
+            <div class="grocery-store-results">
+                ${stores.map(store => renderStoreResult(store, data.currency)).join('')}
+            </div>
+        `;
+    }
+
+    function renderStoreResult(store, currency) {
+        const statusText = store.all_items_available
+            ? 'All items available'
+            : `${store.available_count}/${store.requested_count} available`;
+        const itemRows = (store.items || []).map(item => renderGroceryItem(item, currency)).join('');
+
+        return `
+            <div class="grocery-store-result ${store.all_items_available ? 'complete' : 'partial'}">
+                <div class="grocery-store-summary">
+                    <div>
+                        <span class="grocery-rank">#${store.rank}</span>
+                        <strong>${escapeHtml(store.store_name)}</strong>
+                        ${store.location ? `<span class="grocery-location">· ${escapeHtml(store.location)}</span>` : ''}
+                    </div>
+                    <div class="grocery-total">${formatGroceryMoney(store.total, currency)}</div>
+                    <span class="grocery-availability">${escapeHtml(statusText)}</span>
+                </div>
+                <ul class="grocery-item-list">${itemRows}</ul>
+            </div>
+        `;
+    }
+
+    function renderGroceryItem(item, currency) {
+        const requested = escapeHtml(requestedItemLabel(item.requested || {}));
+        const statusClass = `status-${item.status}`;
+        if (item.status === 'missing') {
+            return `<li class="${statusClass}"><span>${requested}</span><strong>Not found</strong></li>`;
+        }
+
+        const matched = `${item.matched_item}${item.size ? `, ${item.size}` : ''}`;
+        const priceText = item.status === 'available'
+            ? `${formatGroceryMoney(item.line_total, currency)}`
+            : 'Unavailable';
+
+        const online = item.source === 'web'
+            ? (item.source_url
+                ? ` <a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener">(online price)</a>`
+                : ' (online price)')
+            : '';
+        return `
+            <li class="${statusClass}">
+                <span>${requested} &rarr; ${escapeHtml(matched)}${online}</span>
+                <strong>${escapeHtml(priceText)}</strong>
+            </li>
+        `;
+    }
+
+    function closeGroceryComparison(noteId) {
+        const panel = document.getElementById(`groceryComparison-${noteId}`);
+        if (panel) {
+            panel.hidden = true;
+            panel.innerHTML = '';
+        }
+    }
+
+    function openEditNoteModal(noteId) {
+        const note = currentNotes.find(item => Number(item.id) === Number(noteId));
+        if (!note) return;
+
+        document.getElementById('editNoteForm').action = `/notes/edit/${note.id}`;
+        document.getElementById('editNoteTitle').value = note.title || '';
+        document.getElementById('editNoteDescription').value = note.description || '';
+        openModal('editNoteModal');
+    }
+
+    async function toggleNote(noteId) {
+        await fetch(`/notes/toggle/${noteId}`, { method: 'POST' });
+        fetchNotes();
+    }
+</script>
+{% endblock %}

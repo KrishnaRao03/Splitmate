@@ -1,0 +1,119 @@
+{% extends "admin_base.html" %}
+{% block title %}Admin Overview - Splitmate{% endblock %}
+
+{% block content %}
+<div class="page-header page-header-action">
+    <div>
+        <h1>Overview</h1>
+        <p>High-level product health. Open a report from the side navigation for the full tables.</p>
+    </div>
+    <a href="{{ url_for('admin.users') }}" class="btn btn-primary btn-sm">View users report</a>
+</div>
+
+<div class="stats-grid admin-stats-grid">
+    <a class="stat-card stat-card-link" href="{{ url_for('admin.users') }}">
+        <div class="stat-icon">U</div>
+        <div class="stat-content">
+            <span class="stat-label">Users</span>
+            <span class="stat-value">{{ stats.total_users }}</span>
+            <span class="stat-subvalue">{{ stats.verified_users }} verified</span>
+        </div>
+    </a>
+    <a class="stat-card stat-card-link stat-positive" href="{{ url_for('admin.users', tab='new') }}">
+        <div class="stat-icon">N</div>
+        <div class="stat-content">
+            <span class="stat-label">New this month</span>
+            <span class="stat-value">{{ stats.new_users_this_month }}</span>
+            <span class="stat-subvalue">{{ "%+d"|format(stats.new_user_delta) }} vs last month</span>
+        </div>
+    </a>
+    <a class="stat-card stat-card-link stat-negative" href="{{ url_for('admin.users', tab='no_split') }}">
+        <div class="stat-icon">I</div>
+        <div class="stat-content">
+            <span class="stat-label">No split this month</span>
+            <span class="stat-value">{{ stats.no_split_this_month }}</span>
+            <span class="stat-subvalue">Needs attention</span>
+        </div>
+    </a>
+    <a class="stat-card stat-card-link" href="{{ url_for('admin.emails') }}">
+        <div class="stat-icon">M</div>
+        <div class="stat-content">
+            <span class="stat-label">Reminder candidates</span>
+            <span class="stat-value">{{ stats.reminder_candidates }}</span>
+            <span class="stat-subvalue">{{ inactivity_days }}+ idle days</span>
+        </div>
+    </a>
+</div>
+
+<div class="content-grid admin-content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2>New users by month</h2>
+            <span class="badge">12 months</span>
+        </div>
+        <div class="card-body">
+            {% set max_users = growth_data | map(attribute='count') | list | max %}
+            <div class="admin-growth-chart" aria-label="New users by month">
+                {% for point in growth_data %}
+                {% set bar_height = (point.count / max_users * 100) if max_users else 0 %}
+                <div class="admin-chart-item">
+                    <div class="admin-chart-track">
+                        <div class="admin-chart-fill" style="height: {{ bar_height }}%"></div>
+                    </div>
+                    <span class="admin-chart-value">{{ point.count }}</span>
+                    <span class="admin-chart-label">{{ point.label }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Reports</h2>
+            <span class="badge">Focused views</span>
+        </div>
+        <div class="card-body admin-report-list">
+            <a href="{{ url_for('admin.users') }}" class="admin-report-link">
+                <span>
+                    <strong>Users report</strong>
+                    <small>Sortable tables, verification status, usage, and segments</small>
+                </span>
+                <span aria-hidden="true">></span>
+            </a>
+            <a href="{{ url_for('admin.emails') }}" class="admin-report-link">
+                <span>
+                    <strong>Email reminders</strong>
+                    <small>Automation status and reminder-ready users</small>
+                </span>
+                <span aria-hidden="true">></span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Reminder automation</h2>
+        {% if emails_enabled %}
+        <span class="badge badge-success">Enabled</span>
+        {% else %}
+        <span class="badge">Disabled</span>
+        {% endif %}
+    </div>
+    <div class="card-body admin-automation-list">
+        <div class="automation-row">
+            <span>Daily send time</span>
+            <strong>{{ "%02d:00"|format(email_hour_utc) }} UTC</strong>
+        </div>
+        <div class="automation-row">
+            <span>Idle threshold</span>
+            <strong>{{ inactivity_days }} days</strong>
+        </div>
+        <div class="automation-row">
+            <span>Never used core features</span>
+            <strong>{{ stats.never_used_core_feature }}</strong>
+        </div>
+    </div>
+</div>
+{% endblock %}
