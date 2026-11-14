@@ -1,4 +1,4 @@
-import { StyleSheet, Text as NativeText, TextProps, TextStyle } from 'react-native';
+import { Platform, StyleSheet, Text as NativeText, TextProps, TextStyle } from 'react-native';
 
 import { fonts } from '@/theme/colors';
 
@@ -22,11 +22,16 @@ function fontFamilyFor(style: TextProps['style']) {
   return fonts.regular;
 }
 
+// Tabular figures keep amounts and counters from shifting as digits change. On the web, text also
+// wraps with 'pretty' so a paragraph never ends on a single orphaned word.
+const BASE: TextStyle = { fontVariant: ['tabular-nums'] };
+const WEB_WRAP = Platform.OS === 'web' ? ({ textWrap: 'pretty' } as unknown as TextStyle) : null;
+
 export function AppText({ style, ...props }: TextProps) {
   return (
     <NativeText
       {...props}
-      style={[style, { fontFamily: fontFamilyFor(style), fontWeight: 'normal' }]}
+      style={[BASE, WEB_WRAP, style, { fontFamily: fontFamilyFor(style), fontWeight: 'normal' }]}
     />
   );
 }

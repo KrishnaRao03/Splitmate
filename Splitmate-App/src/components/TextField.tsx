@@ -68,6 +68,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderStrong,
     borderRadius: radius.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.input,
     paddingHorizontal: spacing.sm
   },

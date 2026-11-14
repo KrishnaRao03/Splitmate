@@ -60,6 +60,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.md,
+    borderCurve: 'continuous',
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md
   },

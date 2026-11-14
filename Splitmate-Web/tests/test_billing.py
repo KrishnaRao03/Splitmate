@@ -88,6 +88,20 @@ class BillingTests(unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(db.session.get(User, self.user_id).stripe_customer_id, 'cus_1')
 
+    def test_double_tap_on_checkout_reuses_one_stripe_session(self):
+        with patch('stripe.Customer.create', return_value=SimpleNamespace(id='cus_1')) as customer, \
+                patch('stripe.checkout.Session.create', return_value=SimpleNamespace(url='https://checkout.stripe.com/x')) as create:
+            body = {'interval': 'month', 'return_url': 'https://splitmate-app.onrender.com'}
+            self.client.post('/api/mobile/membership/checkout', headers=self.headers, json=body)
+            self.client.post('/api/mobile/membership/checkout', headers=self.headers, json=body)
+            first, second = (call.kwargs['idempotency_key'] for call in create.call_args_list)
+            self.assertEqual(first, second)
+            self.assertTrue(first.startswith('splitmate-checkout-'))
+            self.assertEqual(customer.call_args.kwargs['idempotency_key'], f'splitmate-customer-{self.user_id}')
+
+            self.client.post('/api/mobile/membership/checkout', headers=self.headers, json={**body, 'interval': 'year'})
+            self.assertNotEqual(create.call_args.kwargs['idempotency_key'], first)
+
     def test_webhook_needs_a_valid_signature(self):
         payload = json.dumps({'type': 'customer.subscription.created', 'data': {'object': self.subscription()}})
         response = self.client.post('/stripe/webhook', data=payload, headers={'Stripe-Signature': 't=1,v1=bad'})

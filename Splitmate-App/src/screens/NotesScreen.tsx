@@ -16,12 +16,16 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { TextField } from '@/components/TextField';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
+import { useUndo } from '@/state/UndoToast';
 import type { GroceryComparison, Group, Note, RootStackParamList } from '@/types';
 import { currentPositionText, getGroceryLocation, setGroceryLocation } from '@/utils/groceryLocation';
 
 export function NotesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [comparisons, setComparisons] = useState<Record<number, GroceryComparison>>({});
+  // Notes deleted in the last few seconds stay hidden while their Undo toast is showing.
+  const [removed, setRemoved] = useState<number[]>([]);
+  const showUndo = useUndo();
   const [priceItems, setPriceItems] = useState('');
   const [limitMessage, setLimitMessage] = useState('');
   const [noteLimit, setNoteLimit] = useState<{ noteId: number; message: string } | null>(null);
@@ -81,6 +85,8 @@ export function NotesScreen() {
       await load();
     } catch (error) {
       Alert.alert(title, error instanceof Error ? error.message : 'Try again.');
+      // Undo any optimistic change by showing what the server really has.
+      load().catch(() => undefined);
     }
   }
 
@@ -179,10 +185,11 @@ export function NotesScreen() {
   }
 
   function confirmDeleteNote(note: Note) {
-    Alert.alert('Delete note?', note.title, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => runAction(() => api.deleteNote(note.id), 'Could not delete note') }
-    ]);
+    setRemoved(ids => [...ids, note.id]);
+    showUndo('Note deleted', {
+      commit: () => { runAction(() => api.deleteNote(note.id), 'Could not delete note').finally(() => setRemoved(ids => ids.filter(id => id !== note.id))); },
+      undo: () => setRemoved(ids => ids.filter(id => id !== note.id))
+    });
   }
 
   const groupOptions = useMemo(() => {
@@ -197,7 +204,7 @@ export function NotesScreen() {
 
   const filteredNotes = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return notes.filter(note => {
+    return notes.filter(note => !removed.includes(note.id)).filter(note => {
       if (groupFilter !== 'all' && note.group_id !== groupFilter) {
         return false;
       }
@@ -206,7 +213,7 @@ export function NotesScreen() {
       }
       return note.title.toLowerCase().includes(query) || note.description.toLowerCase().includes(query);
     });
-  }, [notes, groupFilter, search]);
+  }, [notes, groupFilter, search, removed]);
 
   if (loading && !hasLoaded.current) {
     return <LoadingState label="Loading your notes..." />;
@@ -319,7 +326,10 @@ export function NotesScreen() {
             </>
           ) : (
             <>
-              <Pressable onPress={() => runAction(() => api.toggleNote(note.id), 'Could not update note')} style={styles.rowBetween}>
+              <Pressable hitSlop={8} onPress={() => {
+                setNotes(current => current.map(item => (item.id === note.id ? { ...item, is_completed: !item.is_completed } : item)));
+                runAction(() => api.toggleNote(note.id), 'Could not update note');
+              }} style={styles.rowBetween}>
                 <Text style={[styles.title, note.is_completed && styles.completed]}>{note.title}</Text>
                 <Icon name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />
               </Pressable>
@@ -327,15 +337,15 @@ export function NotesScreen() {
               <Text style={styles.muted}>{note.group_name} · by {note.created_by}</Text>
               <View style={styles.iconActionRow}>
                 {note.can_compare_prices ? (
-                  <Pressable accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}>
+                  <Pressable hitSlop={8} accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}>
                     <Icon name={comparisons[note.id] ? 'close-outline' : 'cart-outline'} size={20} color={colors.primaryDark} />
                   </Pressable>
                 ) : null}
-                <Pressable accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}>
+                <Pressable hitSlop={8} accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}>
                   <Icon name="pencil-outline" size={20} color={colors.primaryDark} />
                 </Pressable>
                 {note.can_delete ? (
-                  <Pressable accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}>
+                  <Pressable hitSlop={8} accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}>
                     <Icon name="trash-outline" size={20} color={colors.danger} />
                   </Pressable>
                 ) : null}

@@ -4,7 +4,9 @@ Prices live in config (PRO_PRICE_MONTHLY_CENTS / PRO_PRICE_YEARLY_CENTS), so cha
 no code change. A webhook from Stripe is the only thing that turns Pro on or off.
 """
 from datetime import datetime
+import hashlib
 import json
+import time
 
 import stripe
 from flask import current_app
@@ -130,10 +132,18 @@ def _ensure_customer(user):
         customer = stripe.Customer.create(
             api_key=current_app.config['STRIPE_SECRET_KEY'],
             email=user.email, name=user.name, metadata={'user_id': str(user.id)},
+            idempotency_key=f'splitmate-customer-{user.id}',
         )
         user.stripe_customer_id = customer.id
         db.session.commit()
     return user.stripe_customer_id
+
+
+def checkout_idempotency_key(user, interval, success_url, cancel_url):
+    """The same tap repeated within five minutes gets Stripe's first answer back, never a second session."""
+    window = int(time.time() // 300)
+    raw = f'{user.id}|{interval}|{price_cents(interval)}|{_currency()}|{success_url}|{cancel_url}|{window}'
+    return 'splitmate-checkout-' + hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
 def create_checkout_url(user, interval, success_url, cancel_url):
@@ -162,6 +172,7 @@ def create_checkout_url(user, interval, success_url, cancel_url):
         metadata={'user_id': str(user.id)},
         success_url=success_url,
         cancel_url=cancel_url,
+        idempotency_key=checkout_idempotency_key(user, interval, success_url, cancel_url),
     )
     return session.url, None
 

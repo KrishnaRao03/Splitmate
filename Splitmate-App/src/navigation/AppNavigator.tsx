@@ -48,13 +48,13 @@ export function AppNavigator() {
           <Stack.Screen name="Groups" component={GroupsScreen} options={{ title: 'Your groups' }} />
           <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create group' }} />
           <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={({ route }) => ({ title: route.params.groupName })} />
-          <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Add expense' }} />
-          <Stack.Screen name="QuickSplit" component={QuickSplitScreen} options={{ title: 'Quick split' }} />
-          <Stack.Screen name="AddTask" component={AddTaskScreen} options={{ title: 'Add task' }} />
+          <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Add expense', presentation: 'modal' }} />
+          <Stack.Screen name="QuickSplit" component={QuickSplitScreen} options={{ title: 'Quick split', presentation: 'modal' }} />
+          <Stack.Screen name="AddTask" component={AddTaskScreen} options={{ title: 'Add task', presentation: 'modal' }} />
           <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
-          <Stack.Screen name="GroupSettings" component={GroupSettingsScreen} options={({ route }) => ({ title: `${route.params.groupName} Settings` })} />
-          <Stack.Screen name="Insights" component={InsightsScreen} options={({ route }) => ({ title: `${route.params.groupName} Insights` })} />
-          <Stack.Screen name="TaskCalendar" component={TaskCalendarScreen} options={({ route }) => ({ title: `${route.params.groupName} Calendar` })} />
+          <Stack.Screen name="GroupSettings" component={GroupSettingsScreen} options={({ route }) => ({ title: `${route.params.groupName} settings` })} />
+          <Stack.Screen name="Insights" component={InsightsScreen} options={({ route }) => ({ title: `${route.params.groupName} insights` })} />
+          <Stack.Screen name="TaskCalendar" component={TaskCalendarScreen} options={({ route }) => ({ title: `${route.params.groupName} calendar` })} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
           <Stack.Screen name="Membership" component={MembershipScreen} options={{ title: 'Membership' }} />
           <Stack.Screen name="HelpChat" component={HelpChatScreen} options={{ title: 'Splitmate Help' }} />

@@ -79,6 +79,11 @@
         </nav>
 
         <div class="account-area">
+            <button type="button" class="command-trigger" id="commandTrigger" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <span>Jump to</span>
+                <kbd class="command-kbd" data-mod>Ctrl K</kbd>
+            </button>
             <details class="account-menu">
                 <summary aria-label="Open account menu">
                     <span class="user-avatar">{{ current_user.name[0].upper() }}</span>
@@ -138,6 +143,65 @@
     {% include "_invite_splitmate_modal.html" %}
     {% include "_support_chat_modal.html" %}
 </div>
+<dialog class="command-menu" id="commandMenu" aria-label="Command menu">
+    <input type="text" id="commandInput" placeholder="Go to a page or run an action" autocomplete="off" aria-controls="commandList">
+    <ul id="commandList" role="listbox">
+        <li role="option" data-href="{{ url_for('main.home') }}">Home <kbd>G H</kbd></li>
+        <li role="option" data-href="{{ url_for('split.index') }}">Split expenses <kbd>G S</kbd></li>
+        <li role="option" data-href="{{ url_for('tasks.index') }}">Tasks <kbd>G T</kbd></li>
+        <li role="option" data-href="{{ url_for('notes.index') }}">Notes <kbd>G N</kbd></li>
+        <li role="option" data-href="{{ url_for('main.profile') }}">Profile <kbd>G P</kbd></li>
+        <li role="option" data-href="{{ url_for('main.profile', _anchor='membership-panel') }}">Membership</li>
+        <li role="option" data-href="{{ url_for('main.profile', _anchor='settings-panel') }}">Settings</li>
+        <li role="option" data-modal="inviteSplitmateModal">Invite a friend</li>
+        <li role="option" data-modal="supportChatModal">Help chat</li>
+    </ul>
+    <p class="command-hint"><kbd>↑</kbd><kbd>↓</kbd> to move, <kbd>Enter</kbd> to open, <kbd>Esc</kbd> to close</p>
+</dialog>
+<script>
+    // Command menu: Ctrl/Cmd+K opens it, typing filters, arrows move, Enter runs. "G" then a letter jumps straight to a page.
+    (function () {
+        const menu = document.getElementById('commandMenu');
+        const input = document.getElementById('commandInput');
+        const items = Array.from(menu.querySelectorAll('li'));
+        const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+        document.querySelectorAll('[data-mod]').forEach(el => { el.textContent = isMac ? '⌘K' : 'Ctrl K'; });
+        let active = 0;
+        const visible = () => items.filter(item => !item.hidden);
+        const highlight = () => visible().forEach((item, index) => item.setAttribute('aria-selected', index === active ? 'true' : 'false'));
+        const open = () => { input.value = ''; items.forEach(item => { item.hidden = false; }); active = 0; highlight(); menu.showModal(); input.focus(); };
+        const run = item => {
+            if (!item) return;
+            menu.close();
+            if (item.dataset.href) window.location.href = item.dataset.href;
+            if (item.dataset.modal && window.openModal) window.openModal(item.dataset.modal);
+        };
+        document.getElementById('commandTrigger').addEventListener('click', open);
+        input.addEventListener('input', () => {
+            const query = input.value.trim().toLowerCase();
+            items.forEach(item => { item.hidden = !item.textContent.toLowerCase().includes(query); });
+            active = 0; highlight();
+        });
+        input.addEventListener('keydown', event => {
+            const list = visible();
+            if (event.key === 'ArrowDown') { active = Math.min(active + 1, list.length - 1); highlight(); event.preventDefault(); }
+            if (event.key === 'ArrowUp') { active = Math.max(active - 1, 0); highlight(); event.preventDefault(); }
+            if (event.key === 'Enter') { run(list[active]); event.preventDefault(); }
+        });
+        items.forEach(item => item.addEventListener('click', () => run(item)));
+        menu.addEventListener('click', event => { if (event.target === menu) menu.close(); });
+        const jumps = { h: 0, s: 1, t: 2, n: 3, p: 4 };
+        let waitingForG = false;
+        document.addEventListener('keydown', event => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); menu.open ? menu.close() : open(); return; }
+            const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || document.activeElement.isContentEditable;
+            if (typing || menu.open || event.metaKey || event.ctrlKey || event.altKey) return;
+            const key = event.key.toLowerCase();
+            if (waitingForG && key in jumps) { run(items[jumps[key]]); }
+            waitingForG = key === 'g';
+        });
+    })();
+</script>
 {% else %}
 <button class="theme-toggle auth-theme-toggle" id="themeToggle" type="button" aria-label="Switch theme" title="Switch theme">
     <span class="theme-toggle-icon theme-toggle-light" aria-hidden="true"></span>

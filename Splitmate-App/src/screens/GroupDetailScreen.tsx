@@ -23,6 +23,7 @@ import { typography } from '@/theme/typography';
 import { formatDate, formatDateTime } from '@/utils/dates';
 import { getGroceryLocation } from '@/utils/groceryLocation';
 import { formatMoney, parseAmount } from '@/utils/money';
+import { useUndo } from '@/state/UndoToast';
 import type { Expense, ExpenseSearchResult, GroceryComparison, GroupDetail, Note, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupDetail'>;
@@ -31,6 +32,8 @@ type Tab = 'overview' | 'expenses' | 'tasks' | 'notes' | 'pay';
 export function GroupDetailScreen({ navigation, route }: Props) {
   const { groupId } = route.params;
   const { currencyCode, user } = useAuth();
+  const [removed, setRemoved] = useState<string[]>([]);
+  const showUndo = useUndo();
   const [detail, setDetail] = useState<GroupDetail | null>(null);
   const groupCurrency = detail?.group.currency || currencyCode;
   const money = useCallback((value: number) => formatMoney(value, groupCurrency), [groupCurrency]);
@@ -115,6 +118,8 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       await load();
     } catch (error) {
       Alert.alert(title, error instanceof Error ? error.message : 'Try again.');
+      // Undo any optimistic change by showing what the server really has.
+      load().catch(() => undefined);
     }
   }
 
@@ -164,11 +169,27 @@ export function GroupDetailScreen({ navigation, route }: Props) {
     }
   }
 
-  function confirmDeleteTask(taskId: number, title: string) {
-    Alert.alert('Delete task?', title, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => runAction(() => api.deleteTask(taskId), 'Could not delete task') }
-    ]);
+  // Ticking a task or note flips it on screen first, then the server confirms (a failed call reloads).
+  function toggleOptimistic(list: 'tasks' | 'notes', id: number, call: () => Promise<unknown>, failTitle: string) {
+    setDetail(current => current ? {
+      ...current,
+      [list]: (current[list] as Array<{ id: number; is_completed: boolean }>).map(item => (item.id === id ? { ...item, is_completed: !item.is_completed } : item))
+    } : current);
+    runAction(call, failTitle);
+  }
+
+  // Deletes hide the item at once and show an Undo toast; the server delete runs when it times out.
+  function removeWithUndo(key: string, message: string, remove: () => Promise<unknown>, failTitle: string) {
+    setRemoved(keys => [...keys, key]);
+    const restore = () => setRemoved(keys => keys.filter(item => item !== key));
+    showUndo(message, {
+      commit: () => { runAction(remove, failTitle).finally(restore); },
+      undo: restore
+    });
+  }
+
+  function confirmDeleteTask(taskId: number, _title: string) {
+    removeWithUndo(`task:${taskId}`, 'Task deleted', () => api.deleteTask(taskId), 'Could not delete task');
   }
 
   function editExpense(expense: Expense) {
@@ -191,17 +212,11 @@ export function GroupDetailScreen({ navigation, route }: Props) {
   }
 
   function confirmDeleteExpense(expense: Expense) {
-    Alert.alert('Delete expense?', `${expense.description} (${money(expense.amount)}) will be removed and balances recalculated. Transaction history keeps its record.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => runAction(() => api.deleteExpense(expense.id), 'Could not delete expense') }
-    ]);
+    removeWithUndo(`expense:${expense.id}`, `${expense.description} deleted`, () => api.deleteExpense(expense.id), 'Could not delete expense');
   }
 
   function confirmDeleteNote(note: Note) {
-    Alert.alert('Delete note?', note.title, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => runAction(() => api.deleteNote(note.id), 'Could not delete note') }
-    ]);
+    removeWithUndo(`note:${note.id}`, 'Note deleted', () => api.deleteNote(note.id), 'Could not delete note');
   }
 
   function beginEditNote(note: Note) {
@@ -466,7 +481,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
               )) : <EmptyState label="No expenses match your search." />}
             </>
           ) : (
-            detail.expenses.length ? detail.expenses.map(expense => (
+            detail.expenses.length ? detail.expenses.filter(expense => !removed.includes(`expense:${expense.id}`)).map(expense => (
               <Card key={expense.id}>
                 <View style={styles.rowBetween}>
                   <View style={styles.headerText}>
@@ -484,8 +499,8 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                 {expense.receipt_url ? <AppButton icon="receipt-outline" variant="ghost" onPress={() => Linking.openURL(api.resolveUrl(expense.receipt_url || ''))}>Open receipt</AppButton> : null}
                 {expense.paid_by_id === detail.current_user_id || isAdmin ? (
                   <View style={styles.iconActionRow}>
-                    <Pressable accessibilityLabel={`Edit ${expense.description}`} onPress={() => editExpense(expense)} style={styles.iconButton}><Icon name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
-                    <Pressable accessibilityLabel={`Delete ${expense.description}`} onPress={() => confirmDeleteExpense(expense)} style={styles.iconButton}><Icon name="trash-outline" size={20} color={colors.danger} /></Pressable>
+                    <Pressable hitSlop={8} accessibilityLabel={`Edit ${expense.description}`} onPress={() => editExpense(expense)} style={styles.iconButton}><Icon name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
+                    <Pressable hitSlop={8} accessibilityLabel={`Delete ${expense.description}`} onPress={() => confirmDeleteExpense(expense)} style={styles.iconButton}><Icon name="trash-outline" size={20} color={colors.danger} /></Pressable>
                   </View>
                 ) : null}
               </Card>
@@ -500,10 +515,10 @@ export function GroupDetailScreen({ navigation, route }: Props) {
             <AppButton icon="add-outline" style={styles.actionButton} onPress={() => navigation.navigate('AddTask', { groupId, members: detail.group.members })}>Add task</AppButton>
             <AppButton icon="calendar-outline" variant="outline" style={styles.actionButton} onPress={() => navigation.navigate('TaskCalendar', { groupId, groupName: detail.group.name })}>Calendar</AppButton>
           </View>
-          {detail.tasks.length ? detail.tasks.map(task => (
+          {detail.tasks.length ? detail.tasks.filter(task => !removed.includes(`task:${task.id}`)).map(task => (
             <Card key={task.id}>
               <View style={styles.rowBetween}>
-                <Pressable onPress={() => runAction(() => api.toggleTask(task.id), 'Could not update task')} style={styles.taskMain}>
+                <Pressable hitSlop={8} onPress={() => toggleOptimistic('tasks', task.id, () => api.toggleTask(task.id), 'Could not update task')} style={styles.taskMain}>
                   <Icon name={task.is_completed ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
                   <View style={styles.headerText}>
                     <Text style={[styles.itemTitle, task.is_completed && styles.completed]}>{task.title}</Text>
@@ -511,7 +526,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                   </View>
                 </Pressable>
                 {task.can_delete ? (
-                  <Pressable accessibilityLabel={`Delete ${task.title}`} onPress={() => confirmDeleteTask(task.id, task.title)} style={styles.iconButton}>
+                  <Pressable hitSlop={8} accessibilityLabel={`Delete ${task.title}`} onPress={() => confirmDeleteTask(task.id, task.title)} style={styles.iconButton}>
                     <Icon name="trash-outline" size={20} color={colors.danger} />
                   </Pressable>
                 ) : null}
@@ -537,7 +552,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
             <TextField label="Description" value={noteDescription} onChangeText={setNoteDescription} multiline />
             <AppButton icon="add-outline" onPress={addNote}>Add note</AppButton>
           </Card>
-          {detail.notes.length ? detail.notes.map(note => (
+          {detail.notes.length ? detail.notes.filter(note => !removed.includes(`note:${note.id}`)).map(note => (
             <Card key={note.id}>
               {editingNoteId === note.id ? (
                 <>
@@ -550,7 +565,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                 </>
               ) : (
                 <>
-                  <Pressable onPress={() => runAction(() => api.toggleNote(note.id), 'Could not update note')} style={styles.rowBetween}>
+                  <Pressable hitSlop={8} onPress={() => toggleOptimistic('notes', note.id, () => api.toggleNote(note.id), 'Could not update note')} style={styles.rowBetween}>
                     <Text style={[styles.itemTitle, note.is_completed && styles.completed]}>{note.title}</Text>
                     <Icon name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />
                   </Pressable>
@@ -558,11 +573,11 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                   <Text style={styles.memberLine}>By {note.created_by}</Text>
                   <View style={styles.iconActionRow}>
                     {note.can_compare_prices !== false ? (
-                      <Pressable accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}><Icon name="cart-outline" size={20} color={colors.primaryDark} /></Pressable>
+                      <Pressable hitSlop={8} accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}><Icon name="cart-outline" size={20} color={colors.primaryDark} /></Pressable>
                     ) : null}
-                    <Pressable accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}><Icon name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
+                    <Pressable hitSlop={8} accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}><Icon name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
                     {note.can_delete ? (
-                      <Pressable accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}><Icon name="trash-outline" size={20} color={colors.danger} /></Pressable>
+                      <Pressable hitSlop={8} accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}><Icon name="trash-outline" size={20} color={colors.danger} /></Pressable>
                     ) : null}
                   </View>
                 </>

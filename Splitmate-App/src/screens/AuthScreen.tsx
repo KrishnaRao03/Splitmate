@@ -188,7 +188,7 @@ export function AuthScreen() {
           error={emailError}
         />
         {mode === 'verify' ? (
-          <TextField label="OTP" value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={6} />
+          <TextField label="Verification code" value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={6} textContentType="oneTimeCode" autoComplete="one-time-code" />
         ) : mode === 'forgot' ? null : (
           <>
             <TextField

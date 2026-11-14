@@ -1,6 +1,7 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { Icon, IconName } from '@/components/Icon';
@@ -36,6 +37,7 @@ export function HomeScreen({ navigation }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const hasLoaded = useRef(false);
   const money = (value: number) => formatMoney(value, currencyCode);
+  const cacheKey = `splitmate.cache.dashboard.${user?.id ?? 'guest'}`;
 
   // Only the very first load shows a full-screen spinner; later reloads (on focus,
   // pull-to-refresh) keep the current content visible.
@@ -46,6 +48,7 @@ export function HomeScreen({ navigation }: Props) {
         api.upcomingReminders()
       ]);
       setDashboard(dashboardData);
+      AsyncStorage.setItem(cacheKey, JSON.stringify(dashboardData)).catch(() => undefined);
       setGroups(dashboardData.groups);
       setReminders(reminderData);
       hasLoaded.current = true;
@@ -63,7 +66,7 @@ export function HomeScreen({ navigation }: Props) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheKey]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -74,6 +77,18 @@ export function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     configureNotifications().catch(() => undefined);
   }, []);
+
+  // Stale-while-revalidate: show the last dashboard straight away, then the fresh one replaces it.
+  useEffect(() => {
+    AsyncStorage.getItem(cacheKey).then(cached => {
+      if (cached && !hasLoaded.current) {
+        const data = JSON.parse(cached) as Dashboard;
+        setDashboard(data);
+        setGroups(data.groups);
+        setLoading(false);
+      }
+    }).catch(() => undefined);
+  }, [cacheKey]);
 
   useFocusEffect(useCallback(() => {
     load();
@@ -405,6 +420,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    borderCurve: 'continuous',
     backgroundColor: SHEET.bg
   },
   actions: {
@@ -483,6 +499,7 @@ const styles = StyleSheet.create({
   },
   darkCard: {
     borderRadius: radius.lg,
+    borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: SHEET.line,
     backgroundColor: SHEET.card
@@ -508,6 +525,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.md,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center'
   },

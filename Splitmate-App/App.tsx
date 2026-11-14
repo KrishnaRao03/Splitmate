@@ -9,6 +9,7 @@ import {
   useFonts
 } from '@expo-google-fonts/manrope';
 
+import { UndoToastProvider } from '@/state/UndoToast';
 import { AppNavigator } from '@/navigation/AppNavigator';
 import { AuthProvider } from '@/state/AuthContext';
 import { ThemeProvider } from '@/state/ThemeContext';
@@ -49,9 +50,11 @@ export default function App() {
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <ThemeProvider>
         <AuthProvider>
-          <NavigationContainer theme={navigationTheme}>
-            <AppNavigator />
-          </NavigationContainer>
+          <UndoToastProvider>
+            <NavigationContainer theme={navigationTheme}>
+              <AppNavigator />
+            </NavigationContainer>
+          </UndoToastProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

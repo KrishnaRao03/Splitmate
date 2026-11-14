@@ -100,7 +100,7 @@ export function HelpChatScreen() {
           returnKeyType="send"
           style={styles.input}
         />
-        <Pressable accessibilityRole="button" accessibilityLabel="Send" onPress={send} style={styles.send}>
+        <Pressable hitSlop={12} accessibilityRole="button" accessibilityLabel="Send" onPress={send} style={styles.send}>
           <Icon name="send" size={18} color={colors.onPrimary} />
         </Pressable>
       </View>

@@ -10,6 +10,7 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
 const styles = StyleSheet.create({
   card: {
     borderRadius: radius.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
     padding: spacing.lg,
     borderWidth: 1,

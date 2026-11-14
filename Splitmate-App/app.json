@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.splitmate.mobile",
+      "predictiveBackGestureEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#1f2023"

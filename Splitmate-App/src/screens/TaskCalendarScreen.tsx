@@ -80,11 +80,11 @@ export function TaskCalendarScreen({ route }: Props) {
     <Screen>
       <Card>
         <View style={styles.calendarHeader}>
-          <Pressable accessibilityLabel="Previous month" onPress={() => setMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))} style={styles.iconButton}>
+          <Pressable hitSlop={8} accessibilityLabel="Previous month" onPress={() => setMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))} style={styles.iconButton}>
             <Icon name="chevron-back" size={22} color={colors.primaryDark} />
           </Pressable>
           <Text style={styles.monthTitle}>{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</Text>
-          <Pressable accessibilityLabel="Next month" onPress={() => setMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))} style={styles.iconButton}>
+          <Pressable hitSlop={8} accessibilityLabel="Next month" onPress={() => setMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))} style={styles.iconButton}>
             <Icon name="chevron-forward" size={22} color={colors.primaryDark} />
           </Pressable>
         </View>

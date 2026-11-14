@@ -175,7 +175,7 @@ export function TasksScreen() {
               </View>
             </Pressable>
             {task.can_delete ? (
-              <Pressable accessibilityLabel={`Delete ${task.title}`} onPress={() => confirmDeleteTask(task)} style={styles.iconButton}>
+              <Pressable hitSlop={8} accessibilityLabel={`Delete ${task.title}`} onPress={() => confirmDeleteTask(task)} style={styles.iconButton}>
                 <Icon name="trash-outline" size={20} color={colors.danger} />
               </Pressable>
             ) : null}
@@ -192,7 +192,7 @@ export function TasksScreen() {
         </Card>
       ))}
     </Screen>
-      <Pressable style={styles.fab} onPress={addTask} accessibilityRole="button" accessibilityLabel="Add task">
+      <Pressable hitSlop={12} style={styles.fab} onPress={addTask} accessibilityRole="button" accessibilityLabel="Add task">
         <Icon name="add" size={30} color={colors.surface} />
       </Pressable>
     </View>
