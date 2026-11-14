@@ -36,7 +36,7 @@ export function TabNavigator() {
         tabBarIcon: ({ color, size }) => <Icon name={ICONS[route.name]} size={size} color={color} />
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Splitmate', tabBarLabel: 'Home', headerTitle: () => <BrandLogo size={132} /> }} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Splitmate', tabBarLabel: 'Home', headerTitle: () => <BrandLogo size={132} onYellow />, headerStyle: { backgroundColor: colors.highlight } }} />
       <Tab.Screen name="Split" component={SplitScreen} options={{ title: 'Split' }} />
       <Tab.Screen name="Tasks" component={TasksScreen} options={{ title: 'Tasks' }} />
       <Tab.Screen name="Notes" component={NotesScreen} options={{ title: 'Notes' }} />

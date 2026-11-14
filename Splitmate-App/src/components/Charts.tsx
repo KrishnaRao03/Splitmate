@@ -6,8 +6,11 @@ import { typography } from '@/theme/typography';
 
 type BarRow = { label: string; total: number };
 
+/** Colours for charts drawn on a black surface (the Home screen's lower sheet). */
+const DARK = { text: '#ffffff', amount: '#ffc83d', track: '#272727', bar: '#ffc83d' };
+
 /** Horizontal bars scaled to the largest row, like the website's insight lists. */
-export function BarList({ rows, format, emptyLabel }: { rows: BarRow[]; format: (value: number) => string; emptyLabel: string }) {
+export function BarList({ rows, format, emptyLabel, dark = false }: { rows: BarRow[]; format: (value: number) => string; emptyLabel: string; dark?: boolean }) {
   if (!rows.length) {
     return <Text style={styles.empty}>{emptyLabel}</Text>;
   }
@@ -17,11 +20,11 @@ export function BarList({ rows, format, emptyLabel }: { rows: BarRow[]; format: 
       {rows.map(row => (
         <View key={row.label} style={styles.barBlock}>
           <View style={styles.rowBetween}>
-            <Text style={styles.barLabel} numberOfLines={1}>{row.label}</Text>
-            <Text style={styles.amount}>{format(row.total)}</Text>
+            <Text style={[styles.barLabel, dark && { color: DARK.text }]} numberOfLines={1}>{row.label}</Text>
+            <Text style={[styles.amount, dark && { color: DARK.amount }]}>{format(row.total)}</Text>
           </View>
-          <View style={styles.track}>
-            <View style={[styles.bar, { width: `${Math.max(4, (row.total / max) * 100)}%` }]} />
+          <View style={[styles.track, dark && { backgroundColor: DARK.track }]}>
+            <View style={[styles.bar, dark && { backgroundColor: DARK.bar }, { width: `${Math.max(4, (row.total / max) * 100)}%` }]} />
           </View>
         </View>
       ))}
@@ -30,14 +33,14 @@ export function BarList({ rows, format, emptyLabel }: { rows: BarRow[]; format: 
 }
 
 /** Vertical month columns; empty months stay empty instead of showing a sliver. */
-export function MonthBars({ rows }: { rows: Array<{ month: string; label: string; total: number }> }) {
+export function MonthBars({ rows, dark = false }: { rows: Array<{ month: string; label: string; total: number }>; dark?: boolean }) {
   const max = Math.max(...rows.map(row => row.total), 0) || 1;
   return (
     <View style={styles.monthRow}>
       {rows.map(row => (
         <View key={row.month} style={styles.monthColumn}>
-          <View style={styles.monthTrack}>
-            <View style={[styles.monthBar, { height: row.total ? `${Math.max(6, (row.total / max) * 100)}%` : 0 }]} />
+          <View style={[styles.monthTrack, dark && { backgroundColor: DARK.track }]}>
+            <View style={[styles.monthBar, dark && { backgroundColor: DARK.bar }, { height: row.total ? `${Math.max(6, (row.total / max) * 100)}%` : 0 }]} />
           </View>
           <Text style={styles.monthLabel}>{row.label}</Text>
         </View>

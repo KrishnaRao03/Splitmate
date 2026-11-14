@@ -1,6 +1,12 @@
 import type { ComponentType } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import {
+  AirplaneIcon,
+  CarIcon,
+  FilmSlateIcon,
+  FirstAidIcon,
+  ForkKnifeIcon,
+  WifiHighIcon,
   AlarmIcon,
   ArrowClockwiseIcon,
   ArrowDownIcon,
@@ -137,6 +143,12 @@ const ICONS = {
   'star-outline': StarIcon,
   'swap-horizontal-outline': ArrowsLeftRightIcon,
   'trash-outline': TrashIcon,
+  'airplane-outline': AirplaneIcon,
+  'car-outline': CarIcon,
+  'film-outline': FilmSlateIcon,
+  'medkit-outline': FirstAidIcon,
+  'restaurant-outline': ForkKnifeIcon,
+  'wifi-outline': WifiHighIcon,
   'remove-circle': MinusCircleIcon,
   'help-circle': QuestionIcon,
   'qr-code-outline': QrCodeIcon
