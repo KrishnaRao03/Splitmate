@@ -52,6 +52,8 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     last_activity_at = db.Column(db.DateTime)
     last_inactivity_email_sent_at = db.Column(db.DateTime)
     is_suspended = db.Column(db.Boolean, default=False, nullable=False)
+    # ISO country code from sign-up; sets the user's currency and which payment details they can add.
+    country = db.Column(db.String(2), default='CA', nullable=False)
     # Optional, one account per number (stored as +digits); lets friends find you for Quick split.
     phone = db.Column(db.String(20), unique=True, index=True)
     is_email_verified = db.Column(db.Boolean, default=False, nullable=False)
@@ -120,6 +122,8 @@ class Group(db.Model):
     admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     default_split_type = db.Column(db.String(20), default='equal', nullable=False)
     default_split_config = db.Column(db.Text)
+    # Every amount in the group is in this currency (picked at creation); nothing is converted.
+    currency = db.Column(db.String(3), default='CAD', nullable=False)
     # Made by Quick split for a one-off split; reused when the same people split again.
     is_quick_split = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -285,6 +289,7 @@ class PendingRegistration(EmailOtpMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
+    country = db.Column(db.String(2), default='CA', nullable=False)
     email_otp_hash = db.Column(db.String(256))
     email_otp_expires_at = db.Column(db.DateTime)
     email_otp_sent_at = db.Column(db.DateTime)
@@ -299,7 +304,8 @@ class PendingRegistration(EmailOtpMixin, db.Model):
 
     def create_user(self):
         """The verified account. The caller deletes this pending row and commits."""
-        return User(email=self.email, name=self.name, password_hash=self.password_hash, is_email_verified=True)
+        return User(email=self.email, name=self.name, password_hash=self.password_hash, is_email_verified=True,
+                    country=self.country or 'CA')
 
 
 class FeatureUsage(db.Model):

@@ -94,11 +94,15 @@ def clean_payment_handles(data):
 
 def payment_methods_for(receiver, amount, currency_code, receiver_name=None):
     """Ways to pay `receiver` outside the app. Splitmate only builds links; it never touches the money."""
+    from app.regions import payment_fields_for
+
     amount_text = f'{Decimal(str(amount)):.2f}'
     name = receiver_name or receiver.name
+    # Only the ways to pay that work in the receiver's country (Interac in Canada, UPI in India, PayPal anywhere).
+    allowed = set(payment_fields_for(getattr(receiver, 'country', None)))
     methods = []
     # Only an Interac email its owner proved with an emailed code is ever shown to payers.
-    if receiver.interac_email and getattr(receiver, 'interac_email_verified', False):
+    if 'interac_email' in allowed and receiver.interac_email and getattr(receiver, 'interac_email_verified', False):
         from app.payment_security import mask_email
         methods.append({
             'type': 'interac',
@@ -108,14 +112,14 @@ def payment_methods_for(receiver, amount, currency_code, receiver_name=None):
             'verified': True,
             'url': None,
         })
-    if receiver.paypal_username:
+    if 'paypal_username' in allowed and receiver.paypal_username:
         methods.append({
             'type': 'paypal',
             'label': 'PayPal',
             'handle': receiver.paypal_username,
             'url': f'https://paypal.me/{quote(receiver.paypal_username)}/{amount_text}{currency_code.upper()}',
         })
-    if receiver.upi_id:
+    if 'upi_id' in allowed and receiver.upi_id:
         params = {'pa': receiver.upi_id, 'pn': name}
         # UPI only settles in rupees; for other currencies the payer types the amount themselves.
         if currency_code.upper() == 'INR':

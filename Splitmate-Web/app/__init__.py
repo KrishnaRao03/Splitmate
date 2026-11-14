@@ -263,6 +263,18 @@ def ensure_group_members_schema():
 
     db.session.commit()
 
+def ensure_region_schema():
+    """Country per user and currency per group. Existing rows become Canada / CAD."""
+    inspector = inspect(db.engine)
+    for table, column, definition in (
+        ('user', 'country', "VARCHAR(2) DEFAULT 'CA' NOT NULL"),
+        ('pending_registration', 'country', "VARCHAR(2) DEFAULT 'CA' NOT NULL"),
+        ('group', 'currency', "VARCHAR(3) DEFAULT 'CAD' NOT NULL"),
+    ):
+        if inspector.has_table(table) and column not in {c['name'] for c in inspector.get_columns(table)}:
+            db.session.execute(text(f'ALTER TABLE "{table}" ADD COLUMN {column} {definition}'))
+    db.session.commit()
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -273,17 +285,17 @@ def create_app(config_class=Config):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     def configured_currency_code():
+        # Signed-in people see amounts in their own country's currency; group pages use the group's.
+        from app.regions import currency_for_country
+        if getattr(current_user, 'is_authenticated', False) and getattr(current_user, 'country', None):
+            return currency_for_country(current_user.country)
         return (app.config.get('STRIPE_CURRENCY') or 'cad').upper()
 
+    from app.regions import CURRENCIES as available_currencies
+
     def configured_currency_symbol():
-        symbols = {
-            'CAD': '$',
-            'USD': '$',
-            'INR': '\u20b9',
-            'EUR': '\u20ac',
-            'GBP': '\u00a3'
-        }
-        return symbols.get(configured_currency_code(), configured_currency_code())
+        from app.regions import currency_symbol
+        return currency_symbol(configured_currency_code())
 
     @app.template_filter('money')
     def money_filter(value, decimals=2):
@@ -301,6 +313,7 @@ def create_app(config_class=Config):
 
         return {
             'currency_code': configured_currency_code(),
+            'available_currencies': available_currencies,
             'currency_symbol': configured_currency_symbol(),
             'is_app_admin': is_app_admin(current_user)
         }
@@ -424,6 +437,7 @@ def create_app(config_class=Config):
         ensure_group_default_split_schema()
         ensure_task_schema()
         ensure_group_members_schema()
+        ensure_region_schema()
         # Fails fast on a malformed FIELD_ENCRYPTION_KEY, then encrypts any plain-text payment handles.
         field_encryption.fernet()
         field_encryption.encrypt_existing_payment_handles(db)

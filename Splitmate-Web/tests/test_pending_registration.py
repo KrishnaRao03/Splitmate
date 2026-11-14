@@ -16,7 +16,7 @@ class PendingRegistrationTestConfig(Config):
     OTP_RESEND_COOLDOWN_SECONDS = 0
 
 
-SIGNUP = {'name': 'New Person', 'email': 'new@example.com', 'password': 'Strong-pass-123', 'confirm_password': 'Strong-pass-123'}
+SIGNUP = {'name': 'New Person', 'email': 'new@example.com', 'password': 'Strong-pass-123', 'confirm_password': 'Strong-pass-123', 'country': 'CA'}
 
 
 class PendingRegistrationTests(unittest.TestCase):

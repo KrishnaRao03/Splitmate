@@ -31,8 +31,9 @@ type Tab = 'overview' | 'expenses' | 'tasks' | 'notes' | 'pay';
 export function GroupDetailScreen({ navigation, route }: Props) {
   const { groupId } = route.params;
   const { currencyCode, user } = useAuth();
-  const money = useCallback((value: number) => formatMoney(value, currencyCode), [currencyCode]);
   const [detail, setDetail] = useState<GroupDetail | null>(null);
+  const groupCurrency = detail?.group.currency || currencyCode;
+  const money = useCallback((value: number) => formatMoney(value, groupCurrency), [groupCurrency]);
   const [tab, setTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -184,6 +185,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       currentUserId: detail.current_user_id,
       categories: detail.expense_categories,
       defaultSplit: detail.default_split,
+      currency: detail.group.currency,
       expense
     });
   }
@@ -337,7 +339,8 @@ export function GroupDetailScreen({ navigation, route }: Props) {
     members: detail.group.members,
     currentUserId: detail.current_user_id,
     categories: detail.expense_categories,
-    defaultSplit: detail.default_split
+    defaultSplit: detail.default_split,
+    currency: detail.group.currency
   });
 
   return (

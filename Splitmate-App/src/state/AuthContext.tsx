@@ -14,11 +14,11 @@ type AuthState = {
   user: User | null;
   setApiBaseUrl: (url: string) => void;
   signIn: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, confirmPassword: string) => Promise<{ email: string; otpSent: boolean }>;
+  register: (name: string, email: string, password: string, confirmPassword: string, country: string) => Promise<{ email: string; otpSent: boolean }>;
   verifyEmail: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<boolean>;
   requestPasswordReset: (email: string) => Promise<void>;
-  updateProfile: (details: { name: string; email: string; currentPassword?: string; phone?: string } & PaymentHandles) => Promise<{ verificationRequired: boolean; otpSent: boolean; interacCodeSent: boolean }>;
+  updateProfile: (details: { name: string; email: string; currentPassword?: string; phone?: string; country?: string } & PaymentHandles) => Promise<{ verificationRequired: boolean; otpSent: boolean; interacCodeSent: boolean }>;
   updatePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
   /** Re-reads the signed-in user, e.g. after the Interac email is confirmed. */
   reloadUser: () => Promise<void>;
@@ -152,8 +152,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await api.login(email.trim(), password);
       await applySession(response.token, response.user, response.currency_code);
     },
-    register: async (name: string, email: string, password: string, confirmPassword: string) => {
-      const response = await api.register(name.trim(), email.trim(), password, confirmPassword);
+    register: async (name: string, email: string, password: string, confirmPassword: string, country: string) => {
+      const response = await api.register(name.trim(), email.trim(), password, confirmPassword, country);
       return { email: response.user.email, otpSent: response.otp_sent };
     },
     verifyEmail: async (email: string, otp: string) => {

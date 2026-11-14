@@ -197,7 +197,16 @@ class HighFixes(SecurityFixTests):
         self.assertEqual(methods['interac']['handle'], 'admin-pay@example.com')
         self.assertEqual(methods['interac']['masked'], 'a•••y@example.com')
         self.assertEqual(methods['paypal']['url'], 'https://paypal.me/adminpays/30.00CAD')
+        # Payment apps follow the receiver's country: UPI is only offered for people in India.
+        self.assertNotIn('upi', methods)
+        self.client.patch('/api/mobile/me', headers=self.admin_h, json={
+            'name': 'Admin', 'email': 'admin@example.com', 'current_password': 'password123', 'country': 'IN'})
+        options = self.client.get(f'/api/mobile/groups/{self.group_id}', headers=self.member_h).get_json()['payment_options']
+        methods = {method['type']: method for method in options[0]['payment_methods']}
         self.assertTrue(methods['upi']['url'].startswith('upi://pay?pa=admin%40okbank'))
+        self.assertNotIn('interac', methods)
+        self.client.patch('/api/mobile/me', headers=self.admin_h, json={
+            'name': 'Admin', 'email': 'admin@example.com', 'current_password': 'password123', 'country': 'CA'})
 
         bad = self.client.patch('/api/mobile/me', headers=self.admin_h, json={
             'name': 'Admin', 'email': 'admin@example.com', 'paypal_username': 'not valid!'})

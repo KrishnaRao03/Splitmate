@@ -8,6 +8,7 @@ from app import db, limiter
 from app.email_utils import send_password_reset_email, send_verification_otp
 from app.email_validation import email_error_message, normalize_email
 from app.models import PendingRegistration, User
+from app.regions import countries_payload, normalize_country
 from app.security import display_name_error, password_error
 
 auth_bp = Blueprint('auth', __name__)
@@ -90,7 +91,7 @@ def registered_account(email):
     return user
 
 
-def start_pending_registration(email, name, password):
+def start_pending_registration(email, name, password, country='CA'):
     """Save the sign-up (not a User yet) and email its code. Returns (pending, sent)."""
     PendingRegistration.query.filter(
         PendingRegistration.created_at < datetime.utcnow() - PENDING_REGISTRATION_TTL
@@ -101,6 +102,7 @@ def start_pending_registration(email, name, password):
         pending = PendingRegistration(email=email)
         db.session.add(pending)
     pending.name = name
+    pending.country = country
     pending.set_password(password)
     pending.created_at = datetime.utcnow()
     db.session.flush()
@@ -279,6 +281,7 @@ def register():
         name = request.form.get('name', '').strip()
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
+        country = normalize_country(request.form.get('country'))
 
         # Validation
         errors = []
@@ -292,16 +295,18 @@ def register():
             errors.append(new_password_error)
         if password != confirm_password:
             errors.append('Passwords do not match')
+        if not country:
+            errors.append('Choose your country')
         if email and registered_account(email):
             errors.append('Email already registered')
 
         if errors:
             for error in errors:
                 flash(error, 'error')
-            return render_template('register.html')
+            return render_template('register.html', countries=countries_payload())
 
         # The account is created only after the emailed code is verified.
-        pending, sent = start_pending_registration(email, name, password)
+        pending, sent = start_pending_registration(email, name, password, country)
         set_pending_registration(pending)
         next_page = safe_next_url()
         if next_page:
@@ -313,7 +318,7 @@ def register():
             flash('We could not send the verification email. Wait a minute and tap Resend OTP.', 'error')
         return redirect(url_for('auth.verify_email'))
 
-    return render_template('register.html')
+    return render_template('register.html', countries=countries_payload())
 
 @auth_bp.route('/verify-email', methods=['GET', 'POST'])
 @limiter.limit('10 per minute', methods=['POST'])

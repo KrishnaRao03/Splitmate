@@ -15,6 +15,8 @@ import { TextField } from '@/components/TextField';
 import { useAuth } from '@/state/AuthContext';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
+import { CountryPicker } from '@/components/CountryPicker';
+import { paymentFieldsFor } from '@/utils/countries';
 import { formatDate } from '@/utils/dates';
 import { passwordError as describePasswordError } from '@/utils/validation';
 import type { ProfileQr, RewardsSummary, RootStackParamList } from '@/types';
@@ -31,6 +33,7 @@ export function ProfileScreen({ navigation }: Props) {
   const [interacEmail, setInteracEmail] = useState(auth.user?.interac_email || '');
   const [paypalUsername, setPaypalUsername] = useState(auth.user?.paypal_username || '');
   const [upiId, setUpiId] = useState(auth.user?.upi_id || '');
+  const [country, setCountry] = useState(auth.user?.country || 'CA');
   const [phone, setPhone] = useState(auth.user?.phone || '');
   const [otp, setOtp] = useState('');
   const [interacOtp, setInteracOtp] = useState('');
@@ -88,6 +91,9 @@ export function ProfileScreen({ navigation }: Props) {
   }
 
   const emailChanged = email.trim().toLowerCase() !== (auth.user?.email || '').toLowerCase();
+  const countryChanged = country !== (auth.user?.country || 'CA');
+  // Only the payment apps that work in the chosen country are offered (PayPal works everywhere).
+  const paymentFields = paymentFieldsFor(country);
   const typedInterac = interacEmail.trim().toLowerCase();
   const paymentChanged =
     (typedInterac !== (auth.user?.interac_email || '').toLowerCase() && typedInterac !== (auth.user?.pending_interac_email || '').toLowerCase())
@@ -101,10 +107,11 @@ export function ProfileScreen({ navigation }: Props) {
       const result = await auth.updateProfile({
         name,
         email,
-        currentPassword: emailChanged || paymentChanged ? emailPassword : undefined,
-        interac_email: interacEmail.trim(),
+        currentPassword: emailChanged || paymentChanged || countryChanged ? emailPassword : undefined,
+        country,
+        interac_email: paymentFields.includes('interac_email') ? interacEmail.trim() : undefined,
         paypal_username: paypalUsername.trim(),
-        upi_id: upiId.trim(),
+        upi_id: paymentFields.includes('upi_id') ? upiId.trim() : undefined,
         phone: phone.trim()
       });
       setEmailPassword('');
@@ -244,8 +251,11 @@ export function ProfileScreen({ navigation }: Props) {
             <TextField label="Full name" value={name} onChangeText={setName} autoCapitalize="words" />
             <TextField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
             <TextField label="Phone number (optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="416 555 0123" />
+            <CountryPicker value={country} onChange={setCountry} hint="Sets your currency and which payment apps you can add. Changing it needs your password." />
             <Text style={styles.subSectionTitle}>How people can pay you</Text>
             <Text style={styles.help}>Shown to members who owe you. Splitmate never handles the money. Changes need your password and we email you about them.</Text>
+            {paymentFields.includes('interac_email') ? (
+            <>
             <TextField label="Interac e-Transfer email" value={interacEmail} onChangeText={setInteracEmail} keyboardType="email-address" autoCapitalize="none" />
             {auth.user?.interac_email ? (
               <Text style={styles.status}>
@@ -261,9 +271,13 @@ export function ProfileScreen({ navigation }: Props) {
               </View>
             ) : null}
             {interacMessage ? <Text style={styles.help}>{interacMessage}</Text> : null}
+            </>
+            ) : null}
             <TextField label="PayPal.Me username" value={paypalUsername} onChangeText={setPaypalUsername} autoCapitalize="none" />
-            <TextField label="UPI ID" value={upiId} onChangeText={setUpiId} autoCapitalize="none" placeholder="name@bank" />
-            {emailChanged || paymentChanged ? (
+            {paymentFields.includes('upi_id') ? (
+              <TextField label="UPI ID" value={upiId} onChangeText={setUpiId} autoCapitalize="none" placeholder="name@bank" />
+            ) : null}
+            {emailChanged || paymentChanged || countryChanged ? (
               <TextField label="Current password (needed for these changes)" value={emailPassword} onChangeText={setEmailPassword} secureTextEntry />
             ) : null}
             <AppButton icon="save-outline" loading={savingDetails} onPress={saveDetails}>Save details</AppButton>

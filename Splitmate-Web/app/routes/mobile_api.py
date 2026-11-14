@@ -31,6 +31,10 @@ from app.models import (
     Task,
     User,
 )
+from app.regions import (
+    countries_payload, country_name, currency_for_country, normalize_country, normalize_currency,
+    payment_fields_for,
+)
 from app.rewards import POINTS_EARNING_PAUSED, REWARD_TIERS, reward_progress
 from app.email_utils import send_money_request_email, send_password_reset_email, send_splitmate_invite_email
 from app.payment_security import (
@@ -92,6 +96,11 @@ def user_payload(user):
         'name': user.name,
         'email': user.email,
         'phone': user.phone or '',
+        'country': user.country or 'CA',
+        'country_name': country_name(user.country),
+        'currency': currency_for_country(user.country),
+        # The payment-detail fields that make sense in this user's country (PayPal works everywhere).
+        'payment_fields': list(payment_fields_for(user.country)),
         'is_email_verified': bool(user.is_email_verified),
         'reward_points': int(user.reward_points or 0),
         'membership_plan': 'pro' if billing.is_pro(user) else 'free',
@@ -108,7 +117,7 @@ def auth_payload(user):
     return {
         'token': mobile_token_for(user),
         'user': user_payload(user),
-        'currency_code': (current_app.config.get('STRIPE_CURRENCY') or 'cad').upper(),
+        'currency_code': currency_for_country(user.country),
     }
 
 
@@ -199,6 +208,7 @@ def group_payload(group):
         'id': group.id,
         'name': group.name,
         'admin_id': group.admin_id,
+        'currency': group.currency or 'CAD',
         'members': group_member_payload(group),
     }
 
@@ -376,6 +386,12 @@ def health():
     })
 
 
+@mobile_api_bp.route('/countries')
+def countries():
+    """Countries we support, with their currency and payment-detail fields, for the sign-up picker."""
+    return jsonify({'countries': countries_payload(), 'default': 'CA'})
+
+
 @mobile_api_bp.route('/auth/login', methods=['POST'])
 @limiter.limit('10 per minute; 50 per hour')
 @limiter.limit('10 per 15 minutes', key_func=json_email_key)
@@ -410,6 +426,7 @@ def register():
     name = (data.get('name') or '').strip()
     password = data.get('password') or ''
     confirm_password = data.get('confirm_password') or password
+    country = normalize_country(data.get('country'))
 
     if not email:
         return json_error(email_error_message(data.get('email')))
@@ -421,11 +438,13 @@ def register():
         return json_error(new_password_error)
     if password != confirm_password:
         return json_error('Passwords do not match.')
+    if not country:
+        return json_error('Choose your country.')
     if registered_account(email):
         return json_error('Email already registered.', 409)
 
     # The account is created only after the emailed code is verified.
-    pending, otp_sent = start_pending_registration(email, name, password)
+    pending, otp_sent = start_pending_registration(email, name, password, country)
     return jsonify({
         'user': {'email': pending.email, 'name': pending.name},
         'verification_required': True,
@@ -538,7 +557,7 @@ def me():
     if request.method == 'GET':
         return jsonify({
             'user': user_payload(user),
-            'currency_code': (current_app.config.get('STRIPE_CURRENCY') or 'cad').upper(),
+            'currency_code': currency_for_country(user.country),
         })
 
     data = json_body()
@@ -555,6 +574,11 @@ def me():
         return json_error('That email is already used by another account.', 409)
 
     email_changed = email != user.email
+    country = normalize_country(data.get('country')) if data.get('country') else (user.country or 'CA')
+    if not country:
+        return json_error('Choose a country from the list.')
+    if country != (user.country or 'CA') and not user.check_password(data.get('current_password') or ''):
+        return json_error('Enter your current password to change your country.', 403)
     # Changing the sign-in email is a takeover risk, so it needs the current password.
     if email_changed and not user.check_password(data.get('current_password') or ''):
         return json_error('Enter your current password to change your email.', 403)
@@ -579,6 +603,7 @@ def me():
 
     user.name = name
     otp_sent = False
+    user.country = country
     if email_changed:
         user.email = email
         user.is_email_verified = False
@@ -1115,7 +1140,8 @@ def create_group():
     if name_error:
         return json_error(name_error)
 
-    group = Group(name=name, admin_id=request.mobile_user.id)
+    currency = normalize_currency(json_body().get('currency')) or currency_for_country(request.mobile_user.country)
+    group = Group(name=name, admin_id=request.mobile_user.id, currency=currency)
     group.members.append(request.mobile_user)
     db.session.add(group)
     db.session.flush()

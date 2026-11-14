@@ -274,6 +274,16 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="profileCountry">Country</label>
+                        <select id="profileCountry" name="country">
+                            {% for country in countries %}
+                            <option value="{{ country.code }}" {% if country.code == current_user.country %}selected{% endif %}>{{ country.name }} ({{ country.currency }})</option>
+                            {% endfor %}
+                        </select>
+                        <small>Sets your currency and which payment apps you can add. Changing it needs your current password.</small>
+                    </div>
+
+                    <div class="form-group">
                         <label for="profileEmailPassword">Current Password <span class="text-subtle">(needed to change your email or payment details)</span></label>
                         <input type="password" id="profileEmailPassword" name="current_password"
                                autocomplete="current-password">
@@ -281,6 +291,7 @@
 
                     <h3>How people can pay you</h3>
                     <p class="text-subtle">Shown to members who owe you money. Splitmate never handles the money itself. Changes need your current password and we email you about them.</p>
+                    {% if 'interac_email' in payment_fields %}
                     <div class="form-group">
                         <label for="profileInterac">Interac e-Transfer email</label>
                         <input type="email" id="profileInterac" name="interac_email" maxlength="120"
@@ -289,16 +300,19 @@
                     {% if current_user.interac_email %}
                     <p class="text-subtle">{% if current_user.interac_email_verified %}Verified: {{ current_user.interac_email }}{% else %}Not verified yet, so hidden from others: {{ current_user.interac_email }}{% endif %}</p>
                     {% endif %}
+                    {% endif %}
                     <div class="form-group">
                         <label for="profilePaypal">PayPal.Me username</label>
                         <input type="text" id="profilePaypal" name="paypal_username" maxlength="40"
                                value="{{ current_user.paypal_username or '' }}">
                     </div>
+                    {% if 'upi_id' in payment_fields %}
                     <div class="form-group">
                         <label for="profileUpi">UPI ID</label>
                         <input type="text" id="profileUpi" name="upi_id" maxlength="120" placeholder="name@bank"
                                value="{{ current_user.upi_id or '' }}">
                     </div>
+                    {% endif %}
 
                     <button type="submit" class="btn btn-primary">Save Details</button>
                 </form>

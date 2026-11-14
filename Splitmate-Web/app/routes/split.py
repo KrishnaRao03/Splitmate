@@ -131,11 +131,14 @@ def validate_member_ids(group, member_ids):
 
     return unique_ids
 
-def payment_currency_code():
+def payment_currency_code(group=None):
+    """The group's currency (each group picks one); the workspace default outside a group."""
+    if group is not None and getattr(group, 'currency', None):
+        return group.currency.lower()
     return (current_app.config.get('STRIPE_CURRENCY') or 'cad').lower()
 
-def format_payment_amount(amount):
-    return f'{payment_currency_code().upper()} {money_decimal(amount):.2f}'
+def format_payment_amount(amount, group=None):
+    return f'{payment_currency_code(group).upper()} {money_decimal(amount):.2f}'
 
 def safe_export_filename(value):
     cleaned = ''.join(char if char.isalnum() else '_' for char in (value or 'group')).strip('_')
@@ -250,7 +253,7 @@ def request_payment(group, payer, receiver, amount):
     if available <= 0:
         return None, 'You already have payments to this person waiting for confirmation.'
     if payment_amount > available:
-        return None, f'You can record up to {format_payment_amount(available)} right now.'
+        return None, f'You can record up to {format_payment_amount(available, group)} right now.'
 
     return create_payment_record(group, payer, receiver, payment_amount, status='pending'), None
 
@@ -299,7 +302,7 @@ def payment_row(payment, nicknames, viewer):
 def payment_options(group, payer, nicknames=None):
     """Who the payer owes in this group, how much, and the receiver's link-out ways to pay."""
     nicknames = nicknames if nicknames is not None else member_nickname_rows(group.id)
-    currency = payment_currency_code()
+    currency = payment_currency_code(group)
     options = []
     for receiver in group.members:
         if receiver.id == payer.id:
@@ -425,6 +428,7 @@ def index():
             'id': g.id,
             'name': g.name,
             'admin_id': g.admin_id,
+            'currency': g.currency or 'CAD',
             'members': group_member_payload(g),
             'pending_invites': group_pending_invite_payload(g) if g.admin_id == current_user.id else [],
             'default_split': group_default_split_payload(g)
@@ -530,7 +534,7 @@ def add_expense():
                 assigned_total += member_amount
 
             if assigned_total != expense_amount:
-                raise ValueError(f'Exact split amounts must total {format_payment_amount(expense_amount)}.')
+                raise ValueError(f'Exact split amounts must total {format_payment_amount(expense_amount, group)}.')
 
         elif split_type == 'percentage':
             percentages = []

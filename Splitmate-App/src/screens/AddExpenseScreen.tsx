@@ -51,7 +51,8 @@ function describeSplit(expense: Expense, members: GroupMember[]) {
 
 export function AddExpenseScreen({ navigation, route }: Props) {
   const { categories, currentUserId, defaultSplit, expense, groupId, members } = route.params;
-  const { currencyCode } = useAuth();
+  const auth = useAuth();
+  const currencyCode = route.params.currency || auth.currencyCode;
   const editing = Boolean(expense);
   const existing = useMemo(() => (expense ? describeSplit(expense, members) : null), [expense, members]);
   const [description, setDescription] = useState(expense?.description ?? '');

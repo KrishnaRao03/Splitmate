@@ -10,6 +10,7 @@ from flask import Blueprint, Response, abort, current_app, jsonify, render_templ
 from flask_login import login_required, current_user, login_user
 from sqlalchemy import func, or_
 from app import db, limiter
+from app.regions import countries_payload, normalize_country, payment_fields_for
 from app.email_validation import normalize_email
 from app.email_utils import send_group_invite_email, send_splitmate_invite_email
 from app.models import User, Group, GroupInvite, Expense, ExpenseSplit, ExpenseHistory, Note, Payment, RewardTransaction, Task
@@ -336,6 +337,13 @@ def profile():
             if email_changed and not current_user.check_password(request.form.get('current_password', '')):
                 errors.append('Enter your current password to change your email.')
 
+            # Country decides currency and payment apps, so changing it needs the password too.
+            country = normalize_country(request.form.get('country')) if request.form.get('country') else current_user.country
+            if not country:
+                errors.append('Choose a country from the list.')
+            elif country != current_user.country and not current_user.check_password(request.form.get('current_password', '')):
+                errors.append('Enter your current password to change your country.')
+
             handles, handle_error = clean_payment_handles(request.form)
             if handle_error:
                 errors.append(handle_error)
@@ -356,6 +364,7 @@ def profile():
             if payment_result['interac_code_sent']:
                 flash('We emailed a 6-digit code to your new Interac email. Enter it below to start using it.', 'info')
             current_user.name = name
+            current_user.country = country
 
             if email_changed:
                 current_user.email = email
@@ -438,7 +447,9 @@ def profile():
         reward_progress=reward_progress(current_user.reward_points),
         reward_tiers=REWARD_TIERS,
         membership=billing.membership_payload(current_user),
-        recent_reward_transactions=recent_reward_transactions
+        recent_reward_transactions=recent_reward_transactions,
+        countries=countries_payload(),
+        payment_fields=payment_fields_for(current_user.country),
     )
 
 
@@ -563,7 +574,9 @@ def create_group():
         flash(name_error, 'error')
         return redirect(redirect_target)
 
-    group = Group(name=name, admin_id=current_user.id)
+    from app.regions import currency_for_country, normalize_currency
+    currency = normalize_currency(request.form.get('currency')) or currency_for_country(current_user.country)
+    group = Group(name=name, admin_id=current_user.id, currency=currency)
     group.members.append(current_user)
     db.session.add(group)
     db.session.flush()

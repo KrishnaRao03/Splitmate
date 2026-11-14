@@ -11,6 +11,11 @@ export type User = PaymentHandles & {
   email: string;
   /** Optional, unique per account (stored as +digits). */
   phone?: string;
+  /** ISO country code from sign-up; sets `currency` and which payment fields the profile offers. */
+  country?: string;
+  country_name?: string;
+  currency?: string;
+  payment_fields?: string[];
   is_email_verified: boolean;
   /** Others see the Interac email only once its code has been entered. */
   interac_email_verified?: boolean;
@@ -31,6 +36,8 @@ export type Group = {
   id: number;
   name: string;
   admin_id: number;
+  /** Every amount in the group is in this currency; nothing is converted. */
+  currency?: string;
   members: GroupMember[];
 };
 
@@ -411,6 +418,8 @@ export type RootStackParamList = {
     currentUserId: number;
     categories: string[];
     defaultSplit: DefaultSplit;
+    /** The group's currency, for showing amounts. */
+    currency?: string;
     /** When set, the screen edits this expense instead of creating a new one. */
     expense?: Expense;
   };

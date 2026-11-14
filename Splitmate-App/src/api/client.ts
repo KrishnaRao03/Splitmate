@@ -138,10 +138,10 @@ export class SplitmateApi {
     });
   }
 
-  register(name: string, email: string, password: string, confirmPassword: string) {
+  register(name: string, email: string, password: string, confirmPassword: string, country: string) {
     return this.request<{ verification_required: boolean; otp_sent: boolean; user: { email: string } }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password, confirm_password: confirmPassword })
+      body: JSON.stringify({ name, email, password, confirm_password: confirmPassword, country })
     });
   }
 
@@ -172,7 +172,7 @@ export class SplitmateApi {
   }
 
   /** `currentPassword` is required by the server only when the email changes. */
-  updateProfile(details: { name: string; email: string; currentPassword?: string; phone?: string } & PaymentHandles) {
+  updateProfile(details: { name: string; email: string; currentPassword?: string; phone?: string; country?: string } & PaymentHandles) {
     const { currentPassword, ...rest } = details;
     return this.request<AuthResponse & { verification_required: boolean; otp_sent: boolean; interac_code_sent?: boolean }>('/me', {
       method: 'PATCH',
@@ -238,10 +238,11 @@ export class SplitmateApi {
     return this.request<Group[]>('/groups');
   }
 
-  createGroup(name: string) {
+  /** `currency` defaults to the creator's country currency on the server. */
+  createGroup(name: string, currency?: string) {
     return this.request<Group>('/groups', {
       method: 'POST',
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, currency })
     });
   }
 

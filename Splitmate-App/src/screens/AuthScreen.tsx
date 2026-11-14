@@ -7,11 +7,13 @@ import { AppButton } from '@/components/AppButton';
 import { AppText as Text } from '@/components/AppText';
 import { BrandLogo } from '@/components/BrandMark';
 import { Card } from '@/components/Card';
+import { CountryPicker } from '@/components/CountryPicker';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { useAuth } from '@/state/AuthContext';
 import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
+import { deviceCountry } from '@/utils/countries';
 import { emailError as describeEmailError, passwordError as describePasswordError } from '@/utils/validation';
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot';
@@ -25,6 +27,7 @@ export function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [country, setCountry] = useState(deviceCountry());
   const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -101,13 +104,17 @@ export function AuthScreen() {
       setError('Passwords do not match.');
       return;
     }
+    if (mode === 'register' && !country) {
+      setError('Choose your country.');
+      return;
+    }
 
     setLoading(true);
     try {
       if (mode === 'login') {
         await auth.signIn(email, password);
       } else if (mode === 'register') {
-        const registered = await auth.register(name, email, password, confirmPassword);
+        const registered = await auth.register(name, email, password, confirmPassword, country);
         setEmail(registered.email);
         setPassword('');
         setConfirmPassword('');
@@ -160,7 +167,14 @@ export function AuthScreen() {
         </View>
 
         {mode === 'register' ? (
-          <TextField label="Name" value={name} onChangeText={setName} autoCapitalize="words" />
+          <>
+            <TextField label="Name" value={name} onChangeText={setName} autoCapitalize="words" />
+            <CountryPicker
+              value={country}
+              onChange={setCountry}
+              hint="Sets your currency and which payment apps you can add (e.g. Interac in Canada, UPI in India)."
+            />
+          </>
         ) : null}
         <TextField
           label="Email"
