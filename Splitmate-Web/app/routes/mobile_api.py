@@ -48,7 +48,7 @@ from app.routes.auth import (
 from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload, user_from_friend_code
 from app.receipt_scan import ReceiptScanError, scan_receipt_image
 from app.routes import split as split_routes
-from app.security import clean_payment_handles, csv_safe, display_name_error, is_safe_link, normalize_phone, password_error
+from app.security import clean_payment_handles, csv_safe, display_name_error, is_safe_link, normalize_phone, password_error, payment_methods_for
 from app.task_utils import (
     normalize_task_priority,
     normalize_task_recurrence,
@@ -858,7 +858,9 @@ def create_money_request(group_id):
     db.session.commit()
     payer = db.session.get(User, payer_id)
     try:
-        send_money_request_email(payer, request.mobile_user, group, owed['amount'])
+        # The requester's own verified details go in the email, so the payer can pay them directly from their bank.
+        pay_methods = payment_methods_for(request.mobile_user, owed['amount'], group.currency or 'CAD')
+        send_money_request_email(payer, request.mobile_user, group, owed['amount'], pay_methods)
     except Exception as exc:
         current_app.logger.exception('Failed to send money request email: %s', exc)
     return jsonify({'id': money_request.id, 'status': 'pending'}), 201

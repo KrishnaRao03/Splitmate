@@ -61,7 +61,7 @@ export function InteracShortcut({ mode, person, email, masked, amountText, amoun
 
   return (
     <View style={styles.box}>
-      <Text style={styles.title}>{mode === 'pay' ? `Send ${person} an Interac e-Transfer` : `Request money from ${person}`}</Text>
+      <Text style={styles.title}>{mode === 'pay' ? `Send ${person} an Interac e-Transfer` : `Send ${person} an Interac request from your bank`}</Text>
       {rows.map(([label, shown, what]) => (
         <Pressable
           key={label}
@@ -86,7 +86,7 @@ export function InteracShortcut({ mode, person, email, masked, amountText, amoun
         options={CANADIAN_BANKS.map(item => ({ label: item.name, value: item.id }))}
       />
       <AppButton icon="open-outline" onPress={openMyBank}>
-        {bank ? `Copy Email & Open ${bank.name}` : 'Copy email & open my bank'}
+        {bank ? `Copy email & open ${bank.name}` : 'Copy email & open my bank'}
       </AppButton>
       <Text style={styles.hint}>
         {mode === 'pay'

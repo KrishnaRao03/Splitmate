@@ -104,11 +104,13 @@ def format_amount(amount, currency='CAD'):
     return f'{currency_symbol(code)}{float(amount):,.2f} {code}'
 
 
-def render_email(preheader, heading, paragraphs, code=None, button=None, footnote=None, highlight=None, details=None):
+def render_email(preheader, heading, paragraphs, code=None, button=None, footnote=None, highlight=None, details=None,
+                 extra_html=''):
     """Branded HTML email. Table layout and inline styles, because many mail apps ignore <style> blocks.
 
     paragraphs, highlight and footnote are plain text (escaped here); button is (label, url);
-    highlight is a short line shown large (an amount or status); details is a list of (label, value) rows.
+    highlight is a short line shown large (an amount or status); details is a list of (label, value) rows;
+    extra_html is already-escaped HTML placed after the button.
     """
     paragraph_html = ''.join(
         f'<p style="margin:0 0 16px;font-size:16px;line-height:24px;color:{MUTED};">{escape(text)}</p>'
@@ -176,6 +178,7 @@ def render_email(preheader, heading, paragraphs, code=None, button=None, footnot
         {details_html}
         {code_html}
         {button_html}
+        {extra_html}
         {footnote_html}
       </td></tr>
     </table>
@@ -371,24 +374,82 @@ def send_payment_details_changed_email(user, changes):
     )
 
 
-def send_money_request_email(payer, requester, group, amount):
+# Same list as the app's canadian-banks.json. Interac has no "pay this person" link, so the email links the banks.
+CANADIAN_BANK_LINKS = [
+    ('RBC', 'https://www.rbcroyalbank.com'),
+    ('TD', 'https://www.td.com/ca/en/personal-banking'),
+    ('Scotiabank', 'https://www.scotiabank.com'),
+    ('BMO', 'https://www.bmo.com'),
+    ('CIBC', 'https://www.cibc.com'),
+    ('Tangerine', 'https://www.tangerine.ca'),
+    ('Desjardins', 'https://www.desjardins.com'),
+]
+
+
+def _pay_directly_html(requester_name, methods, amount_text, memo):
+    """The requester's own payment details, so the payer can pay straight from their bank. No money goes through Splitmate."""
+    def row(label, value):
+        return (f'<tr><td style="padding:8px 0;font-size:14px;line-height:20px;color:{FAINT};">{escape(label)}</td>'
+                f'<td style="padding:8px 0;font-size:14px;line-height:20px;color:{INK};font-weight:600;text-align:right;'
+                f'word-break:break-all;">{escape(value)}</td></tr>')
+
+    def link(label, url):
+        return (f'<a href="{escape(url, quote=True)}" style="display:inline-block;margin:0 8px 8px 0;padding:8px 12px;'
+                f'border-radius:12px;border:1px solid {LINE};color:{INK};font-size:14px;line-height:20px;font-weight:600;'
+                f'text-decoration:none;">{escape(label)}</a>')
+
+    parts = [f'<h2 style="margin:0 0 8px;font-size:18px;line-height:24px;font-weight:700;color:{INK};">'
+             f'Pay {escape(requester_name)} directly</h2>']
+    for method in methods:
+        if method['type'] == 'interac':
+            parts.append(
+                f'<p style="margin:0 0 8px;font-size:14px;line-height:20px;color:{MUTED};">'
+                'In your bank, choose Send Interac e-Transfer and enter:</p>'
+                f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+                f'style="margin:0 0 12px;border-top:1px solid {LINE};border-bottom:1px solid {LINE};">'
+                f'{row("Interac email", method["handle"])}{row("Amount", amount_text)}{row("Message", memo)}</table>'
+                f'<p style="margin:0 0 8px;font-size:14px;line-height:20px;color:{MUTED};">Open your bank:</p>'
+                f'<div style="margin:0 0 16px;">{"".join(link(name, url) for name, url in CANADIAN_BANK_LINKS)}</div>')
+        elif (method.get('url') or '').startswith('https://'):
+            parts.append(f'<div style="margin:0 0 16px;">{link(f"Pay with {method["label"]}", method["url"])}</div>')
+        else:
+            parts.append(f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">'
+                         f'{row(method["label"], method["handle"])}</table>')
+    parts.append(f'<p style="margin:0 0 24px;font-size:14px;line-height:20px;color:{MUTED};">'
+                 'After you pay, tap "I\'ve paid" in Splitmate so it gets settled.</p>')
+    return ''.join(parts)
+
+
+def send_money_request_email(payer, requester, group, amount, pay_methods=None):
+    """pay_methods: the requester's own verified ways to be paid (payment_methods_for), shown so the payer can pay directly."""
     amount_text = format_amount(amount, getattr(group, 'currency', None))
     link = app_url()
+    memo = f'Splitmate - {group.name}'
+    methods = pay_methods or []
+    text_lines = ''.join(
+        f'{method["label"]}: {method["handle"]}\n' for method in methods
+    )
+    text_pay = (f'\nPay {requester.name} directly from your bank:\n{text_lines}Amount: {amount_text}\nMessage: {memo}\n'
+                if methods else '')
     return send_email(
         payer.email,
         f'{requester.name} asked you to pay {amount_text} on Splitmate',
         f'Hi {payer.name},\n\n{requester.name} asked you to pay {amount_text} for "{group.name}".\n'
-        f'Open Splitmate to review it: {link}\n'
-        'Splitmate never sends payment links; only pay from your own bank app.\n',
+        f'{text_pay}'
+        f'Open Splitmate to review it or mark it paid: {link}\n'
+        'Splitmate never handles the money; only pay from your own bank app.\n',
         render_email(
             f'{requester.name} asked you to pay {amount_text}.',
             'Payment request',
             [f'{requester.name} asked you to pay for your share in "{group.name}".',
-             'Open Splitmate, check the amount matches what you owe, then approve or decline.'],
+             'Check the amount matches what you owe. You can pay them directly from your bank below.'
+             if methods else 'Open Splitmate, check the amount matches what you owe, then approve or decline.'],
             highlight=amount_text,
             details=[('From', requester.name), ('Group', group.name)],
-            button=('Review request', link),
-            footnote='Splitmate never sends payment links. Only send money from your own bank app.',
+            button=('Open in Splitmate', link),
+            extra_html=_pay_directly_html(requester.name, methods, amount_text, memo) if methods else '',
+            footnote='Splitmate never handles your money or sends payment links of its own. '
+                     'Only send money from your own bank app, and only to people you know.',
         ),
     )
 

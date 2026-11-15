@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from app import create_app, db
-from app.models import Expense, ExpenseSplit, Group, User
+from app.models import Expense, ExpenseSplit, Group, MoneyRequest, User
 from app.payment_security import mask_email
 from app.routes.mobile_api import mobile_token_for
 from config import Config
@@ -123,6 +123,26 @@ class InteracProtectionTests(unittest.TestCase):
             db.session.commit()
         expired = self.client.post('/api/mobile/me/interac/verify', headers=self.owner_h, json={'otp': self.codes[-1][1]})
         self.assertIn('expired', expired.get_json()['error'])
+
+    def test_request_email_carries_only_the_requesters_verified_interac_details(self):
+        url = f'/api/mobile/groups/{self.group_id}/money-requests'
+        from app.routes import mobile_api
+        # Unverified Interac email: nothing to pay with is put in the email.
+        with self.app.app_context():
+            owner = User.query.filter_by(email='owner@example.com').first()
+            owner.interac_email = 'owner.bank@example.com'
+            db.session.commit()
+        self.client.post(url, headers=self.owner_h, json={'payer_id': self.payer_id})
+        self.assertEqual(mobile_api.send_money_request_email.call_args.args[4], [])
+
+        with self.app.app_context():
+            owner = User.query.filter_by(email='owner@example.com').first()
+            owner.interac_email_verified = True
+            MoneyRequest.query.delete()
+            db.session.commit()
+        self.client.post(url, headers=self.owner_h, json={'payer_id': self.payer_id})
+        methods = mobile_api.send_money_request_email.call_args.args[4]
+        self.assertEqual([(m['type'], m['handle']) for m in methods], [('interac', 'owner.bank@example.com')])
 
     def test_requests_need_the_payers_approval_before_their_email_is_shown(self):
         url = f'/api/mobile/groups/{self.group_id}/money-requests'

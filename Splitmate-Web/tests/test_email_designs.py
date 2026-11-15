@@ -66,6 +66,17 @@ class EmailDesignTests(unittest.TestCase):
             Person('Ana', 'ana@example.com'), Person('Sam', 'sam@example.com'), GroupStub(), 250))
         self.assertIn('₹250.00 INR', payload['subject'])
 
+    def test_money_request_lets_the_payer_pay_directly(self):
+        methods = [{'type': 'interac', 'label': 'Interac e-Transfer', 'handle': 'sam.bank@example.com', 'url': None}]
+        payload = self.sent(lambda: email_utils.send_money_request_email(
+            Person('Ana', 'ana@example.com'), Person('Sam', 'sam@example.com'), GroupStub(), 250, methods))
+        html = payload['htmlContent']
+        self.assertIn('Pay Sam directly', html)
+        self.assertIn('sam.bank@example.com', html)
+        self.assertIn('Splitmate - Flat 4B', html)
+        self.assertIn('https://www.rbcroyalbank.com', html)
+        self.assertIn('sam.bank@example.com', payload['textContent'])
+
     def test_membership_confirmation(self):
         payload = self.sent(lambda: email_utils.send_membership_confirmation_email(
             Person('Sam', 'sam@example.com'), 'Splitmate Pro', renews_on='Dec 14, 2026', amount_text='$4.99 / month'))

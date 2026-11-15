@@ -250,13 +250,14 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       {detail.requests_for_me.length ? (
         <>
           <Text style={styles.itemTitle}>Asking you to pay</Text>
-          <Text style={styles.muted}>Approve to let them see your Interac email so they can send a request from their bank. Only approve people you know.</Text>
+          <Text style={styles.muted}>Pay them straight from your bank, or approve so they can send you an Interac request. Approving shows them your Interac email, so only approve people you know.</Text>
           {detail.requests_for_me.map(item => (
             <View key={`ask-${item.id}`} style={styles.settleRow}>
               <View style={styles.headerText}>
                 <Text style={styles.itemTitle}>{item.requester}</Text>
                 <Text style={[styles.amountNeutral, styles.negative]}>{money(item.amount)}</Text>
               </View>
+              <AppButton icon="cash-outline" onPress={() => payFromSuggestion(item.requester_id, item.amount)}>Pay now</AppButton>
               <AppButton icon="checkmark-outline" variant="outline" onPress={() => runAction(() => api.answerMoneyRequest(item.id, 'approve'), 'Could not approve')}>Approve</AppButton>
               <AppButton icon="close-outline" variant="ghost" onPress={() => runAction(() => api.answerMoneyRequest(item.id, 'decline'), 'Could not decline')}>Decline</AppButton>
             </View>
@@ -532,7 +533,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
           {detail.money_requests.length ? (
             <Card>
               <Text style={styles.cardLabel}>Request money</Text>
-              <Text style={styles.muted}>Ask someone who owes you to pay. They approve it in Splitmate first, then you see their Interac email and send a request from your own bank.</Text>
+              <Text style={styles.muted}>Ask someone who owes you to pay. We email them your verified Interac details so they can pay you straight from their bank. If they approve, you can also send them a real Interac request from your own bank.</Text>
               <ChoiceChips<number>
                 label="Request from"
                 value={requestPayerId}
