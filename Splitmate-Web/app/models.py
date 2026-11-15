@@ -85,6 +85,10 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     membership_interval = db.Column(db.String(10))
     membership_renews_at = db.Column(db.DateTime)
     membership_cancel_at_period_end = db.Column(db.Boolean, default=False, nullable=False)
+    # Purchase inbox: card purchases go to this group first, and alerts forwarded to the inbox address
+    # carrying inbox_token land in this user's inbox. See app/purchase_inbox.py.
+    default_group_id = db.Column(db.Integer)
+    inbox_token = db.Column(db.String(32), unique=True, index=True)
 
     administered_groups = db.relationship('Group', backref='admin', lazy='dynamic')
     expenses = db.relationship('Expense', backref='added_by', lazy='dynamic')
@@ -317,3 +321,24 @@ class FeatureUsage(db.Model):
     feature = db.Column(db.String(30), nullable=False)
     month = db.Column(db.String(7), nullable=False)  # 'YYYY-MM'
     count = db.Column(db.Integer, default=0, nullable=False)
+
+
+class InboxPurchase(db.Model):
+    """A card purchase waiting in the user's inbox: they share it with a group or mark it personal.
+
+    Splitmate only reads purchase alerts the user forwards or pastes; it never touches the money.
+    """
+    __table_args__ = (db.UniqueConstraint('user_id', 'message_id', name='uq_inbox_purchase_message'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    amount = db.Column(db.Float, nullable=False)
+    merchant = db.Column(db.String(200), nullable=False)
+    purchased_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    source = db.Column(db.String(20), default='email', nullable=False)  # email, paste
+    message_id = db.Column(db.String(255))
+    status = db.Column(db.String(20), default='pending', nullable=False)  # pending, shared, personal
+    expense_id = db.Column(db.Integer, db.ForeignKey('expense.id', ondelete='SET NULL'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    user = db.relationship('User', backref=db.backref('inbox_purchases', lazy='dynamic', cascade='all, delete-orphan'))

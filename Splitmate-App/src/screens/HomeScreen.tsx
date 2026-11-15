@@ -246,6 +246,19 @@ export function HomeScreen({ navigation }: Props) {
           </Pressable>
         ) : null}
 
+        {dashboard.inbox_pending_count ? (
+          <Pressable accessibilityRole="button" onPress={() => navigation.navigate('PurchaseInbox')} style={[styles.darkCard, styles.rowCard]}>
+            <View style={[styles.tile, { backgroundColor: TINTS[0].bg }]}><Icon name="card-outline" size={20} color={TINTS[0].fg} /></View>
+            <View style={styles.flex}>
+              <Text style={styles.rowTitle}>
+                {dashboard.inbox_pending_count === 1 ? '1 card purchase to sort' : `${dashboard.inbox_pending_count} card purchases to sort`}
+              </Text>
+              <Text style={styles.rowMeta}>Share with a group or keep it personal.</Text>
+            </View>
+            <Icon name="chevron-forward" size={16} color={SHEET.muted} />
+          </Pressable>
+        ) : null}
+
         <View style={styles.section}>
           <SectionTitle title="People" action={groups.length ? 'Groups' : undefined} onAction={() => navigation.navigate('Groups')} />
           <View style={styles.people}>

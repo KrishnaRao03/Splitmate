@@ -20,6 +20,7 @@ import { InvitesScreen } from '@/screens/InvitesScreen';
 import { MembershipScreen } from '@/screens/MembershipScreen';
 import { MembershipWelcomeScreen } from '@/screens/MembershipWelcomeScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
+import { PurchaseInboxScreen } from '@/screens/PurchaseInboxScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { TaskCalendarScreen } from '@/screens/TaskCalendarScreen';
 import { TabNavigator } from '@/navigation/TabNavigator';
@@ -65,6 +66,7 @@ export function AppNavigator() {
           <Stack.Screen name="MembershipWelcome" component={MembershipWelcomeScreen} options={{ title: 'Splitmate Pro', headerBackVisible: false, headerLeft: () => null, gestureEnabled: false }} />
           <Stack.Screen name="HelpChat" component={HelpChatScreen} options={{ title: 'Splitmate Help' }} />
           <Stack.Screen name="Invites" component={InvitesScreen} options={{ title: 'Group invites' }} />
+          <Stack.Screen name="PurchaseInbox" component={PurchaseInboxScreen} options={{ title: 'Card purchases' }} />
         </>
       )}
     </Stack.Navigator>

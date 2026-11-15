@@ -25,6 +25,7 @@ from app.models import (
     ExpenseSplit,
     Group,
     GroupInvite,
+    InboxPurchase,
     MobileDevice,
     Note,
     Payment,
@@ -46,6 +47,7 @@ from app.routes.auth import (
     send_user_otp, start_pending_registration,
 )
 from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload, user_from_friend_code
+from app import purchase_inbox
 from app.receipt_scan import ReceiptScanError, scan_receipt_image
 from app.routes import split as split_routes
 from app.security import clean_payment_handles, csv_safe, display_name_error, is_safe_link, normalize_phone, password_error, payment_methods_for
@@ -110,6 +112,7 @@ def user_payload(user):
         'interac_email': user.interac_email or '',
         'paypal_username': user.paypal_username or '',
         'upi_id': user.upi_id or '',
+        'default_group_id': user.default_group_id,
         **payment_status_payload(user),
     }
 
@@ -1127,6 +1130,7 @@ def dashboard():
     insight_total = sum(float(item.amount or 0) for item in history_items)
 
     return jsonify({
+        'inbox_pending_count': InboxPurchase.query.filter_by(user_id=user.id, status='pending').count(),
         'groups': [group_payload(group) for group in user_groups],
         'monthly_spending': monthly_spending,
         'recent_expenses': recent_rows,
@@ -1614,6 +1618,13 @@ def add_expense(group_id):
     if parse_error:
         return parse_error
 
+    expense = save_new_expense(group, parsed)
+    db.session.commit()
+    return jsonify(expense_payload(expense)), 201
+
+
+def save_new_expense(group, parsed, date=None):
+    """Adds an expense from parse_expense_data's result, with its history row and splits. Caller commits."""
     expense = Expense(
         description=parsed['description'],
         amount=float(parsed['amount']),
@@ -1622,6 +1633,8 @@ def add_expense(group_id):
         group_id=group.id,
         paid_by_id=parsed['paid_by'].id,
     )
+    if date:
+        expense.date = date
     db.session.add(expense)
     db.session.flush()
     db.session.add(ExpenseHistory(
@@ -1632,11 +1645,177 @@ def add_expense(group_id):
         paid_by_id=expense.paid_by_id,
         group_id=expense.group_id,
     ))
-    for member, share in parsed['split_rows']:
+    add_split_rows(expense, parsed['split_rows'])
+    return expense
+
+
+def add_split_rows(expense, split_rows):
+    for member, share in split_rows:
         if share > 0:
             db.session.add(ExpenseSplit(expense_id=expense.id, user_id=member.id, amount_owed=float(share)))
+
+
+def parse_with_group_default(group, data):
+    """parse_expense_data using the group's default split; falls back to equal if that default no longer fits."""
+    default = split_routes.group_default_split_payload(group)
+    split_data = {'split_type': 'equal'}
+    if default['type'] == 'selected' and default['member_ids']:
+        member_ids = {str(member.id) for member in group.members}
+        split_data = {'split_type': 'selected',
+                      'split_user_ids': [member_id for member_id in default['member_ids'] if member_id in member_ids]}
+    elif default['type'] == 'percentage' and default['percentages']:
+        split_data = {'split_type': 'percentage', 'percentages': default['percentages']}
+    parsed, error = parse_expense_data(group, {**data, **split_data})
+    if error and split_data['split_type'] != 'equal':
+        parsed, error = parse_expense_data(group, {**data, 'split_type': 'equal'})
+    return parsed, error
+
+
+@mobile_api_bp.route('/expenses/<int:expense_id>/move', methods=['POST'])
+@mobile_login_required
+def move_expense(expense_id):
+    """Moves an expense to another group and splits it the way that group splits by default."""
+    expense = Expense.query.get_or_404(expense_id)
+    error = expense_change_error(expense)
+    if error:
+        return error
+    target = db.session.get(Group, json_body().get('group_id') or 0)
+    if not target or request.mobile_user not in target.members:
+        return json_error('Choose one of your groups.', 403)
+    if target.id == expense.group_id:
+        return json_error('This expense is already in that group.')
+    if expense.added_by not in target.members:
+        return json_error(f'{expense.added_by.name} is not in {target.name}, so their expense cannot move there.')
+    if any(split.is_settled and split.user_id != expense.paid_by_id for split in expense.splits):
+        return json_error('This expense already has settled payments, so it cannot be moved.', 409)
+
+    parsed, parse_error = parse_with_group_default(target, {
+        'description': expense.description,
+        'amount': str(expense.amount),
+        'category': expense.category,
+        'paid_by_id': expense.paid_by_id,
+        'receipt_url': expense.receipt_url or '',
+    })
+    if parse_error:
+        return parse_error
+    # ExpenseHistory is never edited, so the original group's history still shows where it was first added.
+    for split in list(expense.splits):
+        db.session.delete(split)
+    db.session.flush()
+    expense.group_id = target.id
+    expense.category = parsed['category']
+    add_split_rows(expense, parsed['split_rows'])
     db.session.commit()
-    return jsonify(expense_payload(expense)), 201
+    return jsonify(expense_payload(expense))
+
+
+def inbox_purchase_payload(purchase):
+    return {
+        'id': purchase.id,
+        'amount': round(purchase.amount, 2),
+        'merchant': purchase.merchant,
+        'purchased_at': iso_datetime(purchase.purchased_at),
+        'source': purchase.source,
+        'status': purchase.status,
+    }
+
+
+def inbox_payload(user):
+    groups = [group for group in user.groups if not group.is_quick_split]
+    default_id = user.default_group_id if any(g.id == user.default_group_id for g in groups) else None
+    pending = (InboxPurchase.query.filter_by(user_id=user.id, status='pending')
+               .order_by(InboxPurchase.purchased_at.desc()).limit(100).all())
+    return {
+        'address': purchase_inbox.inbox_address(user),
+        'default_group_id': default_id,
+        'groups': [{'id': g.id, 'name': g.name, 'currency': g.currency or 'CAD'} for g in groups],
+        'purchases': [inbox_purchase_payload(p) for p in pending],
+    }
+
+
+@mobile_api_bp.route('/inbox', methods=['GET'])
+@mobile_login_required
+def purchase_inbox_view():
+    purchase_inbox.poll_inbox()
+    return jsonify(inbox_payload(request.mobile_user))
+
+
+@mobile_api_bp.route('/inbox/settings', methods=['POST'])
+@mobile_login_required
+def purchase_inbox_settings():
+    user = request.mobile_user
+    group_id = json_body().get('default_group_id')
+    if group_id in (None, ''):
+        user.default_group_id = None
+    else:
+        group = db.session.get(Group, group_id) if str(group_id).isdigit() else None
+        if not group or user not in group.members:
+            return json_error('Choose one of your groups.', 403)
+        user.default_group_id = group.id
+    db.session.commit()
+    return jsonify(inbox_payload(user))
+
+
+@mobile_api_bp.route('/inbox/paste', methods=['POST'])
+@mobile_login_required
+@limiter.limit('30 per hour')
+def purchase_inbox_paste():
+    """Adds a purchase from an alert's text the user copied from their bank app or email."""
+    text = str(json_body().get('text') or '')[:5000]
+    parsed = purchase_inbox.parse_purchase_alert(text)
+    if not parsed:
+        return json_error('We could not find an amount in that text. Paste the whole purchase alert.')
+    purchase = purchase_inbox.add_purchase(request.mobile_user, parsed[0], parsed[1], 'paste')
+    db.session.commit()
+    return jsonify(inbox_purchase_payload(purchase)), 201
+
+
+def own_pending_purchase(purchase_id):
+    purchase = db.session.get(InboxPurchase, purchase_id)
+    if not purchase or purchase.user_id != request.mobile_user.id:
+        return None, json_error('Purchase not found.', 404)
+    if purchase.status != 'pending':
+        return None, json_error('This purchase was already sorted.', 409)
+    return purchase, None
+
+
+@mobile_api_bp.route('/inbox/<int:purchase_id>/share', methods=['POST'])
+@mobile_login_required
+def share_inbox_purchase(purchase_id):
+    """Turns the purchase into an expense paid by the user, split by the group's default split."""
+    purchase, error = own_pending_purchase(purchase_id)
+    if error:
+        return error
+    user = request.mobile_user
+    data = json_body()
+    group = db.session.get(Group, data.get('group_id') or user.default_group_id or 0)
+    if not group or user not in group.members:
+        return json_error('Choose a group to share this with.')
+    parsed, parse_error = parse_with_group_default(group, {
+        'description': (data.get('description') or purchase.merchant).strip()[:200],
+        'amount': data.get('amount') or str(purchase.amount),
+        'category': data.get('category') or 'General',
+        'paid_by_id': user.id,
+    })
+    if parse_error:
+        return parse_error
+    expense = save_new_expense(group, parsed, date=purchase.purchased_at)
+    purchase.status = 'shared'
+    purchase.expense_id = expense.id
+    db.session.commit()
+    return jsonify({'purchase': inbox_purchase_payload(purchase), 'expense': expense_payload(expense),
+                    'group': {'id': group.id, 'name': group.name}}), 201
+
+
+@mobile_api_bp.route('/inbox/<int:purchase_id>/personal', methods=['POST'])
+@mobile_login_required
+def personal_inbox_purchase(purchase_id):
+    purchase, error = own_pending_purchase(purchase_id)
+    if error:
+        return error
+    purchase.status = 'personal'
+    db.session.commit()
+    return jsonify(inbox_purchase_payload(purchase))
 
 
 def expense_change_error(expense):

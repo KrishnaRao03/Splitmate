@@ -93,6 +93,11 @@ class Config:
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME') or None
     MAIL_PASSWORD = (os.environ.get('MAIL_PASSWORD') or '').replace(' ', '') or None
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or MAIL_USERNAME
+    # Purchase inbox: a mailbox people forward bank purchase alerts to, read over IMAP.
+    # Each user gets INBOX_EMAIL with "+their-token" added, e.g. splitmate.inbox+ab12cd34@gmail.com.
+    INBOX_EMAIL = (os.environ.get('INBOX_EMAIL') or '').strip() or None
+    INBOX_IMAP_HOST = os.environ.get('INBOX_IMAP_HOST') or 'imap.gmail.com'
+    INBOX_IMAP_PASSWORD = (os.environ.get('INBOX_IMAP_PASSWORD') or '').replace(' ', '') or None
     # When set, email goes through Brevo's HTTPS API instead of SMTP.
     BREVO_API_KEY = (os.environ.get('BREVO_API_KEY') or '').strip().strip('"').strip("'") or None
     ADMIN_EMAILS = {
