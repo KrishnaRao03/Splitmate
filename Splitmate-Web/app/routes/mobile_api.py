@@ -48,6 +48,8 @@ from app.routes.auth import (
 from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload, user_from_friend_code
 from app.receipt_scan import ReceiptScanError, scan_receipt_image
 from app.routes import split as split_routes
+from app.field_encryption import phone_lookup_hash
+from app.login_guard import clear_failed_logins, locked_message, minutes_locked, record_failed_login
 from app.security import clean_payment_handles, csv_safe, display_name_error, is_safe_link, normalize_phone, password_error, payment_methods_for
 from app.task_utils import (
     normalize_task_priority,
@@ -406,8 +408,15 @@ def login():
         pending = PendingRegistration.query.filter_by(email=email).first() if email else None
         if pending and pending.check_password(password):
             return json_error('Email verification is required before signing in.', 403)
+    if user and minutes_locked(user):
+        return json_error(locked_message(user), 423)
     if not user or not user.check_password(password):
+        if user:
+            record_failed_login(user)
+            if minutes_locked(user):
+                return json_error(locked_message(user), 423)
         return json_error('Invalid email or password.', 401)
+    clear_failed_logins(user)
     if getattr(user, 'is_suspended', False):
         return json_error('This account is suspended.', 403)
     if not user.is_email_verified:
@@ -598,7 +607,7 @@ def me():
         phone = normalize_phone(raw_phone) if raw_phone else None
         if raw_phone and not phone:
             return json_error('Enter a valid phone number, like 416 555 0123.')
-        if phone and User.query.filter(User.phone == phone, User.id != user.id).first():
+        if phone and User.query.filter(User.phone_hash == phone_lookup_hash(phone), User.id != user.id).first():
             return json_error('That phone number is already used by another account.', 409)
         user.phone = phone
 
@@ -893,7 +902,7 @@ def find_user_by_contact(contact):
         email = normalize_email(contact)
         return (User.query.filter_by(email=email).first() if email else None), email
     phone = normalize_phone(contact)
-    return (User.query.filter_by(phone=phone).first() if phone else None), phone
+    return (User.query.filter_by(phone_hash=phone_lookup_hash(phone)).first() if phone else None), phone
 
 
 @mobile_api_bp.route('/quick-split', methods=['POST'])

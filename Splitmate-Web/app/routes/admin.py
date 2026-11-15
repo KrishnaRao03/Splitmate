@@ -8,6 +8,7 @@ from functools import wraps
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for
 from sqlalchemy import func, text
 
+from app.login_guard import clear_failed_logins, locked_message, minutes_locked, record_failed_login
 from app import db, limiter
 from app.admin_utils import core_activity_user_ids, is_app_admin, month_sequence, split_user_ids_since, user_last_usage_at
 from app.email_utils import send_password_reset_email
@@ -116,6 +117,14 @@ def login():
         password = request.form.get('password', '')
         admin_emails = current_app.config.get('ADMIN_EMAILS') or set()
         user = User.query.filter_by(email=email).first() if email and email in admin_emails else None
+
+        if user and minutes_locked(user):
+            flash(locked_message(user), 'error')
+            return render_admin_template('admin_login.html', 'login')
+        if user and not user.check_password(password):
+            record_failed_login(user)
+        elif user:
+            clear_failed_logins(user)
 
         if user and user.check_password(password) and is_app_admin(user):
             if getattr(user, 'is_suspended', False):

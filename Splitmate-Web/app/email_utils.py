@@ -421,6 +421,26 @@ def _pay_directly_html(requester_name, methods, amount_text, memo):
     return ''.join(parts)
 
 
+def send_account_locked_email(user, minutes):
+    link = app_url()
+    return send_email(
+        user.email,
+        'Your Splitmate account was locked',
+        f'Hi {user.name},\n\nSomeone entered the wrong password for your Splitmate account 5 times in a row, '
+        f'so we locked it for {minutes} minutes.\n'
+        'If this was you, wait and try again, or reset your password.\n'
+        'If it was not you, reset your password now. Nobody got in.\n',
+        render_email(
+            'Your account was locked after 5 wrong passwords.',
+            'Account locked for your safety',
+            [f'Someone entered the wrong password for your Splitmate account 5 times in a row, so we locked it for {minutes} minutes. Nobody got in.',
+             'If this was you, wait a few minutes and try again. If it was not you, reset your password now.'],
+            button=('Open Splitmate', link),
+            footnote='Splitmate will never ask for your password by email.',
+        ),
+    )
+
+
 def send_money_request_email(payer, requester, group, amount, pay_methods=None):
     """pay_methods: the requester's own verified ways to be paid (payment_methods_for), shown so the payer can pay directly."""
     amount_text = format_amount(amount, getattr(group, 'currency', None))

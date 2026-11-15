@@ -85,6 +85,15 @@ def ensure_user_email_schema():
         db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN interac_otp_expires_at {datetime_column_type()}'))
     if 'interac_otp_attempts' not in columns:
         db.session.execute(text('ALTER TABLE "user" ADD COLUMN interac_otp_attempts INTEGER DEFAULT 0 NOT NULL'))
+    # Account lockout after repeated wrong passwords (app/login_guard.py).
+    if 'failed_login_count' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN failed_login_count INTEGER DEFAULT 0 NOT NULL'))
+    if 'locked_until' not in columns:
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN locked_until {datetime_column_type()}'))
+    # Phone numbers are encrypted; this keyed hash lets us still find an account by its number.
+    if 'phone_hash' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN phone_hash VARCHAR(64)'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS ix_user_phone_hash ON "user" (phone_hash)'))
 
     db.session.commit()
 
@@ -338,6 +347,21 @@ def create_app(config_class=Config):
             return '', 204
 
     @app.after_request
+    def add_security_headers(response):
+        # No framing (clickjacking), no MIME sniffing, no full URLs leaked to other sites,
+        # and HTTPS only once the site is served over HTTPS.
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+        response.headers.setdefault('Content-Security-Policy', "frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+        response.headers.setdefault('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()')
+        if app.config.get('SESSION_COOKIE_SECURE'):
+            response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+        if request.path.startswith(('/api/mobile/auth', '/admin', '/login', '/profile')):
+            response.headers.setdefault('Cache-Control', 'no-store')
+        return response
+
+    @app.after_request
     def add_mobile_cors_headers(response):
         if not request.path.startswith('/api/mobile'):
             return response
@@ -441,5 +465,6 @@ def create_app(config_class=Config):
         # Fails fast on a malformed FIELD_ENCRYPTION_KEY, then encrypts any plain-text payment handles.
         field_encryption.fernet()
         field_encryption.encrypt_existing_payment_handles(db)
+        field_encryption.encrypt_existing_phones(db)
 
     return app

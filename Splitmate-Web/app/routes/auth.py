@@ -4,6 +4,7 @@ import secrets
 from flask import Blueprint, current_app, render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, login_required, current_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from app.login_guard import clear_failed_logins, locked_message, minutes_locked, record_failed_login
 from app import db, limiter
 from app.email_utils import app_url, send_password_reset_email, send_verification_otp
 from app.email_validation import email_error_message, normalize_email
@@ -171,7 +172,18 @@ def login():
             flash('Enter the code we emailed you to finish creating your account.', 'info')
             return redirect(url_for('auth.verify_email'))
 
-        if user and user.check_password(password):
+        if user and minutes_locked(user):
+            flash(locked_message(user), 'error')
+            return render_template('login.html')
+
+        if user and not user.check_password(password):
+            record_failed_login(user)
+            if minutes_locked(user):
+                flash(locked_message(user), 'error')
+                return render_template('login.html')
+
+        elif user:
+            clear_failed_logins(user)
             if getattr(user, 'is_suspended', False):
                 flash('Your Splitmate account is suspended. Contact an administrator.', 'error')
                 return render_template('login.html')

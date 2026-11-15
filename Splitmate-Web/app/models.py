@@ -2,7 +2,9 @@ from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, login_manager
-from app.field_encryption import EncryptedString
+from sqlalchemy.orm import validates
+
+from app.field_encryption import EncryptedString, phone_lookup_hash
 
 # Wrong codes allowed before an emailed OTP stops working and a new one is needed.
 MAX_OTP_ATTEMPTS = 5
@@ -54,8 +56,18 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     is_suspended = db.Column(db.Boolean, default=False, nullable=False)
     # ISO country code from sign-up; sets the user's currency and which payment details they can add.
     country = db.Column(db.String(2), default='CA', nullable=False)
-    # Optional, one account per number (stored as +digits); lets friends find you for Quick split.
-    phone = db.Column(db.String(20), unique=True, index=True)
+    # Optional, one account per number (+digits, encrypted at rest); lets friends find you for Quick split.
+    # phone_hash is a keyed hash of it, used for lookups and kept in step by the validator below.
+    phone = db.Column(EncryptedString, unique=True)
+    phone_hash = db.Column(db.String(64), index=True)
+    # Wrong-password lockout (app/login_guard.py).
+    failed_login_count = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime)
+
+    @validates('phone')
+    def _sync_phone_hash(self, key, value):
+        self.phone_hash = phone_lookup_hash(value) if value else None
+        return value
     is_email_verified = db.Column(db.Boolean, default=False, nullable=False)
     email_otp_hash = db.Column(db.String(256))
     email_otp_expires_at = db.Column(db.DateTime)
@@ -96,6 +108,9 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
         self.revoke_sessions()
+        # A new password (including a reset) also lifts any wrong-password lock.
+        self.failed_login_count = 0
+        self.locked_until = None
 
     def revoke_sessions(self):
         self.token_version = (self.token_version or 0) + 1

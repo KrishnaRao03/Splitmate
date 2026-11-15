@@ -246,7 +246,8 @@ class RateLimitFixes(SecurityFixTests):
     config_class = RateLimitedConfig
 
     def test_6_repeated_logins_are_rate_limited(self):
-        codes = [self.client.post('/api/mobile/auth/login', json={'email': 'admin@example.com', 'password': f'wrong{i}'}).status_code
+        # An address with no account, so the account lockout below doesn't kick in first.
+        codes = [self.client.post('/api/mobile/auth/login', json={'email': 'nobody@example.com', 'password': f'wrong{i}'}).status_code
                  for i in range(11)]
         self.assertEqual(codes[:10], [401] * 10)
         self.assertEqual(codes[10], 429)
@@ -256,6 +257,66 @@ class RateLimitFixes(SecurityFixTests):
         codes = [self.client.post('/api/mobile/auth/forgot-password', json={'email': 'admin@example.com'}).status_code
                  for _ in range(4)]
         self.assertEqual(codes, [200, 200, 200, 429])
+
+
+class AccountLockoutTests(SecurityFixTests):
+    def test_five_wrong_passwords_lock_the_account_everywhere(self):
+        from unittest.mock import patch
+        with patch('app.email_utils.send_account_locked_email') as alert:
+            codes = [self.client.post('/api/mobile/auth/login', json={'email': 'admin@example.com', 'password': f'wrong{i}'}).status_code
+                     for i in range(5)]
+        self.assertEqual(codes, [401, 401, 401, 401, 423])
+        alert.assert_called_once()
+        with self.app.app_context():
+            user = User.query.filter_by(email='admin@example.com').first()
+            self.assertIsNotNone(user.locked_until)
+            password = 'password123'
+        # Even the right password is refused while locked, on the app and the website.
+        locked = self.client.post('/api/mobile/auth/login', json={'email': 'admin@example.com', 'password': password})
+        self.assertEqual(locked.status_code, 423)
+        self.assertIn('locked', locked.get_json()['error'])
+        page = self.client.post('/login', data={'email': 'admin@example.com', 'password': password})
+        self.assertIn(b'locked', page.data)
+
+    def test_lock_expires_and_a_new_password_lifts_it(self):
+        with self.app.app_context():
+            user = User.query.filter_by(email='admin@example.com').first()
+            user.locked_until = datetime.utcnow() - timedelta(seconds=1)
+            user.failed_login_count = 3
+            db.session.commit()
+        ok = self.client.post('/api/mobile/auth/login', json={'email': 'admin@example.com', 'password': 'password123'})
+        self.assertEqual(ok.status_code, 200)
+        with self.app.app_context():
+            user = User.query.filter_by(email='admin@example.com').first()
+            self.assertEqual(user.failed_login_count, 0)
+            user.locked_until = datetime.utcnow() + timedelta(minutes=10)
+            user.set_password('Another-pass-2')
+            self.assertIsNone(user.locked_until)
+
+
+class PhoneEncryptionTests(SecurityFixTests):
+    def test_phone_is_encrypted_at_rest_but_still_findable(self):
+        from sqlalchemy import text
+        from app.routes.mobile_api import find_user_by_contact
+        with self.app.app_context():
+            user = User.query.filter_by(email='admin@example.com').first()
+            user.phone = '+14165550123'
+            db.session.commit()
+            raw = db.session.execute(text('SELECT phone, phone_hash FROM "user" WHERE id = :id'), {'id': user.id}).one()
+            self.assertTrue(raw[0].startswith('enc:'))
+            self.assertNotIn('4165550123', raw[0])
+            self.assertEqual(len(raw[1]), 64)
+            found, _ = find_user_by_contact('416 555 0123')
+            self.assertEqual(found.id, user.id)
+
+
+class SecurityHeaderTests(SecurityFixTests):
+    def test_pages_cannot_be_framed_or_sniffed(self):
+        response = self.client.get('/login')
+        self.assertEqual(response.headers['X-Frame-Options'], 'DENY')
+        self.assertEqual(response.headers['X-Content-Type-Options'], 'nosniff')
+        self.assertIn("frame-ancestors 'none'", response.headers['Content-Security-Policy'])
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
 
 
 class OtpLockoutFixes(SecurityFixTests):
