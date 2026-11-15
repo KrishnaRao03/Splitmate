@@ -77,14 +77,15 @@ def send_email(recipient, subject, body, html=None):
     return True
 
 
-# Graphite and sunshine yellow, matching the app. No gradients; sentence case; calm wording.
-INK = '#1f2023'
-MUTED = '#5b5e66'
-FAINT = '#8b8e96'
-LINE = '#e7e7ea'
-PAGE = '#f4f4f5'
-YELLOW = '#ffc83d'
-YELLOW_SOFT = '#fff6dc'
+# Navy and mint, matching the app. No gradients; sentence case; calm wording.
+# (The YELLOW names are kept so the templates below stay unchanged; they now hold mint.)
+INK = '#1a2340'
+MUTED = '#46506e'
+FAINT = '#646c88'
+LINE = '#e1e5ee'
+PAGE = '#f1f3f8'
+YELLOW = '#7fe0b5'
+YELLOW_SOFT = '#e3f7ee'
 
 
 def app_url(path=''):
