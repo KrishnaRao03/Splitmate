@@ -213,192 +213,180 @@ export function HomeScreen({ navigation }: Props) {
   const firstName = (user?.name || '').split(' ')[0] || 'there';
   const owing = people.filter(person => person.net !== 0).slice(0, 6);
   const recentActivity = dashboard.recent_expenses.filter(expense => expense.id > clearedThrough);
+  // My balance in each group, from the per-person balances (positive: they owe me).
+  const groupNet = new Map<number, number>();
+  people.forEach(person => person.groups.forEach(item => groupNet.set(item.group_id, (groupNet.get(item.group_id) ?? 0) + item.net)));
+  const plain = (value: number) => formatMoney(Math.abs(value), currencyCode).replace(/[^0-9.,]/g, '');
+  const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : ''}${plain(value)}`;
 
   return (
-    <Screen onRefresh={refresh} refreshing={refreshing} flush background={SHEET.bg}>
-      <View style={styles.header}>
-        <Text style={styles.greeting}>{greeting()}, {firstName}</Text>
-        <Text style={styles.balance}>{net < 0 ? '-' : net > 0 ? '+' : ''}{money(Math.abs(net))}</Text>
-        <View style={styles.pills}>
-          <View style={[styles.pill, styles.pillDark]}><Text style={styles.pillDarkText}>Owed {money(dashboard.total_owed_to_user)}</Text></View>
-          <View style={[styles.pill, styles.pillSoft]}><Text style={styles.pillSoftText}>You owe {money(dashboard.total_user_owes)}</Text></View>
+    <Screen onRefresh={refresh} refreshing={refreshing}>
+      <Text style={styles.greeting}>{greeting()}, {firstName}</Text>
+
+      <View style={styles.receipt}>
+        <View style={styles.receiptTop}>
+          <Text style={styles.receiptLabel}>BALANCE</Text>
+          <Text style={styles.receiptBalance} accessibilityLabel={`Balance ${money(net)}`}>{signed(net)}</Text>
+          <Text style={styles.receiptMeta}>{currencyCode} across {groups.length} {groups.length === 1 ? 'group' : 'groups'}</Text>
+        </View>
+        <View style={styles.tear} />
+        <View style={styles.receiptBottom}>
+          <View style={styles.receiptRow}><Text style={styles.receiptMono}>OWED TO YOU</Text><Text style={styles.receiptMono}>{plain(dashboard.total_owed_to_user)}</Text></View>
+          <View style={styles.receiptRow}><Text style={styles.receiptMono}>YOU OWE</Text><Text style={styles.receiptMono}>{plain(dashboard.total_user_owes)}</Text></View>
         </View>
       </View>
 
-      <View style={styles.sheet}>
-        <View style={styles.actions}>
-          <Action icon="add-outline" label="Add expense" onPress={openExpenseForm} disabled={opening} />
-          <Action icon="flash-outline" label="Quick split" onPress={() => navigation.navigate('QuickSplit')} />
-          <Action icon="scan-outline" label="Scan receipt" onPress={scanReceipt} disabled={opening} />
-          <Action icon="swap-horizontal-outline" label="Settle up" onPress={settleUp} />
-        </View>
+      <View style={styles.actions}>
+        <Action label="Split a bill" icon="add-outline" filled onPress={openExpenseForm} disabled={opening} />
+        <Action label="Scan receipt" icon="scan-outline" onPress={scanReceipt} disabled={opening} />
+        <Action label="Settle up" icon="swap-horizontal-outline" onPress={settleUp} />
+        <Action label="Quick split" icon="flash-outline" onPress={() => navigation.navigate('QuickSplit')} />
+      </View>
 
-        {invites.length ? (
-          <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Invites')} style={[styles.darkCard, styles.rowCard]}>
-            <View style={[styles.tile, { backgroundColor: TINTS[0].bg }]}><Icon name="mail-unread-outline" size={20} color={TINTS[0].fg} /></View>
-            <View style={styles.flex}>
-              <Text style={styles.rowTitle}>
-                {invites.length === 1 ? `You're invited to ${invites[0].group_name}` : `You have ${invites.length} group invites`}
-              </Text>
-              <Text style={styles.rowMeta}>Tap to review and join.</Text>
-            </View>
-            <Icon name="chevron-forward" size={16} color={SHEET.muted} />
+      {invites.length ? (
+        <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Invites')} style={styles.notice}>
+          <Icon name="mail-unread-outline" size={20} color={colors.ink} />
+          <View style={styles.flex}>
+            <Text style={styles.rowTitle}>
+              {invites.length === 1 ? `You're invited to ${invites[0].group_name}` : `You have ${invites.length} group invites`}
+            </Text>
+            <Text style={styles.rowMeta}>Tap to review and join.</Text>
+          </View>
+          <Icon name="chevron-forward" size={16} color={colors.muted} />
+        </Pressable>
+      ) : null}
+
+      <View style={styles.section}>
+        <SectionTitle title="People" />
+        <View style={styles.people}>
+          {owing.map(person => (
+            <Pressable key={person.user_id} accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate('Split')}>
+              <View style={[styles.avatar, person.net < 0 && styles.avatarOwe]}>
+                <Text style={[styles.avatarText, person.net < 0 && styles.avatarOweText]}>{initials(person.name)}</Text>
+              </View>
+              <Text style={styles.personName} numberOfLines={1}>{person.name.split(' ')[0]}</Text>
+              <Text style={styles.personAmount} numberOfLines={1}>{signed(person.net)}</Text>
+            </Pressable>
+          ))}
+          <Pressable accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate(groups.length ? 'Groups' : 'CreateGroup')}>
+            <View style={[styles.avatar, styles.addAvatar]}><Icon name="add" size={20} color={colors.ink} /></View>
+            <Text style={styles.personName}>{groups.length ? 'Invite' : 'New group'}</Text>
           </Pressable>
-        ) : null}
+        </View>
+      </View>
 
-        <View style={styles.section}>
-          <SectionTitle title="People" action={groups.length ? 'Groups' : undefined} onAction={() => navigation.navigate('Groups')} />
-          <View style={styles.people}>
-            {owing.map(person => (
-              <Pressable key={person.user_id} accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate('Split')}>
-                <View style={[styles.avatar, { backgroundColor: tint(person.name).bg }]}>
-                  <Text style={[styles.avatarText, { color: tint(person.name).fg }]}>{initials(person.name)}</Text>
-                </View>
-                <Text style={styles.personName} numberOfLines={1}>{person.name.split(' ')[0]}</Text>
-                <Text style={[styles.personAmount, { color: person.net > 0 ? SHEET.positive : SHEET.negative }]} numberOfLines={1}>
-                  {person.net > 0 ? '+' : '-'}{money(Math.abs(person.net))}
-                </Text>
+      <View style={styles.section}>
+        <SectionTitle title="Groups" action={groups.length ? 'See all' : 'New group'} onAction={() => navigation.navigate(groups.length ? 'Groups' : 'CreateGroup')} />
+        {groups.length ? (
+          <View>
+            {groups.slice(0, 6).map(group => (
+              <Pressable key={group.id} accessibilityRole="button" onPress={() => navigation.navigate('GroupDetail', { groupId: group.id, groupName: group.name })} style={styles.line}>
+                <Text style={[styles.lineTitle, styles.flex]} numberOfLines={1}>{group.name}</Text>
+                <Text style={styles.lineAmount}>{signed(groupNet.get(group.id) ?? 0)}</Text>
               </Pressable>
             ))}
-            <Pressable accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate(groups.length ? 'Groups' : 'CreateGroup')}>
-              <View style={[styles.avatar, styles.inviteAvatar]}><Icon name="add" size={20} color={SHEET.muted} /></View>
-              <Text style={[styles.personName, { color: SHEET.muted }]}>{groups.length ? 'Invite' : 'New group'}</Text>
-            </Pressable>
           </View>
-        </View>
+        ) : <Text style={styles.rowMeta}>No groups yet. Create one to start splitting.</Text>}
+      </View>
 
-        <View style={styles.section}>
-          <SectionTitle title="Recent activity" action={recentActivity.length ? 'Clear' : undefined} onAction={clearActivity} />
-          {recentActivity.length ? (
-            <View style={styles.darkCard}>
-              {recentActivity.slice(0, 8).map((expense, index, list) => (
-                <View key={expense.id} style={[styles.activityRow, index < list.length - 1 && styles.divider]}>
-                  <View style={[styles.tile, { backgroundColor: categoryStyle(expense.category).bg }]}>
-                    <Icon name={categoryStyle(expense.category).icon} size={20} color={categoryStyle(expense.category).fg} />
-                  </View>
-                  <View style={styles.flex}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>{expense.description}</Text>
-                    <Text style={styles.rowMeta} numberOfLines={1}>{expense.group_name} · {expense.category}</Text>
-                  </View>
-                  <Text style={styles.rowAmount}>{money(expense.amount)}</Text>
+      <View style={styles.section}>
+        <SectionTitle title="Recent activity" action={recentActivity.length ? 'Clear' : undefined} onAction={clearActivity} />
+        {recentActivity.length ? (
+          <View>
+            {recentActivity.slice(0, 8).map(expense => (
+              <View key={expense.id} style={styles.line}>
+                <Icon name={categoryIcon(expense.category)} size={20} color={colors.ink} />
+                <View style={styles.flex}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>{expense.description}</Text>
+                  <Text style={styles.rowMeta} numberOfLines={1}>{expense.group_name} · {expense.category}</Text>
                 </View>
-              ))}
-            </View>
-          ) : <EmptyDark icon="receipt-outline" label={clearedThrough ? 'All caught up. New expenses will show here.' : 'No expenses yet. Add one to see it here.'} />}
-        </View>
+                <Text style={styles.lineAmount}>{plain(expense.amount)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : <Text style={styles.rowMeta}>{clearedThrough ? 'All caught up. New expenses will show here.' : 'No expenses yet. Add one to see it here.'}</Text>}
+      </View>
 
-        <View style={styles.section}>
-          <SectionTitle title="This month" />
-          {dashboard.monthly_spending.length ? (
-            <View style={styles.darkCard}>
-              {dashboard.monthly_spending.map((item, index, list) => (
-                <Pressable key={item.group_id} accessibilityRole="button" onPress={() => navigation.navigate('GroupDetail', { groupId: item.group_id, groupName: item.group })} style={[styles.activityRow, index < list.length - 1 && styles.divider]}>
-                  <View style={[styles.tile, { backgroundColor: tint(item.group).bg }]}><Icon name="people-outline" size={20} color={tint(item.group).fg} /></View>
-                  <Text style={[styles.rowTitle, styles.flex]} numberOfLines={1}>{item.group}</Text>
-                  <Text style={styles.rowAmount}>{money(item.total)}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : <EmptyDark icon="calendar-outline" label="No spending recorded this month." />}
-        </View>
+      <View style={styles.section}>
+        <SectionTitle title="This month" />
+        {dashboard.monthly_spending.length ? (
+          <View>
+            {dashboard.monthly_spending.map(item => (
+              <Pressable key={item.group_id} accessibilityRole="button" onPress={() => navigation.navigate('GroupDetail', { groupId: item.group_id, groupName: item.group })} style={styles.line}>
+                <Text style={[styles.lineTitle, styles.flex]} numberOfLines={1}>{item.group}</Text>
+                <Text style={styles.lineAmount}>{plain(item.total)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : <Text style={styles.rowMeta}>No spending recorded this month.</Text>}
+      </View>
 
-        <View style={styles.section}>
-          <SectionTitle title="Spending insights" />
-          {insights.count ? (
-            <>
-              <View style={styles.statsGrid}>
-                <Stat label="Total spent" value={money(insights.total)} />
-                <Stat label="Expenses" value={String(insights.count)} />
-                <Stat label="Average" value={money(insights.average ?? insights.total / insights.count)} />
-                <Stat label="Top category" value={insights.top_category || 'None'} />
+      <View style={styles.section}>
+        <SectionTitle title="Spending insights" />
+        {insights.count ? (
+          <>
+            <View style={styles.statsGrid}>
+              <Stat label="Total spent" value={money(insights.total)} />
+              <Stat label="Expenses" value={String(insights.count)} />
+              <Stat label="Average" value={money(insights.average ?? insights.total / insights.count)} />
+              <Stat label="Top category" value={insights.top_category || 'None'} />
+            </View>
+            <View style={styles.panel}>
+              <Text style={styles.cardTitle}>By category</Text>
+              <BarList rows={insights.category_totals.map(row => ({ label: row.category, total: row.total }))} format={money} emptyLabel="No categories yet." />
+            </View>
+            <View style={styles.panel}>
+              <Text style={styles.cardTitle}>By group</Text>
+              <BarList rows={(insights.group_totals || []).map(row => ({ label: row.name, total: row.total }))} format={money} emptyLabel="No group spending yet." />
+            </View>
+            {insights.monthly_totals?.length ? (
+              <View style={styles.panel}>
+                <Text style={styles.cardTitle}>Monthly trend</Text>
+                <MonthBars rows={insights.monthly_totals} />
               </View>
-              <View style={[styles.darkCard, styles.chartCard]}>
-                <Text style={styles.cardTitle}>By category</Text>
-                <BarList dark rows={insights.category_totals.map(row => ({ label: row.category, total: row.total }))} format={money} emptyLabel="No categories yet." />
-              </View>
-              <View style={[styles.darkCard, styles.chartCard]}>
-                <Text style={styles.cardTitle}>By group</Text>
-                <BarList dark rows={(insights.group_totals || []).map(row => ({ label: row.name, total: row.total }))} format={money} emptyLabel="No group spending yet." />
-              </View>
-              {insights.monthly_totals?.length ? (
-                <View style={[styles.darkCard, styles.chartCard]}>
-                  <Text style={styles.cardTitle}>Monthly trend</Text>
-                  <MonthBars dark rows={insights.monthly_totals} />
+            ) : null}
+            <View style={styles.panel}>
+              <Text style={styles.cardTitle}>Paid by</Text>
+              <BarList rows={insights.payer_totals.map(row => ({ label: row.name, total: row.total }))} format={money} emptyLabel="No payers yet." />
+            </View>
+          </>
+        ) : <Text style={styles.rowMeta}>Add an expense to see spending insights.</Text>}
+      </View>
+
+      <View style={styles.section}>
+        <SectionTitle title="Upcoming reminders" />
+        {reminders.length ? (
+          <View>
+            {reminders.slice(0, 5).map(task => (
+              <View key={task.id} style={styles.line}>
+                <Icon name="alarm-outline" size={20} color={colors.ink} />
+                <View style={styles.flex}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>{task.title}</Text>
+                  <Text style={styles.rowMeta} numberOfLines={1}>{task.group_name} · {formatDateTime(task.reminder_time, 'No reminder')}</Text>
                 </View>
-              ) : null}
-              <View style={[styles.darkCard, styles.chartCard]}>
-                <Text style={styles.cardTitle}>Paid by</Text>
-                <BarList dark rows={insights.payer_totals.map(row => ({ label: row.name, total: row.total }))} format={money} emptyLabel="No payers yet." />
               </View>
-            </>
-          ) : <EmptyDark icon="analytics-outline" label="Add an expense to see spending insights." />}
-        </View>
-
-        <View style={styles.section}>
-          <SectionTitle title="Upcoming reminders" />
-          {reminders.length ? (
-            <View style={styles.darkCard}>
-              {reminders.slice(0, 5).map((task, index, list) => (
-                <View key={task.id} style={[styles.activityRow, index < list.length - 1 && styles.divider]}>
-                  <View style={[styles.tile, { backgroundColor: TINTS[1].bg }]}><Icon name="alarm-outline" size={20} color={TINTS[1].fg} /></View>
-                  <View style={styles.flex}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>{task.title}</Text>
-                    <Text style={styles.rowMeta} numberOfLines={1}>{task.group_name} · {formatDateTime(task.reminder_time, 'No reminder')}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : <EmptyDark icon="notifications-outline" label="No upcoming reminders. Task reminders will appear here." />}
-        </View>
+            ))}
+          </View>
+        ) : <Text style={styles.rowMeta}>No upcoming reminders. Task reminders will appear here.</Text>}
       </View>
     </Screen>
   );
 }
 
-/** The lower part of Home is always black, whatever the app theme, with yellow and soft tints on it. */
-const SHEET = {
-  bg: '#000000',
-  card: '#1F1F1F',
-  line: '#272727',
-  text: '#ffffff',
-  muted: '#9b9b9b',
-  positive: '#7ee2a8',
-  negative: '#ff9bb3'
+const CATEGORY_ICONS: Record<string, IconName> = {
+  Groceries: 'cart-outline',
+  Dining: 'restaurant-outline',
+  Rent: 'home-outline',
+  Utilities: 'wifi-outline',
+  Transport: 'car-outline',
+  Travel: 'airplane-outline',
+  Entertainment: 'film-outline',
+  Shopping: 'pricetags-outline',
+  Health: 'medkit-outline'
 };
 
-/** Soft colour pairs for icons and avatars: [background, foreground]. */
-const TINTS = [
-  { bg: '#3a3420', fg: '#ffc83d' },
-  { bg: '#1e3a2b', fg: '#7ee2a8' },
-  { bg: '#3d2a1f', fg: '#ffb38a' },
-  { bg: '#2c2848', fg: '#b4a8ff' },
-  { bg: '#1d3046', fg: '#8cc8ff' },
-  { bg: '#40222d', fg: '#ff9bb3' }
-];
-
-const CATEGORY: Record<string, { icon: IconName; tint: number }> = {
-  Groceries: { icon: 'cart-outline', tint: 1 },
-  Dining: { icon: 'restaurant-outline', tint: 2 },
-  Rent: { icon: 'home-outline', tint: 3 },
-  Utilities: { icon: 'wifi-outline', tint: 4 },
-  Transport: { icon: 'car-outline', tint: 4 },
-  Travel: { icon: 'airplane-outline', tint: 3 },
-  Entertainment: { icon: 'film-outline', tint: 5 },
-  Shopping: { icon: 'pricetags-outline', tint: 0 },
-  Health: { icon: 'medkit-outline', tint: 5 }
-};
-
-function categoryStyle(category: string) {
-  const match = CATEGORY[category] || { icon: 'receipt-outline' as IconName, tint: 0 };
-  return { icon: match.icon, ...TINTS[match.tint] };
-}
-
-function tint(name: string) {
-  let hash = 0;
-  for (const char of name || '?') {
-    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  }
-  return TINTS[hash % TINTS.length];
+function categoryIcon(category: string): IconName {
+  return CATEGORY_ICONS[category] || 'receipt-outline';
 }
 
 function initials(name: string) {
@@ -410,11 +398,11 @@ function greeting() {
   return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-function Action({ icon, label, onPress, disabled }: { icon: IconName; label: string; onPress: () => void; disabled?: boolean }) {
+function Action({ icon, label, onPress, disabled, filled }: { icon: IconName; label: string; onPress: () => void; disabled?: boolean; filled?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
-      <View style={styles.actionCircle}><Icon name={icon} size={24} color="#1f2023" /></View>
-      <Text style={styles.actionLabel}>{label}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.action, filled && styles.actionFilled, pressed && styles.pressed]}>
+      <Icon name={icon} size={18} color={filled ? colors.onHighlight : colors.ink} />
+      <Text style={[styles.actionLabel, filled && styles.actionLabelFilled]}>{label}</Text>
     </Pressable>
   );
 }
@@ -423,108 +411,112 @@ function SectionTitle({ title, action, onAction }: { title: string; action?: str
   return (
     <View style={styles.sectionHead}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {action ? <Pressable accessibilityRole="button" onPress={onAction}><Text style={styles.sectionAction}>{action}</Text></Pressable> : null}
+      {action ? <Pressable accessibilityRole="button" hitSlop={8} onPress={onAction}><Text style={styles.sectionAction}>{action}</Text></Pressable> : null}
     </View>
   );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <View style={[styles.darkCard, styles.stat]}>
+    <View style={[styles.panel, styles.stat]}>
       <Text style={styles.rowMeta}>{label}</Text>
       <Text style={styles.statValue} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
 
-function EmptyDark({ icon, label }: { icon: IconName; label: string }) {
-  return (
-    <View style={[styles.darkCard, styles.empty]}>
-      <View style={[styles.tile, { backgroundColor: TINTS[0].bg }]}><Icon name={icon} size={20} color={TINTS[0].fg} /></View>
-      <Text style={[styles.rowMeta, styles.flex]}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  header: {
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxl,
-    backgroundColor: colors.highlight
-  },
   greeting: {
-    ...typography.h3,
-    color: colors.onHighlight
+    ...typography.h1,
+    color: colors.ink
   },
-  balance: {
-    fontFamily: fonts.semiBold,
-    fontSize: 48,
-    lineHeight: 56,
-    color: colors.onHighlight
+  receipt: {
+    borderRadius: 20,
+    borderCurve: 'continuous',
+    backgroundColor: colors.receipt
   },
-  pills: {
+  receiptTop: {
+    gap: spacing.xs,
+    padding: spacing.xl
+  },
+  receiptLabel: {
+    ...typography.caption,
+    letterSpacing: 1.5,
+    color: colors.highlight
+  },
+  receiptBalance: {
+    fontFamily: fonts.mono,
+    fontSize: 40,
+    lineHeight: 48,
+    fontWeight: '700',
+    color: colors.onReceipt
+  },
+  receiptMeta: {
+    ...typography.body,
+    color: colors.onReceipt
+  },
+  tear: {
+    marginHorizontal: spacing.lg,
+    borderTopWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: colors.receiptLine
+  },
+  receiptBottom: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg
+  },
+  receiptRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  receiptMono: {
+    fontFamily: fonts.mono,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.onReceipt
+  },
+  actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm
   },
-  pill: {
-    borderRadius: 9999,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md
-  },
-  pillDark: {
-    backgroundColor: '#1f2023'
-  },
-  pillDarkText: {
-    ...typography.caption,
-    color: '#ffffff'
-  },
-  pillSoft: {
-    backgroundColor: 'rgba(31, 32, 35, 0.12)'
-  },
-  pillSoftText: {
-    ...typography.caption,
-    color: colors.onHighlight
-  },
-  sheet: {
-    flexGrow: 1,
-    gap: spacing.xl,
-    marginTop: -spacing.xl,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.xxl,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderCurve: 'continuous',
-    backgroundColor: SHEET.bg
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between'
-  },
   action: {
-    width: 72,
-    alignItems: 'center',
-    gap: spacing.sm
-  },
-  pressed: {
-    transform: [{ scale: 0.96 }],
-    opacity: 0.85
-  },
-  actionCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 9999,
+    flexBasis: '47%',
+    flexGrow: 1,
+    minHeight: 52,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff'
+    gap: spacing.sm,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    borderWidth: 1.5,
+    borderColor: colors.ink
+  },
+  actionFilled: {
+    borderColor: colors.highlight,
+    backgroundColor: colors.highlight
   },
   actionLabel: {
-    ...typography.caption,
-    color: SHEET.text,
-    textAlign: 'center'
+    ...typography.button,
+    color: colors.ink
+  },
+  actionLabelFilled: {
+    color: colors.onHighlight
+  },
+  pressed: {
+    opacity: 0.8
+  },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    backgroundColor: colors.primarySoft
   },
   section: {
     gap: spacing.md
@@ -536,11 +528,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.h2,
-    color: SHEET.text
+    color: colors.ink
   },
   sectionAction: {
     ...typography.label,
-    color: colors.highlight
+    color: colors.ink,
+    textDecorationLine: 'underline'
   },
   people: {
     flexDirection: 'row',
@@ -548,78 +541,82 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   person: {
-    width: 72,
+    width: 64,
     alignItems: 'center',
     gap: spacing.xs
   },
   avatar: {
-    width: 48,
-    height: 48,
+    width: 56,
+    height: 56,
     borderRadius: 9999,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.ink
+  },
+  avatarOwe: {
+    borderColor: colors.highlight,
+    backgroundColor: colors.highlight
+  },
+  addAvatar: {
+    borderStyle: 'dashed'
   },
   avatarText: {
-    ...typography.bodyStrong
+    ...typography.h3,
+    fontFamily: fonts.bold,
+    color: colors.ink
   },
-  inviteAvatar: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: SHEET.muted
+  avatarOweText: {
+    color: colors.onHighlight
   },
   personName: {
     ...typography.caption,
-    color: SHEET.text
+    color: colors.ink
   },
   personAmount: {
-    ...typography.caption
+    fontFamily: fonts.mono,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.ink
   },
-  darkCard: {
-    borderRadius: radius.lg,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-    borderColor: SHEET.line,
-    backgroundColor: SHEET.card
-  },
-  rowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md
-  },
-  activityRow: {
+  line: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg
+    borderTopWidth: 1.5,
+    borderTopColor: colors.borderStrong
   },
-  divider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: SHEET.line
+  lineTitle: {
+    ...typography.h3,
+    fontFamily: fonts.semiBold,
+    color: colors.ink
   },
-  tile: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center'
+  lineAmount: {
+    fontFamily: fonts.mono,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.ink
   },
   flex: {
     flex: 1
   },
   rowTitle: {
     ...typography.h3,
-    color: SHEET.text
+    color: colors.ink
   },
   rowMeta: {
     ...typography.caption,
-    color: SHEET.muted
+    color: colors.muted
   },
-  rowAmount: {
-    ...typography.bodyStrong,
-    color: SHEET.text
+  panel: {
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border
   },
   statsGrid: {
     flexDirection: 'row',
@@ -629,25 +626,14 @@ const styles = StyleSheet.create({
   stat: {
     flexBasis: '47%',
     flexGrow: 1,
-    gap: spacing.xs,
-    padding: spacing.lg
+    gap: spacing.xs
   },
   statValue: {
     ...typography.h2,
-    color: SHEET.text
-  },
-  chartCard: {
-    gap: spacing.md,
-    padding: spacing.lg
+    color: colors.ink
   },
   cardTitle: {
     ...typography.h3,
-    color: SHEET.text
-  },
-  empty: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.lg
+    color: colors.ink
   }
 });

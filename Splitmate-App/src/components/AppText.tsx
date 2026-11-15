@@ -22,6 +22,11 @@ function fontFamilyFor(style: TextProps['style']) {
   return fonts.regular;
 }
 
+// The monospace used for receipt style amounts keeps its own family and weight.
+function isMono(style: TextProps['style']) {
+  return (StyleSheet.flatten(style) as TextStyle | undefined)?.fontFamily === fonts.mono;
+}
+
 // Tabular figures keep amounts and counters from shifting as digits change. On the web, text also
 // wraps with 'pretty' so a paragraph never ends on a single orphaned word.
 const BASE: TextStyle = { fontVariant: ['tabular-nums'] };
@@ -31,7 +36,7 @@ export function AppText({ style, ...props }: TextProps) {
   return (
     <NativeText
       {...props}
-      style={[BASE, WEB_WRAP, style, { fontFamily: fontFamilyFor(style), fontWeight: 'normal' }]}
+      style={[BASE, WEB_WRAP, style, isMono(style) ? null : { fontFamily: fontFamilyFor(style), fontWeight: 'normal' }]}
     />
   );
 }
