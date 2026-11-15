@@ -151,9 +151,9 @@ export function SettingsScreen({ navigation }: Props) {
       </Card>
 
       <Card style={styles.section}>
-        <Text style={styles.title}>Card purchases</Text>
-        <Text style={styles.help}>Pick your default group and forward your bank's purchase alerts, so card purchases arrive ready to share.</Text>
-        <AppButton icon="card-outline" variant="outline" onPress={() => navigation.navigate('PurchaseInbox')}>Open card purchases</AppButton>
+        <Text style={styles.title}>Receipts</Text>
+        <Text style={styles.help}>Pick your default group and forward receipt emails, so purchases arrive ready to share.</Text>
+        <AppButton icon="receipt-outline" variant="outline" onPress={() => navigation.navigate('PurchaseInbox')}>Open receipts</AppButton>
       </Card>
 
       <Card style={styles.section}>

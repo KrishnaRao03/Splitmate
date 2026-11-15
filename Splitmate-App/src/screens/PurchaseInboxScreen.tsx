@@ -26,13 +26,14 @@ export function PurchaseInboxScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [busy, setBusy] = useState<number | 'paste' | 'default' | null>(null);
+  const [showAuto, setShowAuto] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setInbox(await api.purchaseInbox());
       setLoadError(null);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Could not load your purchases.');
+      setLoadError(error instanceof Error ? error.message : 'Could not load your receipts.');
     }
   }, []);
 
@@ -67,7 +68,7 @@ export function PurchaseInboxScreen({ navigation }: Props) {
 
   async function paste() {
     if (!pasteText.trim()) {
-      notify('Paste an alert', 'Copy the purchase alert from your bank app or email, then paste it here.');
+      notify('Paste a receipt', 'Copy the text of a receipt or purchase email, then paste it here.');
       return;
     }
     setBusy('paste');
@@ -76,7 +77,7 @@ export function PurchaseInboxScreen({ navigation }: Props) {
       setPasteText('');
       setInbox(current => current ? { ...current, purchases: [purchase, ...current.purchases] } : current);
     } catch (error) {
-      notify('Could not read that alert', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not read that receipt', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setBusy(null);
     }
@@ -96,7 +97,7 @@ export function PurchaseInboxScreen({ navigation }: Props) {
         { text: 'Open group', onPress: () => navigation.navigate('GroupDetail', { groupId: result.group.id, groupName: result.group.name }) }
       ]);
     } catch (error) {
-      notify('Could not share purchase', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not share receipt', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setBusy(null);
     }
@@ -105,7 +106,7 @@ export function PurchaseInboxScreen({ navigation }: Props) {
   function chooseGroupAndShare(purchase: InboxPurchase) {
     const groups = inbox?.groups || [];
     if (!groups.length) {
-      notify('No groups yet', 'Create or join a group first, then share purchases with it.');
+      notify('No groups yet', 'Create or join a group first, then share receipts with it.');
       return;
     }
     confirm(`Share ${purchase.merchant} with`, undefined, [
@@ -120,25 +121,25 @@ export function PurchaseInboxScreen({ navigation }: Props) {
       await api.markPurchasePersonal(purchase.id);
       removeFromList(purchase);
     } catch (error) {
-      notify('Could not update purchase', error instanceof Error ? error.message : 'Try again.');
+      notify('Could not update receipt', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setBusy(null);
     }
   }
 
   if (!inbox && !loadError) {
-    return <LoadingState label="Loading purchases..." />;
+    return <LoadingState label="Loading receipts..." />;
   }
   if (!inbox) {
-    return <ErrorState message={loadError || 'Could not load your purchases.'} onRetry={load} />;
+    return <ErrorState message={loadError || 'Could not load your receipts.'} onRetry={load} />;
   }
 
   const defaultGroup = inbox.groups.find(group => group.id === inbox.default_group_id);
 
   return (
     <Screen onRefresh={refresh} refreshing={refreshing}>
-      <Text style={styles.sectionTitle}>To sort</Text>
-      <Text style={styles.muted}>Card purchases wait here. Share each one with a group, or keep it personal. Nothing is shared until you tap.</Text>
+      <Text style={styles.sectionTitle}>To share</Text>
+      <Text style={styles.muted}>Receipts you forward wait here. Share each one with a group, or keep it personal. Nothing is shared until you tap.</Text>
       {inbox.purchases.length ? inbox.purchases.map(purchase => (
         <Card key={purchase.id} style={styles.card}>
           <View style={styles.row}>
@@ -146,7 +147,7 @@ export function PurchaseInboxScreen({ navigation }: Props) {
             <Text style={styles.amount}>{formatMoney(purchase.amount, defaultGroup?.currency)}</Text>
           </View>
           <Text style={styles.muted}>
-            {purchase.purchased_at ? formatDate(purchase.purchased_at) : ''}{purchase.source === 'email' ? ' · from forwarded alert' : ' · pasted'}
+            {purchase.purchased_at ? formatDate(purchase.purchased_at) : ''}{purchase.source === 'email' ? ' · forwarded' : ' · pasted'}
           </Text>
           {defaultGroup ? (
             <AppButton icon="people-outline" loading={busy === purchase.id} onPress={() => share(purchase, defaultGroup.id)}>
@@ -164,11 +165,11 @@ export function PurchaseInboxScreen({ navigation }: Props) {
             </View>
           </View>
         </Card>
-      )) : <EmptyState label="Nothing to sort. New card purchases show up here." />}
+      )) : <EmptyState label="Nothing to share. Forward a receipt email and it shows up here." />}
 
       <Card style={styles.card}>
         <Text style={styles.cardTitle}>Default group</Text>
-        <Text style={styles.muted}>Purchases offer this group first. You can still pick another group for any purchase, or move an expense later.</Text>
+        <Text style={styles.muted}>Receipts offer this group first. You can still pick another group for any receipt, or move an expense later.</Text>
         <View style={styles.chips}>
           {inbox.groups.map(group => {
             const selected = group.id === inbox.default_group_id;
@@ -190,25 +191,40 @@ export function PurchaseInboxScreen({ navigation }: Props) {
       </Card>
 
       <Card style={styles.card}>
-        <Text style={styles.cardTitle}>Get purchases automatically</Text>
+        <Text style={styles.cardTitle}>Forward a receipt</Text>
         {inbox.address ? (
           <>
-            <Text style={styles.muted}>1. In your bank app, turn on email alerts for card purchases.</Text>
-            <Text style={styles.muted}>2. In your email settings, forward those alerts to your private Splitmate address:</Text>
+            <Text style={styles.muted}>Your private Splitmate address:</Text>
             <Text style={styles.address} selectable>{inbox.address}</Text>
             <AppButton icon="copy-outline" variant="outline" onPress={copyAddress}>Copy address</AppButton>
-            <Text style={styles.muted}>If your email asks you to confirm forwarding, we email you the code. Splitmate only reads the amount and the store. It never connects to your bank or touches your money.</Text>
+            <Text style={styles.step}>1. Open the receipt email (Uber Eats, Amazon, Costco, DoorDash and so on) in your mail app.</Text>
+            <Text style={styles.step}>2. Tap Forward and send it to your Splitmate address. Next time your phone suggests the address.</Text>
+            <Text style={styles.step}>3. Come back here and tap Share.</Text>
+            <Text style={styles.muted}>Bank purchase alerts work too. Splitmate only reads the store and the total. It never connects to your bank or touches your money.</Text>
+            <AppButton icon={showAuto ? 'chevron-up' : 'chevron-down'} variant="ghost" onPress={() => setShowAuto(value => !value)}>
+              Forward automatically
+            </AppButton>
+            {showAuto ? (
+              <>
+                <Text style={styles.muted}>Set this up once on a computer. The Gmail phone app cannot do it.</Text>
+                <Text style={styles.step}>1. Open Gmail on the web, then Settings, See all settings, Forwarding and POP/IMAP.</Text>
+                <Text style={styles.step}>2. Choose Add a forwarding address and paste your Splitmate address.</Text>
+                <Text style={styles.step}>3. Gmail sends a confirmation code. We email it to you; type it into Gmail.</Text>
+                <Text style={styles.step}>4. In Gmail search, type the sender (for example from:uber.com), open the search options, choose Create filter, then Forward it to your Splitmate address.</Text>
+                <Text style={styles.muted}>Outlook calls this Rules, and iCloud Mail has Rules on iCloud.com.</Text>
+              </>
+            ) : null}
           </>
         ) : (
-          <Text style={styles.muted}>Automatic forwarding is not switched on yet. You can paste alerts below in the meantime.</Text>
+          <Text style={styles.muted}>Forwarding is not switched on yet. You can paste receipts below in the meantime.</Text>
         )}
       </Card>
 
       <Card style={styles.card}>
-        <Text style={styles.cardTitle}>Paste an alert</Text>
-        <Text style={styles.muted}>Copy a purchase alert from your bank app or email and paste it here.</Text>
-        <TextField label="Alert text" value={pasteText} onChangeText={setPasteText} multiline placeholder="A purchase of $24.50 was made at ..." />
-        <AppButton icon="add-outline" variant="outline" loading={busy === 'paste'} onPress={paste}>Add purchase</AppButton>
+        <Text style={styles.cardTitle}>Paste a receipt</Text>
+        <Text style={styles.muted}>Copy the text of a receipt email, or a purchase alert from your bank app, and paste it here.</Text>
+        <TextField label="Receipt text" value={pasteText} onChangeText={setPasteText} multiline placeholder="Order from ... Total $24.50" />
+        <AppButton icon="add-outline" variant="outline" loading={busy === 'paste'} onPress={paste}>Add receipt</AppButton>
       </Card>
     </Screen>
   );
@@ -243,6 +259,10 @@ const styles = StyleSheet.create({
   },
   muted: {
     color: colors.secondary,
+    ...typography.body
+  },
+  step: {
+    color: colors.ink,
     ...typography.body
   },
   address: {

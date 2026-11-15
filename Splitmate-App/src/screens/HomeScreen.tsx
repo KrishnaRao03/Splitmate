@@ -248,10 +248,10 @@ export function HomeScreen({ navigation }: Props) {
 
         {dashboard.inbox_pending_count ? (
           <Pressable accessibilityRole="button" onPress={() => navigation.navigate('PurchaseInbox')} style={[styles.darkCard, styles.rowCard]}>
-            <View style={[styles.tile, { backgroundColor: TINTS[0].bg }]}><Icon name="card-outline" size={20} color={TINTS[0].fg} /></View>
+            <View style={[styles.tile, { backgroundColor: TINTS[0].bg }]}><Icon name="receipt-outline" size={20} color={TINTS[0].fg} /></View>
             <View style={styles.flex}>
               <Text style={styles.rowTitle}>
-                {dashboard.inbox_pending_count === 1 ? '1 card purchase to sort' : `${dashboard.inbox_pending_count} card purchases to sort`}
+                {dashboard.inbox_pending_count === 1 ? '1 receipt to share' : `${dashboard.inbox_pending_count} receipts to share`}
               </Text>
               <Text style={styles.rowMeta}>Share with a group or keep it personal.</Text>
             </View>

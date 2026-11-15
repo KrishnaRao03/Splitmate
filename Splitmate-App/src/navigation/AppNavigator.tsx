@@ -66,7 +66,7 @@ export function AppNavigator() {
           <Stack.Screen name="MembershipWelcome" component={MembershipWelcomeScreen} options={{ title: 'Splitmate Pro', headerBackVisible: false, headerLeft: () => null, gestureEnabled: false }} />
           <Stack.Screen name="HelpChat" component={HelpChatScreen} options={{ title: 'Splitmate Help' }} />
           <Stack.Screen name="Invites" component={InvitesScreen} options={{ title: 'Group invites' }} />
-          <Stack.Screen name="PurchaseInbox" component={PurchaseInboxScreen} options={{ title: 'Card purchases' }} />
+          <Stack.Screen name="PurchaseInbox" component={PurchaseInboxScreen} options={{ title: 'Receipts' }} />
         </>
       )}
     </Stack.Navigator>

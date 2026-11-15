@@ -1,7 +1,7 @@
-"""Purchase inbox: card purchases arrive as suggestions the user shares with a group or marks personal.
+"""Receipts inbox: purchases arrive as suggestions the user shares with a group or marks personal.
 
-People turn on purchase alerts in their bank app and forward those emails to their own inbox address
-(INBOX_EMAIL plus "+token"), or paste an alert's text into the app. Splitmate only reads the amount and
+People forward receipt emails (Uber Eats, Amazon, ...) or their bank's purchase alerts to their own
+inbox address (INBOX_EMAIL plus "+token"), or paste the text into the app. Splitmate only reads the amount and
 the store from the alert; it never connects to a bank and never holds or moves money.
 """
 import email
@@ -30,7 +30,14 @@ MERCHANT_AT_RE = re.compile(
     r'\bat\s+([A-Za-z0-9][^\n\r,]{1,70}?)(?=\s+(?:on|was|using|with|from|for|has|is)\b|[.,;!]\s|[.,;!]?$|\s*\n|\s{2,})',
     re.I | re.M,
 )
-REFUND_RE = re.compile(r'\b(refund|credit(?:ed)? to your|return|reversal|payment received|deposit)\b', re.I)
+REFUND_RE = re.compile(r'\b(refund(?:ed)?|credit(?:ed)? to your|reversal|payment received|deposit)\b', re.I)
+# Receipts list item prices first, so the total wins when there is one ("Subtotal" does not count).
+TOTAL_RE = re.compile(
+    r'(?<![A-Za-z])(?:grand |order |trip |amount )?(?:total|amount charged|amount paid)(?: charged| paid)?(?: \(CAD\))?\s*[:\-]?\s*'
+    + AMOUNT_RE.pattern,
+    re.I,
+)
+FROM_STORE_RE = re.compile(r'\b(?:order|receipt|purchase|trip)\s+(?:from|with)\s+([A-Za-z0-9][^\n\r.,!]{1,60})', re.I)
 
 
 def inbox_address(user):
@@ -52,13 +59,17 @@ def _clean_text(text):
     return re.sub(r'[ \t ]+', ' ', text)
 
 
-def parse_purchase_alert(text):
-    """Finds (amount, merchant) in a bank purchase alert, or None if it doesn't look like one."""
+def parse_purchase_alert(text, sender=None):
+    """Finds (amount, store) in a receipt or bank purchase alert, or None if it doesn't look like one.
+
+    sender is the store's email display name ("Uber Receipts"), used when the text names no store.
+    """
     text = _clean_text(text)
-    if REFUND_RE.search(text) and not re.search(r'\bpurchase\b', text, re.I):
-        return None
-    amount_match = AMOUNT_RE.search(text)
+    totals = list(TOTAL_RE.finditer(text))
+    amount_match = totals[-1] if totals else AMOUNT_RE.search(text)
     if not amount_match:
+        return None
+    if not totals and REFUND_RE.search(text) and not re.search(r'\bpurchase\b', text, re.I):
         return None
     try:
         amount = Decimal(amount_match.group(1).replace(',', '')).quantize(Decimal('0.01'))
@@ -69,17 +80,32 @@ def parse_purchase_alert(text):
 
     merchant = None
     label = MERCHANT_LABEL_RE.search(text)
+    from_store = FROM_STORE_RE.search(text)
     if label:
         merchant = label.group(1)
+    elif from_store:
+        merchant = from_store.group(1)
     else:
         # Prefer the "at STORE" that comes right after the amount, e.g. "a purchase of $12.50 at TIM HORTONS".
         after = MERCHANT_AT_RE.search(text, amount_match.end()) or MERCHANT_AT_RE.search(text)
         if after:
             merchant = after.group(1)
-    merchant = re.sub(r'\s+', ' ', (merchant or '').strip(' .:-*')).strip()
+        elif sender:
+            merchant = re.sub(r'\b(receipts?|orders?|no-?reply|notifications?)\b', '', sender, flags=re.I)
+    merchant = re.sub(r'\s+', ' ', (merchant or '').strip(' .:-*"')).strip()
     if not merchant or AMOUNT_RE.fullmatch(merchant):
-        merchant = 'Card purchase'
+        merchant = 'Purchase'
     return amount, merchant[:200]
+
+
+def _store_sender(message, text, user):
+    """The original sender's name: from a forwarded message's "From:" line, else the email's own sender."""
+    forwarded = re.search(r'^\s*\*?From:\*?\s*"?([^"<&\n]+?)"?\s*(?:<|&lt;)[^>&\n]+@', text, re.M)
+    if forwarded:
+        return forwarded.group(1)
+    name, address = getaddresses([message.get('From') or ''])[0]
+    # A manual forward comes from the user themselves; their own name is not the store.
+    return name if name and address.lower() != (user.email or '').lower() else None
 
 
 def add_purchase(user, amount, merchant, source, purchased_at=None, message_id=None):
@@ -163,7 +189,7 @@ def handle_inbox_message(raw_bytes):
         _relay_forwarding_confirmation(user, subject, _clean_text(text))
         return 'confirm'
 
-    parsed = parse_purchase_alert(f'{subject}\n{text}')
+    parsed = parse_purchase_alert(f'{subject}\n{text}', _store_sender(message, text, user))
     if not parsed:
         return 'not_a_purchase'
     try:

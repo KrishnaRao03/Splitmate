@@ -34,7 +34,14 @@ class ParseAlertTests(unittest.TestCase):
                 self.assertEqual(parse_purchase_alert(text), (Decimal(amount), merchant))
 
     def test_html_alerts_and_missing_store(self):
-        self.assertEqual(parse_purchase_alert('<p>Amount: <b>$5.25</b></p>'), (Decimal('5.25'), 'Card purchase'))
+        self.assertEqual(parse_purchase_alert('<p>Amount: <b>$5.25</b></p>'), (Decimal('5.25'), 'Purchase'))
+
+    def test_receipts_use_the_total_and_the_store(self):
+        receipt = ('Thanks for ordering, Krishna\nYour order from Pizza Pizza\n2 x Pepperoni $18.00\n'
+                   'Subtotal $18.00\nDelivery fee $2.99\nTaxes $2.73\nTotal $23.72\nSee our return policy')
+        self.assertEqual(parse_purchase_alert(receipt), (Decimal('23.72'), 'Pizza Pizza'))
+        self.assertEqual(parse_purchase_alert('Items $9.00\nOrder total: CA$11.30', sender='Amazon.ca Orders'),
+                         (Decimal('11.30'), 'Amazon.ca'))
 
     def test_not_a_purchase(self):
         self.assertIsNone(parse_purchase_alert('Your statement is ready to view.'))
@@ -136,6 +143,19 @@ class PurchaseInboxApiTests(unittest.TestCase):
             self.assertEqual(handle_inbox_message(message.as_bytes()), 'unknown_address')
         purchases = self.inbox()['purchases']
         self.assertEqual([(p['merchant'], p['amount'], p['source']) for p in purchases], [('METRO', 12.4, 'email')])
+
+    def test_manually_forwarded_receipt_uses_the_original_sender(self):
+        address = self.inbox()['address']
+        message = EmailMessage()
+        message['From'] = 'Me <me@example.com>'
+        message['To'] = address
+        message['Subject'] = 'Fwd: Your Tuesday evening trip'
+        message.set_content('---------- Forwarded message ---------\nFrom: Uber Receipts <noreply@uber.com>\n'
+                            'Subject: Your trip\n\nTrip fare $14.20\nTotal $17.85\n')
+        with self.app.app_context():
+            self.assertEqual(handle_inbox_message(message.as_bytes()), 'added')
+        purchase = self.inbox()['purchases'][0]
+        self.assertEqual((purchase['merchant'], purchase['amount']), ('Uber', 17.85))
 
     def test_forwarding_confirmation_is_emailed_to_the_user(self):
         address = self.inbox()['address']
