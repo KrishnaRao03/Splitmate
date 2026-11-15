@@ -536,6 +536,13 @@ export class SplitmateApi {
     return this.request<RewardsSummary>('/rewards');
   }
 
+  deleteAccount(password: string) {
+    return this.request<{ deleted: boolean; message: string }>('/me/delete', {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    });
+  }
+
   redeemReward(rewardId: string) {
     return this.request<RewardsSummary & { message: string }>('/rewards/redeem', {
       method: 'POST',

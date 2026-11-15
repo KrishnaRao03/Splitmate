@@ -18,6 +18,7 @@ import { typography } from '@/theme/typography';
 import { formatDate } from '@/utils/dates';
 import { confirm, notify } from '@/state/UndoToast';
 import type { DefaultSplit, GroupDetail, GroupMember, RootStackParamList } from '@/types';
+import { INVITE_POINTS_NOTE } from '@/utils/points';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupSettings'>;
 type SplitType = DefaultSplit['type'];
@@ -247,7 +248,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
           <Text style={styles.sectionTitle}>Invite people</Text>
           <TextField label="Their email" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
           <AppButton icon="mail-outline" onPress={inviteMember} disabled={!inviteEmail.trim()}>Send invite</AppButton>
-          <Text style={styles.help}>Works for new and existing Splitmate accounts. They join once they accept.</Text>
+          <Text style={styles.help}>Works for new and existing Splitmate accounts. They join once they accept. {INVITE_POINTS_NOTE}</Text>
           {lastInvite ? (
             <View style={styles.invitePanel}>
               <Text style={styles.memberName}>Invite for {lastInvite.email}</Text>

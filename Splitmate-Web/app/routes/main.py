@@ -7,7 +7,8 @@ import qrcode
 from qrcode.image.svg import SvgPathImage
 
 from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, flash, redirect, send_from_directory, url_for
-from flask_login import login_required, current_user, login_user
+from flask_login import login_required, current_user, login_user, logout_user
+from app.account_deletion import delete_own_account, self_delete_error
 from itsdangerous import BadSignature, URLSafeSerializer
 from sqlalchemy import func, or_
 from app import db, limiter
@@ -574,12 +575,37 @@ def export_profile_data():
 
 @main_bp.route('/privacy')
 def privacy_policy():
-    return render_template('legal.html', page_title='Privacy Policy', legal_kind='privacy')
+    return render_template('legal.html', page_title='Privacy Policy', legal_kind='privacy',
+                           support_email=current_app.config.get('SUPPORT_EMAIL'))
 
 
 @main_bp.route('/terms')
 def terms():
-    return render_template('legal.html', page_title='Terms', legal_kind='terms')
+    return render_template('legal.html', page_title='Terms', legal_kind='terms',
+                           support_email=current_app.config.get('SUPPORT_EMAIL'))
+
+
+@main_bp.route('/delete-account', methods=['GET', 'POST'])
+@limiter.limit('10 per hour', methods=['POST'])
+def delete_account():
+    """Public page explaining deletion (the stores link to it); signed-in people can delete here."""
+    if request.method == 'POST':
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login', next=url_for('main.delete_account')))
+        error = self_delete_error(current_user, request.form.get('password', ''))
+        if not error and request.form.get('confirm', '').strip().upper() != 'DELETE':
+            error = 'Type DELETE to confirm.'
+        if error:
+            flash(error, 'error')
+            return redirect(url_for('main.delete_account'))
+        user = current_user._get_current_object()
+        logout_user()
+        delete_own_account(user)
+        db.session.commit()
+        flash('Your account was deleted.', 'success')
+        return redirect(url_for('auth.login'))
+    return render_template('legal.html', page_title='Delete your account', legal_kind='delete',
+                           support_email=current_app.config.get('SUPPORT_EMAIL'))
 
 @main_bp.route('/group/create', methods=['POST'])
 @login_required

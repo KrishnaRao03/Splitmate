@@ -421,6 +421,26 @@ def _pay_directly_html(requester_name, methods, amount_text, memo):
     return ''.join(parts)
 
 
+def send_points_earned_email(user, points, reason, balance):
+    """A friend joined or went Pro, so the person who invited them earned points."""
+    headline = f'You earned {points} Splitmate points'
+    return send_email(
+        user.email,
+        headline,
+        f'Hi {user.name},\n\n{reason}, so you earned {points} points.\nYou now have {balance} points. '
+        f'Spend them on Pro time or extra scans in Profile.\n\nOpen Splitmate: {app_url()}\n',
+        render_email(
+            f'{reason}. +{points} points.',
+            headline,
+            [f'{reason}, so you earned {points} points.',
+             'Spend points on Pro time or extra receipt scans from your Profile. Points have no cash value.'],
+            highlight=f'+{points} points',
+            details=[('Balance', f'{balance} points')],
+            button=('See my points', app_url()),
+        ),
+    )
+
+
 def send_account_locked_email(user, minutes):
     link = app_url()
     return send_email(
@@ -498,7 +518,7 @@ def send_payment_recorded_email(receiver, payer, group, amount):
     )
 
 
-def send_payment_confirmed_email(user, other_person, group, amount, paid_by_user):
+def send_payment_confirmed_email(user, other_person, group, amount, paid_by_user, points_earned=0):
     """Sent to both sides once the receiver confirms: the payment is done and the balance is settled."""
     amount_text = format_amount(amount, getattr(group, 'currency', None))
     headline = f'{amount_text} received and settled'
@@ -508,16 +528,21 @@ def send_payment_confirmed_email(user, other_person, group, amount, paid_by_user
     else:
         line = f'You confirmed receiving {amount_text} from {other_person.name} for "{group.name}".'
         counterpart = ('Paid by', other_person.name)
+    lines = [line, 'The balance is updated in Splitmate.']
+    details = [counterpart, ('Group', group.name), ('Status', 'Confirmed')]
+    if points_earned:
+        lines.append(f'You earned {points_earned} Splitmate points for settling up.')
+        details.append(('Points earned', f'+{points_earned}'))
     return send_email(
         user.email,
         headline,
-        f'Hi {user.name},\n\n{headline}.\n{line}\nThe balance is updated.\n\nView it in Splitmate: {app_url()}\n',
+        f'Hi {user.name},\n\n{headline}.\n' + '\n'.join(lines) + f'\n\nView it in Splitmate: {app_url()}\n',
         render_email(
             headline + '.',
             headline,
-            [line, 'The balance is updated in Splitmate.'],
+            lines,
             highlight=headline,
-            details=[counterpart, ('Group', group.name), ('Status', 'Confirmed')],
+            details=details,
             button=('View in Splitmate', app_url()),
         ),
     )

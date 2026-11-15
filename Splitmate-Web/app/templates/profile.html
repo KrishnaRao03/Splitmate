@@ -236,7 +236,7 @@
                     <div class="settings-row">
                         <div class="settings-row-copy">
                             <span class="settings-title">Privacy policy</span>
-                            <span class="settings-meta">Data, payments, grocery prices, ads, and analytics</span>
+                            <span class="settings-meta">What we collect, who sees it, and your choices</span>
                         </div>
                         <a class="btn btn-outline btn-sm" href="{{ url_for('main.privacy_policy') }}">
                             View
@@ -246,7 +246,7 @@
                     <div class="settings-row">
                         <div class="settings-row-copy">
                             <span class="settings-title">Terms</span>
-                            <span class="settings-meta">Payments, rewards, memberships, and app usage</span>
+                            <span class="settings-meta">Payments, points, Pro and fair use</span>
                         </div>
                         <a class="btn btn-outline btn-sm" href="{{ url_for('main.terms') }}">
                             View
@@ -255,10 +255,19 @@
 
                     <div class="settings-row">
                         <div class="settings-row-copy">
-                            <span class="settings-title">App version</span>
-                            <span class="settings-meta">MVP 0.1</span>
+                            <span class="settings-title">Delete account</span>
+                            <span class="settings-meta">Remove your account and personal data</span>
                         </div>
-                        <span class="badge">Launch prep</span>
+                        <a class="btn btn-outline btn-sm" href="{{ url_for('main.delete_account') }}">
+                            Delete
+                        </a>
+                    </div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-copy">
+                            <span class="settings-title">App version</span>
+                            <span class="settings-meta">1.0.0</span>
+                        </div>
                     </div>
                 </div>
             </div>

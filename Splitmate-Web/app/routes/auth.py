@@ -11,7 +11,7 @@ from app.email_validation import email_error_message, normalize_email
 from app.models import GroupInvite, PendingRegistration, Referral, User
 from app.regions import countries_payload, normalize_country
 from app.security import display_name_error, password_error
-from app.rewards import award_referral_join
+from app.rewards import award_referral_join, tell_inviter
 
 auth_bp = Blueprint('auth', __name__)
 OTP_LOCKED_MESSAGE = 'Too many wrong codes. Request a new code and try again.'
@@ -128,9 +128,10 @@ def complete_pending_registration(pending):
     user.referred_by_id = first_inviter_id(pending.email)
     db.session.add(user)
     db.session.flush()
-    award_referral_join(user)
+    earned = award_referral_join(user)
     db.session.delete(pending)
     db.session.commit()
+    tell_inviter(earned)
     return user
 
 

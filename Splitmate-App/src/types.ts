@@ -451,5 +451,6 @@ export type RootStackParamList = {
   Membership: undefined;
   MembershipWelcome: undefined;
   HelpChat: undefined;
+  Welcome: { userId?: number } | undefined;
   Invites: undefined;
 };

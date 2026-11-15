@@ -20,6 +20,7 @@ import { paymentFieldsFor } from '@/utils/countries';
 import { formatDate } from '@/utils/dates';
 import { passwordError as describePasswordError } from '@/utils/validation';
 import { notify } from '@/state/UndoToast';
+import { INVITE_POINTS_NOTE, POINTS } from '@/utils/points';
 import type { ProfileQr, RewardsSummary, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
@@ -432,11 +433,12 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         ) : null}
         <View style={styles.divider} />
-        {sectionRow('invite', 'person-add-outline', 'Invite a friend', 'Send a Splitmate invite by email')}
+        {sectionRow('invite', 'person-add-outline', 'Invite a friend', `Earn ${POINTS.friendJoins} points when they join`)}
         {openSection === 'invite' ? (
           <View style={styles.panel}>
             <TextField label="Email" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
             <AppButton icon="mail-outline" loading={inviting} onPress={inviteFriend}>Send invite</AppButton>
+            <Text style={styles.help}>{INVITE_POINTS_NOTE}</Text>
           </View>
         ) : null}
       </Card>

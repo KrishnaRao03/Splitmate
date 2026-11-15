@@ -37,6 +37,7 @@ from app.regions import (
     payment_fields_for,
 )
 from app.rewards import record_referral, redeem, rewards_payload
+from app.account_deletion import delete_own_account, self_delete_error
 from app.email_utils import send_money_request_email, send_password_reset_email, send_splitmate_invite_email
 from app.payment_security import (
     apply_payment_handle_changes, payment_status_payload, send_interac_code, verify_interac_code,
@@ -558,6 +559,20 @@ def forgot_password():
         'sent': True,
         'message': 'If an account exists for that email, password reset instructions were sent.',
     })
+
+
+@mobile_api_bp.route('/me/delete', methods=['POST'])
+@mobile_login_required
+@limiter.limit('10 per hour')
+def delete_my_account():
+    """In-app account deletion, which both app stores require."""
+    user = request.mobile_user
+    error = self_delete_error(user, json_body().get('password') or '')
+    if error:
+        return json_error(error, 403 if 'password' in error else 409)
+    delete_own_account(user)
+    db.session.commit()
+    return jsonify({'deleted': True, 'message': 'Your account was deleted.'})
 
 
 @mobile_api_bp.route('/me', methods=['GET', 'PATCH'])

@@ -21,6 +21,7 @@ export function UpgradePrompt({ message }: { message: string }) {
     <View style={styles.box}>
       <Text style={styles.text}>{message}</Text>
       <AppButton icon="star-outline" onPress={() => navigation.navigate('Membership')}>See Splitmate Pro</AppButton>
+      <AppButton icon="gift-outline" variant="outline" onPress={() => navigation.navigate('Profile')}>Use my points</AppButton>
     </View>
   );
 }

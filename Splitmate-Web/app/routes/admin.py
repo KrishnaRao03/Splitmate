@@ -680,22 +680,13 @@ def delete_user(user_id):
         return admin_users_redirect(user.id, tab)
 
     detail = f'{user.name} <{user.email}>'
-    if user_has_history(user):
-        # Shared expenses, splits and payments still point at this user, so keep the row
-        # (other members' balances depend on it) and strip everything personal instead.
-        anonymize_user(user)
+    if remove_account(user) == 'anonymized':
         audit('user.delete_anonymized', 'user', user_id, detail)
         db.session.commit()
         flash(f'Deleted the account {detail}. Their shared expenses stay as "Deleted user" '
               'so group balances are unchanged.', 'success')
         return admin_users_redirect(tab=tab)
 
-    RewardTransaction.query.filter_by(user_id=user.id).delete()
-    RewardTransaction.query.filter_by(source_user_id=user.id).update({'source_user_id': None})
-    User.query.filter_by(referred_by_id=user.id).update({'referred_by_id': None})
-    Referral.query.filter_by(inviter_id=user.id).delete()
-    MobileDevice.query.filter_by(user_id=user.id).delete()
-    db.session.delete(user)
     audit('user.delete', 'user', user_id, detail)
     db.session.commit()
     flash(f'Deleted the account {detail}.', 'success')
@@ -704,6 +695,22 @@ def delete_user(user_id):
 
 DELETED_USER_NAME = 'Deleted user'
 DELETED_EMAIL_DOMAIN = 'deleted.splitmate.invalid'
+
+
+def remove_account(user):
+    """Delete the account, or strip it to "Deleted user" when shared records need the row. The caller commits."""
+    if user_has_history(user):
+        # Shared expenses, splits and payments still point at this user, so keep the row
+        # (other members' balances depend on it) and strip everything personal instead.
+        anonymize_user(user)
+        return 'anonymized'
+    RewardTransaction.query.filter_by(user_id=user.id).delete()
+    RewardTransaction.query.filter_by(source_user_id=user.id).update({'source_user_id': None})
+    User.query.filter_by(referred_by_id=user.id).update({'referred_by_id': None})
+    Referral.query.filter_by(inviter_id=user.id).delete()
+    MobileDevice.query.filter_by(user_id=user.id).delete()
+    db.session.delete(user)
+    return 'deleted'
 
 
 def anonymize_user(user):
@@ -721,6 +728,7 @@ def anonymize_user(user):
     user.interac_otp_hash = None
     user.paypal_username = None
     user.upi_id = None
+    user.phone = None
     user.stripe_account_id = None
     user.last_inactivity_email_sent_at = None
     db.session.execute(

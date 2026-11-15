@@ -240,7 +240,7 @@ def handle_webhook(payload, signature):
     obj = (event.get('data') or {}).get('object') or {}
     kind = event.get('type')
 
-    newly_pro = None
+    newly_pro = referral_award = None
     if kind == 'checkout.session.completed' and obj.get('mode') == 'subscription':
         user = _user_for(obj)
         if user and obj.get('customer'):
@@ -256,8 +256,11 @@ def handle_webhook(payload, signature):
             if is_paid_pro(user) and not was_pro:
                 newly_pro = user
                 from app.rewards import award_referral_pro
-                award_referral_pro(user)
+                referral_award = award_referral_pro(user)
     db.session.commit()
+    if referral_award:
+        from app.rewards import tell_inviter
+        tell_inviter(referral_award)
     if newly_pro:
         _send_welcome_to_pro(newly_pro)
     return True, 'ok'

@@ -93,6 +93,8 @@ class Config:
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME') or None
     MAIL_PASSWORD = (os.environ.get('MAIL_PASSWORD') or '').replace(' ', '') or None
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or MAIL_USERNAME
+    # Shown in the privacy policy and store listings as the place to ask about your data.
+    SUPPORT_EMAIL = os.environ.get('SUPPORT_EMAIL') or MAIL_DEFAULT_SENDER
     # When set, email goes through Brevo's HTTPS API instead of SMTP.
     BREVO_API_KEY = (os.environ.get('BREVO_API_KEY') or '').strip().strip('"').strip("'") or None
     ADMIN_EMAILS = {

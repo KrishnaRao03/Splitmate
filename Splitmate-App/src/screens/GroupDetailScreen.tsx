@@ -22,6 +22,7 @@ import { formatDate, formatDateTime } from '@/utils/dates';
 import { formatMoney, parseAmount } from '@/utils/money';
 import { confirm, notify, useUndo } from '@/state/UndoToast';
 import type { Expense, ExpenseSearchResult, GroupDetail, RootStackParamList } from '@/types';
+import { SETTLE_POINTS_NOTE } from '@/utils/points';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupDetail'>;
 type Tab = 'overview' | 'expenses' | 'pay';
@@ -521,7 +522,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                       )) : (
                         <Text style={styles.muted}>{option.receiver} hasn't added Interac, PayPal or UPI details yet. Pay them however you agreed.</Text>
                       )}
-                      <Text style={styles.hint}>2. Then record it, and {option.receiver} confirms it arrived.</Text>
+                      <Text style={styles.hint}>2. Then record it, and {option.receiver} confirms it arrived. {SETTLE_POINTS_NOTE}</Text>
                     </>
                   );
                 })()}

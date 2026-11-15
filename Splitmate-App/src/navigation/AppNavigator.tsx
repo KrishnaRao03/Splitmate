@@ -23,6 +23,7 @@ import { ProfileScreen } from '@/screens/ProfileScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { TaskCalendarScreen } from '@/screens/TaskCalendarScreen';
 import { TabNavigator } from '@/navigation/TabNavigator';
+import { WelcomeScreen } from '@/screens/WelcomeScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -65,6 +66,7 @@ export function AppNavigator() {
           <Stack.Screen name="MembershipWelcome" component={MembershipWelcomeScreen} options={{ title: 'Splitmate Pro', headerBackVisible: false, headerLeft: () => null, gestureEnabled: false }} />
           <Stack.Screen name="HelpChat" component={HelpChatScreen} options={{ title: 'Splitmate Help' }} />
           <Stack.Screen name="Invites" component={InvitesScreen} options={{ title: 'Group invites' }} />
+          <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }} />
         </>
       )}
     </Stack.Navigator>

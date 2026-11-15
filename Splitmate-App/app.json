@@ -8,15 +8,39 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.splitmate.mobile"
+      "bundleIdentifier": "com.splitmate.mobile",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          }
+        ]
+      }
     },
     "android": {
       "package": "com.splitmate.mobile",
       "predictiveBackGestureEnabled": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#1f2023"
-      }
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#1a2340"
+      },
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-secure-store",
@@ -44,10 +68,17 @@
     "splash": {
       "image": "./assets/images/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#f1f3f8",
+      "dark": {
+        "image": "./assets/images/logo-dark.png",
+        "backgroundColor": "#0d1222"
+      }
     },
     "web": {
-      "favicon": "./assets/images/logo-mark.png"
-    }
+      "favicon": "./assets/images/logo-mark.png",
+      "name": "Splitmate"
+    },
+    "description": "Split bills, settle up directly with friends, and share tasks and notes with your group.",
+    "primaryColor": "#1a2340"
   }
 }

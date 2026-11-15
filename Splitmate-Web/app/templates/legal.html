@@ -2,49 +2,121 @@
 
 {% block title %}{{ page_title }} - Splitmate{% endblock %}
 
+{% macro contact() %}{% if support_email %}<a href="mailto:{{ support_email }}">{{ support_email }}</a>{% else %}the Help chat in the app{% endif %}{% endmacro %}
+
 {% macro legal_body() %}
 <div class="legal-page">
     <div class="page-header">
         <h1>{{ page_title }}</h1>
-        <p>Last updated August 6, 2026</p>
+        <p>Last updated November 15, 2026</p>
     </div>
 
     {% if legal_kind == 'privacy' %}
     <section class="card">
         <div class="card-body legal-content">
-            <h2>What Splitmate stores</h2>
-            <p>Splitmate stores your account details, groups, expenses, payments, notes, tasks, device notification tokens, rewards balance, and settings needed to run the app.</p>
+            <p>Splitmate helps friends and housemates share expenses, tasks and notes. This policy explains what we collect, why, who it is shared with, and the choices you have. It applies to the Splitmate app on iPhone, Android and the web, and to splitmate-web.onrender.com.</p>
 
-            <h2>Payments</h2>
-            <p>Splitmate never collects or holds money. Members pay each other directly with services such as Interac e-Transfer, PayPal or UPI; Splitmate stores the payment details you choose to share (your Interac email, PayPal.Me username or UPI ID) and a record of each payment, which the person paid confirms.</p>
+            <h2>What we collect</h2>
+            <ul>
+                <li><strong>Account details:</strong> your name, email address, password (stored only as a one-way hash), country, and phone number if you add one.</li>
+                <li><strong>What you put in groups:</strong> group names, members, expenses, splits, payments you record, money requests, tasks, notes, and receipt photos you upload.</li>
+                <li><strong>Payment details you choose to share:</strong> your Interac e-Transfer email, PayPal.Me username or UPI ID, so friends can pay you directly. We never collect card or bank account numbers.</li>
+                <li><strong>Membership:</strong> if you buy Splitmate Pro, Stripe gives us a customer ID and the plan status. Stripe holds your card details, not us.</li>
+                <li><strong>Points:</strong> your points balance, how you earned and spent them, and who invited you.</li>
+                <li><strong>Device and usage:</strong> a push notification token for your device, when you last signed in and used the app, and security logs such as failed sign-in attempts.</li>
+                <li><strong>Location, only when you ask:</strong> if you tap "Use my location" for grocery prices, your position is rounded to about 100 m and turned into a place name. We don't track your location in the background.</li>
+            </ul>
 
-            <h2>Grocery prices</h2>
-            <p>Grocery comparison may use retailer or grocery price APIs. Notes are used only to identify grocery-list items when price comparison is requested.</p>
+            <h2>How we use it</h2>
+            <ul>
+                <li>To run Splitmate: work out who owes whom, show your groups, and send the emails and notifications you expect (codes, invites, payment requests and confirmations, reminders).</li>
+                <li>To keep accounts safe: lock an account after repeated wrong passwords, rate limit sign-ins, and spot abuse.</li>
+                <li>To provide receipt scanning and grocery price comparison when you use them.</li>
+            </ul>
+            <p>We don't sell your data, we don't show ads, and we don't use third party advertising or analytics trackers.</p>
 
-            <h2>Ads and analytics</h2>
-            <p>Splitmate may show ads in the free app and may use app analytics to understand performance, crashes, and usage patterns.</p>
+            <h2>Who we share it with</h2>
+            <ul>
+                <li><strong>Other members of your groups</strong> see your name, the expenses and payments you share with them, and your payment details only after you approve their request.</li>
+                <li><strong>Service providers</strong> who process data for us: Render (hosting and database, United States), Brevo and Google Gmail (sending email), Google Gemini (reading receipt photos and grocery lists when you scan or compare), Stripe (Pro payments), Expo (delivering push notifications), and OpenStreetMap Nominatim (turning a rounded location into a place name).</li>
+                <li><strong>The law:</strong> if we are legally required to.</li>
+            </ul>
+            <p>Some of these providers store data outside Canada, mainly in the United States, where it may be accessed under local law.</p>
 
-            <h2>Your data</h2>
-            <p>You can export account data from Profile & Settings. Account deletion support must be completed before public app-store launch.</p>
+            <h2>How we protect it</h2>
+            <p>Data travels over HTTPS. Passwords and codes are hashed. Phone numbers and payment details are encrypted in the database. Receipt photos are only shown to members of your group. Access to the admin tools is limited to the Splitmate owner.</p>
+
+            <h2>How long we keep it</h2>
+            <p>We keep your data while your account is open. When you delete your account, your personal details are removed straight away. If you shared expenses with others, those records stay so their balances remain correct, but they show "Deleted user" instead of your name.</p>
+
+            <h2>Your choices</h2>
+            <ul>
+                <li><strong>See or download your data:</strong> in the app go to Settings, then Export my data; on the website use Profile, then Account data.</li>
+                <li><strong>Correct it:</strong> edit your details in Profile at any time.</li>
+                <li><strong>Delete your account:</strong> in the app go to Settings, then Delete account, or use <a href="{{ url_for('main.delete_account') }}">the account deletion page</a>.</li>
+                <li><strong>Notifications:</strong> turn them off in Settings or in your phone's settings.</li>
+            </ul>
+
+            <h2>Children</h2>
+            <p>Splitmate is not meant for children under 13, and we don't knowingly collect their data. If you think a child has an account, contact us and we will delete it.</p>
+
+            <h2>Changes and contact</h2>
+            <p>If we change this policy we will update the date above and, for important changes, tell you in the app or by email. Questions or requests about your data: {{ contact() }}. You can also complain to the Office of the Privacy Commissioner of Canada.</p>
+        </div>
+    </section>
+    {% elif legal_kind == 'delete' %}
+    <section class="card">
+        <div class="card-body legal-content">
+            <p>You can delete your Splitmate account and its data at any time.</p>
+
+            <h2>In the app</h2>
+            <p>Open Settings, then tap Delete account, and enter your password.</p>
+
+            <h2>What gets deleted</h2>
+            <p>Your name, email, password, phone number, payment details, points, devices and sign-ins are removed. Expenses and payments you shared with a group stay so other members' balances stay correct, but they show "Deleted user". If you have an active Splitmate Pro subscription, cancel it first with Manage subscription.</p>
+
+            {% if current_user.is_authenticated %}
+            <h2>Delete it here</h2>
+            <form method="POST" action="{{ url_for('main.delete_account') }}" class="profile-form">
+                <div class="form-group">
+                    <label for="deletePassword">Your password</label>
+                    <input type="password" id="deletePassword" name="password" required autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label for="deleteConfirm">Type DELETE to confirm</label>
+                    <input type="text" id="deleteConfirm" name="confirm" required autocomplete="off">
+                </div>
+                <button type="submit" class="btn btn-danger">Delete my account</button>
+            </form>
+            {% else %}
+            <h2>On the web</h2>
+            <p><a href="{{ url_for('auth.login', next=url_for('main.delete_account')) }}">Sign in</a> and come back to this page to delete your account. If you can't sign in, email {{ contact() }} from the address on your account and we will delete it within 30 days.</p>
+            {% endif %}
         </div>
     </section>
     {% else %}
     <section class="card">
         <div class="card-body legal-content">
-            <h2>Use of Splitmate</h2>
-            <p>Splitmate helps groups track shared expenses, tasks, notes, payments, grocery comparisons, rewards, and memberships.</p>
+            <h2>Using Splitmate</h2>
+            <p>Splitmate helps groups track shared expenses, tasks, notes and payments. You must be at least 13 to use it, and you are responsible for keeping your password safe and for what you add to your groups.</p>
 
-            <h2>Payments and rewards</h2>
-            <p>Earning Splitmate Points is paused. Points you already have are kept. Rewards, gift cards, and cash redemption may require identity, fraud, and provider checks.</p>
+            <h2>Money</h2>
+            <p>Splitmate never holds or moves money. Members pay each other directly with Interac e-Transfer, PayPal, UPI or however they agree. A payment counts once the person paid confirms it. Check balances before paying; we are not responsible for payments made between members.</p>
 
-            <h2>Membership</h2>
-            <p>Premium membership benefits depend on the active plan shown in the app. Mobile app subscriptions must be connected through approved app-store billing before public launch.</p>
+            <h2>Points</h2>
+            <p>You can earn Splitmate points by inviting friends who join or go Pro, and by settling up. Points can be spent on Pro time and extra receipt scans or grocery comparisons. Points have no cash value, can't be transferred or exchanged for money, and may be removed if they were earned through fake accounts or fake payments. We may change how many points things earn or cost.</p>
 
-            <h2>Ads</h2>
-            <p>The free version may include ads. Premium plans may reduce or remove ads depending on the final plan.</p>
+            <h2>Splitmate Pro</h2>
+            <p>Pro gives unlimited receipt scans and grocery comparisons. Paid Pro renews automatically until you cancel with Manage subscription; cancelling keeps Pro until the end of the period you paid for. The free plan includes a set number of scans and comparisons each month.</p>
 
             <h2>Accuracy</h2>
-            <p>Expense balances and grocery prices should be reviewed before payment or purchase. Retail prices can change and may vary by location.</p>
+            <p>Receipt scans and grocery prices are estimates. Prices change and vary by store and location, so check them before you buy or pay.</p>
+
+            <h2>Fair use</h2>
+            <p>Don't use Splitmate to harass people, send spam, break the law, or try to break into accounts or the service. We may suspend accounts that do.</p>
+
+            <h2>Changes and contact</h2>
+            <p>We may update these terms and will change the date above when we do. Splitmate is provided as is. Questions: {{ contact() }}.</p>
         </div>
     </section>
     {% endif %}

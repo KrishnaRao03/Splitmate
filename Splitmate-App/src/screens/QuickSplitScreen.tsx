@@ -15,6 +15,7 @@ import { typography } from '@/theme/typography';
 import type { RootStackParamList } from '@/types';
 import { formatMoney, parseAmount } from '@/utils/money';
 import { emailError, phoneError, suggestedEmail } from '@/utils/validation';
+import { POINTS } from '@/utils/points';
 
 function splitContacts(value: string) {
   return value.split(/[,;\n]+/).map(part => part.trim()).filter(Boolean);
@@ -75,7 +76,7 @@ export function QuickSplitScreen({ navigation, route }: Props) {
     }
     const parts: string[] = [];
     if (invited.length) {
-      parts.push(`${invited.join(', ')} ${invited.length === 1 ? 'is' : 'are'} not on Splitmate yet, so we emailed ${invited.length === 1 ? 'them' : 'each of them'} an invite. Split again once they've joined, or remove them to split with the others now.`);
+      parts.push(`${invited.join(', ')} ${invited.length === 1 ? 'is' : 'are'} not on Splitmate yet, so we emailed ${invited.length === 1 ? 'them' : 'each of them'} an invite. Split again once they've joined, or remove them to split with the others now. You earn ${POINTS.friendJoins} points for each friend who joins.`);
     }
     const failed = emails.filter(email => !invited.includes(email));
     if (failed.length) {

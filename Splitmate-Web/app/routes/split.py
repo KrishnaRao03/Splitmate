@@ -290,7 +290,8 @@ def notify_payment_recorded(payment):
 def notify_payment_confirmed(payment):
     """Both sides hear that the money arrived and the debt is settled."""
     from app.email_utils import send_payment_confirmed_email
-    _send_quietly(send_payment_confirmed_email, payment.payer, payment.receiver, payment.group, payment.amount, True)
+    _send_quietly(send_payment_confirmed_email, payment.payer, payment.receiver, payment.group, payment.amount, True,
+                  int(payment.reward_points_awarded or 0))
     _send_quietly(send_payment_confirmed_email, payment.receiver, payment.payer, payment.group, payment.amount, False)
 
 def notify_split_settled(split, amount):

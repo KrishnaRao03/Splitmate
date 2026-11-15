@@ -37,7 +37,7 @@ export function supportReply(message: string) {
     return 'Theme is in Settings. Pick System, Light, or Dark and an accent color, then restart Splitmate to apply it everywhere.';
   }
   if (/(point|points|reward|gift|redeem|cash|money)/.test(text)) {
-    return 'Earning Splitmate Points is paused for now. Points you already have are kept, and rewards become available when your points reach the listed tier on your Profile.';
+    return 'You earn 200 points when a friend you invite joins, 500 when they go Pro, and 10 each time you settle up and they confirm (up to 50 a month). Spend them in Profile on extra receipt scans, grocery comparisons or free Pro time. Points have no cash value.';
   }
   if (/(premium|membership|subscribe|subscription|plus|ads|ad)/.test(text)) {
     return 'Membership is on your Profile. Free keeps the core app, while Plus is planned for an ad-light experience, richer grocery price tools, and advanced insights after store billing is connected.';

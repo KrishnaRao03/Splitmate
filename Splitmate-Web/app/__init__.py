@@ -336,8 +336,11 @@ def create_app(config_class=Config):
     @app.context_processor
     def inject_currency_context():
         from app.admin_utils import is_app_admin
+        from app import rewards
 
         return {
+            'points_rules': {'friend_joins': rewards.REFERRAL_JOIN_POINTS, 'settle_up': rewards.SETTLE_POINTS,
+                             'settle_cap': rewards.SETTLE_POINTS_PER_MONTH},
             'currency_code': configured_currency_code(),
             'available_currencies': available_currencies,
             'currency_symbol': configured_currency_symbol(),

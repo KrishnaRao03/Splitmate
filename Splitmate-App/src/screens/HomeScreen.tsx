@@ -21,6 +21,8 @@ import { confirm, notify, useUndo } from '@/state/UndoToast';
 import { pickReceiptImage, type ReceiptFile } from '@/utils/receiptPicker';
 import { takeLaunchLink } from '@/utils/launchLinks';
 import type { Dashboard, Group, MainTabParamList, MyInvite, PersonBalance, RootStackParamList, Task } from '@/types';
+import { tourSeenKey } from '@/screens/WelcomeScreen';
+import { parseServerDate } from '@/utils/dates';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -85,6 +87,19 @@ export function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     configureNotifications().catch(() => undefined);
   }, []);
+
+  // New accounts (joined in the last week) see the quick tour once on this device.
+  useEffect(() => {
+    const joined = user?.created_at ? parseServerDate(user.created_at) : null;
+    if (!user || !joined || Date.now() - joined.getTime() > 7 * 24 * 3600 * 1000) {
+      return;
+    }
+    AsyncStorage.getItem(tourSeenKey(user.id)).then(seen => {
+      if (!seen) {
+        navigation.navigate('Welcome', { userId: user.id });
+      }
+    }).catch(() => undefined);
+  }, [navigation, user]);
 
   useEffect(() => {
     AsyncStorage.getItem(clearedKey).then(value => setClearedThrough(Number(value) || 0)).catch(() => undefined);

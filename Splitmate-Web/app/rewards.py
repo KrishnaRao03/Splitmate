@@ -67,6 +67,19 @@ def record_referral(inviter, email):
         db.session.commit()
 
 
+def tell_inviter(transaction):
+    """Email the inviter that they earned points. Best effort, after the caller commits."""
+    if transaction is None:
+        return
+    from flask import current_app
+    from app.email_utils import send_points_earned_email
+    user = transaction.user
+    try:
+        send_points_earned_email(user, transaction.points, transaction.note, int(user.reward_points or 0))
+    except Exception as exc:
+        current_app.logger.exception('Failed to send points email: %s', exc)
+
+
 def award_referral_join(new_user):
     """The friend who invited this new account gets points. The caller commits."""
     inviter = new_user.referred_by
@@ -98,6 +111,7 @@ def award_settle(payment):
     points = min(SETTLE_POINTS, SETTLE_POINTS_PER_MONTH - earned)
     if points <= 0:
         return None
+    payment.reward_points_awarded = points
     return _add(payer, points, 'settle', 'Settled up with a friend', payment.receiver)
 
 

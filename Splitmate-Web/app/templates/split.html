@@ -97,7 +97,7 @@
             <div class="card-body">
                 <div class="payment-setup-panel">
                     <span class="badge">Pay outside Splitmate</span>
-                    <p class="text-subtle">Send the money with Interac, PayPal or UPI, then record it here. The person you paid confirms it before balances change.</p>
+                    <p class="text-subtle">Send the money with Interac, PayPal or UPI, then record it here. The person you paid confirms it before balances change, and you earn {{ points_rules.settle_up }} points (up to {{ points_rules.settle_cap }} a month).</p>
                 </div>
 
                 <form method="POST" action="{{ url_for('split.record_payment') }}" id="manualPaymentForm">

@@ -115,6 +115,17 @@ class PointsRewardsTests(unittest.TestCase):
         self.assertEqual(self.user.reward_points, 50)
         self.assertEqual(self.friend.reward_points, 0)
 
+    def test_payer_is_told_about_settle_points_in_the_email(self):
+        from app.routes.split import notify_payment_confirmed
+        payment = self.payment()
+        award_settle(payment)
+        db.session.commit()
+        with patch('app.email_utils.send_email', return_value=True) as sent:
+            notify_payment_confirmed(payment)
+        to_payer, to_receiver = sent.call_args_list
+        self.assertIn('You earned 10 Splitmate points', to_payer.args[2])
+        self.assertNotIn('points', to_receiver.args[2])
+
     def test_tiny_payments_earn_nothing(self):
         award_settle(self.payment(amount=0.5))
         self.assertEqual(self.user.reward_points, 0)
