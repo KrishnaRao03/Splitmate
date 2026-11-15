@@ -13,7 +13,7 @@ import { QrCode } from '@/components/QrCode';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { useAuth } from '@/state/AuthContext';
-import { colors, radius, spacing } from '@/theme/colors';
+import { colors, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { CountryPicker } from '@/components/CountryPicker';
 import { paymentFieldsFor } from '@/utils/countries';
@@ -52,6 +52,20 @@ export function ProfileScreen({ navigation }: Props) {
   const [qr, setQr] = useState<ProfileQr | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [openSection, setOpenSection] = useState<OpenSection | null>(null);
+
+  const [redeeming, setRedeeming] = useState<string | null>(null);
+
+  async function redeemReward(rewardId: string, label: string) {
+    setRedeeming(rewardId);
+    try {
+      setRewards(await api.redeemReward(rewardId));
+      notify('Reward added', label);
+    } catch (error) {
+      notify('Could not get reward', error instanceof Error ? error.message : undefined);
+    } finally {
+      setRedeeming(null);
+    }
+  }
 
   const loadRewards = useCallback(async () => {
     try {
@@ -329,46 +343,51 @@ export function ProfileScreen({ navigation }: Props) {
                   {rewards.membership_plan === 'free' ? 'Free plan' : rewards.membership_plan} · {rewards.membership_status}
                 </Text>
               </View>
-              <Text style={styles.rewardsPercent}>{rewards.progress.percent}%</Text>
             </View>
 
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${Math.min(100, Math.max(0, rewards.progress.percent))}%`,
-                    backgroundColor: rewards.progress.redeemable ? colors.success : colors.primary
-                  }
-                ]}
-              />
-            </View>
-
-            <Text style={styles.help}>
-              {rewards.progress.remaining > 0
-                ? `${rewards.progress.remaining} pts to ${rewards.progress.tier.label}`
-                : `You've reached ${rewards.progress.tier.label}`}
-            </Text>
-            {rewards.progress.redeemable ? (
-              <Text style={styles.status}>Reward available</Text>
+            {rewards.points_pro_until ? (
+              <Text style={styles.status}>Pro from points until {formatDate(rewards.points_pro_until)}</Text>
             ) : null}
-            <Text style={styles.help}>Earning points is paused for now. Points you already have are kept.</Text>
-
-            {(rewards.tiers?.length || rewards.recent_transactions) ? (
-              <Pressable onPress={() => toggle('rewards')} style={styles.inlineToggle}>
-                <Text style={styles.status}>{openSection === 'rewards' ? 'Hide tiers and history' : 'Show tiers and history'}</Text>
-                <Icon name={openSection === 'rewards' ? 'chevron-up' : 'chevron-down'} size={16} color={colors.primary} />
-              </Pressable>
+            {rewards.bonus_receipt_scans || rewards.bonus_grocery_compares ? (
+              <Text style={styles.help}>
+                Extra: {rewards.bonus_receipt_scans} receipt scans, {rewards.bonus_grocery_compares} grocery comparisons
+              </Text>
             ) : null}
+            <Text style={styles.help}>Spend points on Pro time and extra scans. Points have no cash value.</Text>
 
-            {openSection === 'rewards' && rewards.tiers?.length ? (
+            {rewards.rewards.map(reward => (
+              <View key={reward.id} style={styles.rowBetween}>
+                <View style={styles.identityMain}>
+                  <Text style={[styles.help, reward.affordable && styles.reached]}>{reward.label}</Text>
+                  <Text style={styles.status}>{reward.points.toLocaleString()} pts</Text>
+                </View>
+                <AppButton
+                  variant={reward.affordable ? 'primary' : 'outline'}
+                  disabled={!reward.affordable || redeeming !== null}
+                  loading={redeeming === reward.id}
+                  onPress={() => redeemReward(reward.id, reward.label)}
+                >
+                  Get
+                </AppButton>
+              </View>
+            ))}
+
+            <Pressable onPress={() => toggle('rewards')} style={styles.inlineToggle}>
+              <Text style={styles.status}>{openSection === 'rewards' ? 'Hide how to earn and history' : 'How to earn points'}</Text>
+              <Icon name={openSection === 'rewards' ? 'chevron-up' : 'chevron-down'} size={16} color={colors.primary} />
+            </Pressable>
+
+            {openSection === 'rewards' ? (
               <View style={styles.subSection}>
                 <View style={styles.divider} />
-                <Text style={styles.subSectionTitle}>Reward tiers</Text>
-                {rewards.tiers.map(tier => (
-                  <View key={tier.points} style={styles.rowBetween}>
-                    <Text style={[styles.help, rewards.points >= tier.points && styles.reached]}>{tier.label}</Text>
-                    <Text style={styles.status}>{tier.points.toLocaleString()} pts</Text>
+                <Text style={styles.subSectionTitle}>How to earn</Text>
+                {rewards.ways_to_earn.map(way => (
+                  <View key={way.label} style={styles.rowBetween}>
+                    <View style={styles.identityMain}>
+                      <Text style={styles.help}>{way.label}</Text>
+                      <Text style={styles.status}>{way.limit}</Text>
+                    </View>
+                    <Text style={styles.points}>+{way.points}</Text>
                   </View>
                 ))}
               </View>
@@ -384,7 +403,7 @@ export function ProfileScreen({ navigation }: Props) {
                       <Text style={styles.help}>{item.note || 'Points earned'}</Text>
                       <Text style={styles.status}>{formatDate(item.created_at)}</Text>
                     </View>
-                    <Text style={styles.points}>+{item.points}</Text>
+                    <Text style={styles.points}>{item.points > 0 ? '+' : ''}{item.points}</Text>
                   </View>
                 )) : <Text style={styles.help}>No points yet.</Text>}
               </View>
@@ -526,19 +545,5 @@ const styles = StyleSheet.create({
   rewardsPoints: {
     color: colors.ink,
     ...typography.h2
-  },
-  rewardsPercent: {
-    color: colors.secondary,
-    ...typography.bodyStrong
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    overflow: 'hidden'
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: radius.pill
   }
 });

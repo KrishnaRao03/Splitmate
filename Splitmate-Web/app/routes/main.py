@@ -18,7 +18,7 @@ from app.models import User, Group, GroupInvite, Expense, ExpenseSplit, ExpenseH
 from app.routes.auth import send_user_otp, set_pending_verification
 from app.group_utils import group_member_payload, group_pending_invite_payload, set_member_nickname
 from app import billing
-from app.rewards import REWARD_TIERS, reward_progress
+from app.rewards import record_referral, redeem, rewards_payload
 from app.routes import split as split_routes
 from app.payment_security import apply_payment_handle_changes, send_interac_code, verify_interac_code
 from app.security import clean_payment_handles, display_name_error, password_error
@@ -441,6 +441,15 @@ def profile():
             flash('Password updated. Other devices were signed out.', 'success')
             return redirect(url_for('main.profile'))
 
+        if form_type == 'redeem_reward':
+            error = redeem(current_user, request.form.get('reward_id', '').strip())
+            if error:
+                flash(error, 'error')
+            else:
+                db.session.commit()
+                flash('Reward added to your account.', 'success')
+            return redirect(url_for('main.profile') + '#rewards-panel')
+
         flash('Choose a valid profile action.', 'error')
         return redirect(url_for('main.profile'))
 
@@ -453,8 +462,7 @@ def profile():
 
     return render_template(
         'profile.html',
-        reward_progress=reward_progress(current_user.reward_points),
-        reward_tiers=REWARD_TIERS,
+        rewards=rewards_payload(current_user),
         membership=billing.membership_payload(current_user),
         recent_reward_transactions=recent_reward_transactions,
         countries=countries_payload(),
@@ -705,6 +713,7 @@ def invite_splitmate():
     join_url = url_for('main.join_splitmate', _external=True)
     # Existing accounts get no email and the same reply, so this can't reveal who uses Splitmate.
     if not User.query.filter_by(email=email).first():
+        record_referral(current_user, email)
         try:
             send_splitmate_invite_email(email, current_user, join_url)
         except Exception as exc:

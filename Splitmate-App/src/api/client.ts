@@ -536,6 +536,13 @@ export class SplitmateApi {
     return this.request<RewardsSummary>('/rewards');
   }
 
+  redeemReward(rewardId: string) {
+    return this.request<RewardsSummary & { message: string }>('/rewards/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ reward_id: rewardId })
+    });
+  }
+
   /** Stripe's hosted payment page for Splitmate Pro. `returnUrl` is where Stripe sends the person back. */
   reversePlace(lat: string, lng: string) {
     return this.request<{ name: string }>(`/places/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);

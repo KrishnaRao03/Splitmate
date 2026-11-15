@@ -15,6 +15,7 @@ from app import db
 from app.models import Group, Expense, ExpenseSplit, ExpenseHistory, Payment, User
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows
 from app.security import csv_safe, is_safe_link, payment_methods_for
+from app.rewards import award_settle
 
 split_bp = Blueprint('split', __name__, url_prefix='/split')
 CENT = Decimal('0.01')
@@ -271,6 +272,7 @@ def confirm_payment(payment, user):
         settle_outstanding_splits(group, payment.payer, payment.receiver, amount)
     payment.amount = float(amount)
     payment.status = 'recorded'
+    award_settle(payment)
     return None
 
 def _send_quietly(send, *args):

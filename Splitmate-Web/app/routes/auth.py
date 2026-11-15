@@ -8,9 +8,10 @@ from app.login_guard import clear_failed_logins, locked_message, minutes_locked,
 from app import db, limiter
 from app.email_utils import app_url, send_password_reset_email, send_verification_otp
 from app.email_validation import email_error_message, normalize_email
-from app.models import PendingRegistration, User
+from app.models import GroupInvite, PendingRegistration, Referral, User
 from app.regions import countries_payload, normalize_country
 from app.security import display_name_error, password_error
+from app.rewards import award_referral_join
 
 auth_bp = Blueprint('auth', __name__)
 OTP_LOCKED_MESSAGE = 'Too many wrong codes. Request a new code and try again.'
@@ -124,10 +125,25 @@ def complete_pending_registration(pending):
         db.session.commit()
         return None
     user = pending.create_user()
+    user.referred_by_id = first_inviter_id(pending.email)
     db.session.add(user)
+    db.session.flush()
+    award_referral_join(user)
     db.session.delete(pending)
     db.session.commit()
     return user
+
+
+def first_inviter_id(email):
+    """Whoever invited this email first, by Splitmate invite or group invite, gets the referral."""
+    candidates = [row for row in (
+        Referral.query.filter_by(email=email).order_by(Referral.created_at).first(),
+        GroupInvite.query.filter_by(email=email).order_by(GroupInvite.created_at).first(),
+    ) if row]
+    if not candidates:
+        return None
+    first = min(candidates, key=lambda row: row.created_at)
+    return first.inviter_id if isinstance(first, Referral) else first.invited_by_id
 
 
 def set_pending_registration(pending):

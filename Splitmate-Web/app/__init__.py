@@ -191,13 +191,30 @@ def ensure_rewards_schema():
         if 'membership_cancel_at_period_end' not in user_columns:
             db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN membership_cancel_at_period_end {false_boolean_default()}'))
 
+        if 'points_pro_until' not in user_columns:
+            db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN points_pro_until {datetime_column_type()}'))
+
+        if 'bonus_receipt_scans' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN bonus_receipt_scans INTEGER DEFAULT 0 NOT NULL'))
+
+        if 'bonus_grocery_compares' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN bonus_grocery_compares INTEGER DEFAULT 0 NOT NULL'))
+
+        if 'referred_by_id' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN referred_by_id INTEGER REFERENCES "user"(id)'))
+
     if inspector.has_table('payment'):
         payment_columns = {column['name'] for column in inspector.get_columns('payment')}
 
         if 'reward_points_awarded' not in payment_columns:
             db.session.execute(text('ALTER TABLE payment ADD COLUMN reward_points_awarded INTEGER DEFAULT 0 NOT NULL'))
 
-    if not inspector.has_table('reward_transaction'):
+    if inspector.has_table('reward_transaction'):
+        reward_columns = {column['name'] for column in inspector.get_columns('reward_transaction')}
+        if 'source_user_id' not in reward_columns:
+            db.session.execute(text('ALTER TABLE reward_transaction ADD COLUMN source_user_id INTEGER REFERENCES "user"(id)'))
+
+    if not inspector.has_table('reward_transaction') or not inspector.has_table('referral'):
         db.create_all()
 
     db.session.commit()

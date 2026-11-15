@@ -97,6 +97,12 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     membership_interval = db.Column(db.String(10))
     membership_renews_at = db.Column(db.DateTime)
     membership_cancel_at_period_end = db.Column(db.Boolean, default=False, nullable=False)
+    # Bought with points: Pro until this time, and scans that sit on top of the monthly free allowance.
+    points_pro_until = db.Column(db.DateTime)
+    bonus_receipt_scans = db.Column(db.Integer, default=0, nullable=False)
+    bonus_grocery_compares = db.Column(db.Integer, default=0, nullable=False)
+    referred_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    referred_by = db.relationship('User', remote_side=[id], foreign_keys=[referred_by_id])
 
     administered_groups = db.relationship('Group', backref='admin', lazy='dynamic')
     expenses = db.relationship('Expense', backref='added_by', lazy='dynamic')
@@ -224,12 +230,13 @@ class RewardTransaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     payment_id = db.Column(db.Integer, db.ForeignKey('payment.id'), unique=True)
+    source_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     points = db.Column(db.Integer, nullable=False)
     type = db.Column(db.String(30), default='earn', nullable=False)
     note = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    user = db.relationship('User', backref=db.backref('reward_transactions', lazy='dynamic'))
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('reward_transactions', lazy='dynamic'))
     payment = db.relationship('Payment', backref=db.backref('reward_transaction', uselist=False))
 
 class Note(db.Model):
@@ -321,6 +328,14 @@ class PendingRegistration(EmailOtpMixin, db.Model):
         """The verified account. The caller deletes this pending row and commits."""
         return User(email=self.email, name=self.name, password_hash=self.password_hash, is_email_verified=True,
                     country=self.country or 'CA')
+
+
+class Referral(db.Model):
+    """Someone invited this email to Splitmate. If it signs up, the inviter earns points."""
+    id = db.Column(db.Integer, primary_key=True)
+    inviter_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    email = db.Column(db.String(120), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class FeatureUsage(db.Model):

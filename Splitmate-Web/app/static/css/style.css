@@ -4852,3 +4852,15 @@ p, li, .muted {
     justify-content: center;
     gap: 8px;
 }
+
+.reward-note {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.reward-tier div {
+    display: grid;
+    gap: 2px;
+}

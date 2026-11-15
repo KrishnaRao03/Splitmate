@@ -36,7 +36,7 @@ from app.regions import (
     countries_payload, country_name, currency_for_country, normalize_country, normalize_currency,
     payment_fields_for,
 )
-from app.rewards import POINTS_EARNING_PAUSED, REWARD_TIERS, reward_progress
+from app.rewards import record_referral, redeem, rewards_payload
 from app.email_utils import send_money_request_email, send_password_reset_email, send_splitmate_invite_email
 from app.payment_security import (
     apply_payment_handle_changes, payment_status_payload, send_interac_code, verify_interac_code,
@@ -831,6 +831,7 @@ def invite_splitmate():
     join_url = url_for('main.join_splitmate', _external=True)
     # Existing accounts get no email and the same reply, so this can't reveal who uses Splitmate.
     if not User.query.filter_by(email=email).first():
+        record_referral(request.mobile_user, email)
         try:
             send_splitmate_invite_email(email, request.mobile_user, join_url)
         except Exception as exc:
@@ -1893,14 +1894,16 @@ def search_group_expenses(group_id):
 @mobile_login_required
 def rewards_summary():
     user = request.mobile_user
+    return jsonify(rewards_summary_payload(user))
+
+
+def rewards_summary_payload(user):
     recent = RewardTransaction.query.filter_by(user_id=user.id).order_by(
         RewardTransaction.created_at.desc()
     ).limit(5).all()
-    return jsonify({
-        'points': int(user.reward_points or 0),
-        'progress': reward_progress(user.reward_points),
+    return {
         **billing.membership_payload(user),
-        'tiers': REWARD_TIERS,
+        **rewards_payload(user),
         'recent_transactions': [{
             'id': transaction.id,
             'points': transaction.points,
@@ -1908,8 +1911,19 @@ def rewards_summary():
             'note': transaction.note or '',
             'created_at': iso_datetime(transaction.created_at),
         } for transaction in recent],
-        'earning_paused': POINTS_EARNING_PAUSED,
-    })
+    }
+
+
+@mobile_api_bp.route('/rewards/redeem', methods=['POST'])
+@mobile_login_required
+@limiter.limit('20 per hour')
+def redeem_reward():
+    user = request.mobile_user
+    error = redeem(user, (json_body().get('reward_id') or '').strip())
+    if error:
+        return json_error(error)
+    db.session.commit()
+    return jsonify({'message': 'Reward added to your account.', **rewards_summary_payload(user)})
 
 
 def billing_return_url(path='', fallback=None):

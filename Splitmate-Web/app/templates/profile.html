@@ -57,31 +57,42 @@
                 </a>
             </div>
 
-            <div class="rewards-panel">
+            <div class="rewards-panel" id="rewards-panel">
                 <div class="rewards-head">
                     <div>
                         <h2>Splitmate points</h2>
-                        <p>Earning points is paused. Points you already have are kept.</p>
+                        <p>Spend them on Pro time and extra scans. Points have no cash value.</p>
                     </div>
-                    <span class="rewards-balance">{{ reward_progress.balance }}</span>
+                    <span class="rewards-balance">{{ rewards.points }}</span>
                 </div>
-                <div class="rewards-progress" aria-label="Reward progress">
-                    <span style="width: {{ reward_progress.percent }}%"></span>
-                </div>
-                <div class="rewards-progress-meta">
-                    {% if reward_progress.redeemable %}
-                    <span>Reward available</span>
-                    {% else %}
-                    <span>{{ reward_progress.remaining }} points to {{ reward_progress.tier.label }}</span>
-                    {% endif %}
-                    <strong>{{ reward_progress.target }} pts</strong>
-                </div>
+                {% if rewards.points_pro_until %}
+                <p class="reward-note">Pro from points until {{ rewards.points_pro_until[:10] }}</p>
+                {% endif %}
+                {% if rewards.bonus_receipt_scans or rewards.bonus_grocery_compares %}
+                <p class="reward-note">Extra: {{ rewards.bonus_receipt_scans }} receipt scans, {{ rewards.bonus_grocery_compares }} grocery comparisons</p>
+                {% endif %}
 
                 <div class="reward-tier-list">
-                    {% for tier in reward_tiers %}
-                    <div class="reward-tier {% if reward_progress.balance >= tier.points %}is-unlocked{% endif %}">
-                        <span>{{ tier.points }} pts</span>
-                        <strong>{{ tier.label }}</strong>
+                    {% for reward in rewards.rewards %}
+                    <form method="POST" class="reward-tier {% if reward.affordable %}is-unlocked{% endif %}">
+                        <input type="hidden" name="form_type" value="redeem_reward">
+                        <input type="hidden" name="reward_id" value="{{ reward.id }}">
+                        <div>
+                            <strong>{{ reward.label }}</strong>
+                            <span>{{ reward.points }} pts</span>
+                        </div>
+                        <button type="submit" class="btn btn-sm {% if reward.affordable %}btn-primary{% else %}btn-secondary{% endif %}"
+                                {% if not reward.affordable %}disabled{% endif %}>Get</button>
+                    </form>
+                    {% endfor %}
+                </div>
+
+                <div class="reward-history">
+                    <span class="reward-note">How to earn</span>
+                    {% for way in rewards.ways_to_earn %}
+                    <div class="reward-history-row">
+                        <span>{{ way.label }}</span>
+                        <small>+{{ way.points }} · {{ way.limit }}</small>
                     </div>
                     {% endfor %}
                 </div>
@@ -90,7 +101,7 @@
                 <div class="reward-history">
                     {% for transaction in recent_reward_transactions %}
                     <div class="reward-history-row">
-                        <span>+{{ transaction.points }} points</span>
+                        <span>{% if transaction.points > 0 %}+{% endif %}{{ transaction.points }} · {{ transaction.note or 'Points' }}</span>
                         <small>{{ transaction.created_at.strftime('%b %d') }}</small>
                     </div>
                     {% endfor %}

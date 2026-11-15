@@ -120,7 +120,7 @@ export type Note = {
 
 /** Response of POST /receipts/scan: the line items read off a receipt photo. */
 /** This month's use of a feature with a free limit; limit and remaining are null on Pro (unlimited). */
-export type FeatureUsage = { used: number; limit: number | null; remaining: number | null };
+export type FeatureUsage = { used: number; limit: number | null; bonus?: number; remaining: number | null };
 
 export type ReceiptScan = {
   usage?: FeatureUsage;
@@ -332,11 +332,16 @@ export type AuthResponse = {
   currency_code: string;
 };
 
-export type RewardTier = {
+/** Something points can buy. Points have no cash value. */
+export type RewardOption = {
+  id: 'scans_5' | 'compares_5' | 'pro_week' | 'pro_month';
   points: number;
   label: string;
   description: string;
+  affordable: boolean;
 };
+
+export type WayToEarn = { points: number; label: string; limit: string };
 
 export type RewardTransactionRow = {
   id: number;
@@ -383,14 +388,12 @@ export type MyInvite = {
 
 export type RewardsSummary = {
   points: number;
-  progress: {
-    balance: number;
-    target: number;
-    remaining: number;
-    percent: number;
-    tier: RewardTier;
-    redeemable: boolean;
-  };
+  rewards: RewardOption[];
+  ways_to_earn: WayToEarn[];
+  /** Pro bought with points runs until this time; null when there is none. */
+  points_pro_until: string | null;
+  bonus_receipt_scans: number;
+  bonus_grocery_compares: number;
   membership_plan: string;
   membership_status: string;
   membership_interval?: string;
@@ -399,7 +402,6 @@ export type RewardsSummary = {
   /** False until the Stripe keys are added on the server. */
   billing_enabled?: boolean;
   usage?: { receipt_scan: FeatureUsage; grocery_compare: FeatureUsage };
-  tiers?: RewardTier[];
   recent_transactions?: RewardTransactionRow[];
   membership_plans?: MembershipPlan[];
   earning_paused?: boolean;

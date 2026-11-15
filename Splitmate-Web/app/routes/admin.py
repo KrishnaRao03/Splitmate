@@ -16,7 +16,7 @@ from app.email_validation import normalize_email
 from app.inactivity_reminders import inactive_reminder_candidates, send_inactivity_reminders
 from app.models import (
     AdminAuditLog, Expense, ExpenseHistory, ExpenseSplit, Group, GroupInvite, MobileDevice, Note, Payment,
-    RewardTransaction, Task, User, group_members,
+    Referral, RewardTransaction, Task, User, group_members,
 )
 from app.receipt_scan import scanning_configured
 from app.routes.auth import generate_password_reset_token
@@ -691,6 +691,9 @@ def delete_user(user_id):
         return admin_users_redirect(tab=tab)
 
     RewardTransaction.query.filter_by(user_id=user.id).delete()
+    RewardTransaction.query.filter_by(source_user_id=user.id).update({'source_user_id': None})
+    User.query.filter_by(referred_by_id=user.id).update({'referred_by_id': None})
+    Referral.query.filter_by(inviter_id=user.id).delete()
     MobileDevice.query.filter_by(user_id=user.id).delete()
     db.session.delete(user)
     audit('user.delete', 'user', user_id, detail)
