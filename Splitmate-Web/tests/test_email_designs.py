@@ -39,7 +39,7 @@ class EmailDesignTests(unittest.TestCase):
         html = payload['htmlContent']
         self.assertIn('/static/images/splitmate-logo.png', html)
         self.assertIn('alt="Splitmate"', html)
-        self.assertIn('#ffc83d', html)
+        self.assertIn('#7fe0b5', html)
         self.assertNotIn('gradient', html)
         self.assertIn('https://splitmate-app.onrender.com', html)
 
