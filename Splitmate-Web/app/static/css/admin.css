@@ -1,0 +1,638 @@
+/* Admin dashboard layout. Loaded after style.css and only on /admin pages. */
+
+.admin-body {
+    background: var(--bg-primary);
+}
+
+/* Top bar */
+.admin-topbar {
+    height: 64px;
+    padding: 0 24px;
+    gap: 12px;
+}
+
+.admin-brand {
+    gap: 10px;
+}
+
+.admin-brand .logo-mark {
+    height: 28px;
+    width: auto;
+}
+
+.admin-brand-tag {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: var(--highlight);
+    color: var(--on-highlight);
+    padding: 2px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.admin-topbar-actions {
+    gap: 10px;
+}
+
+.admin-menu-button {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    color: var(--ink);
+    cursor: pointer;
+}
+
+.admin-icon {
+    flex: 0 0 auto;
+}
+
+/* Sidebar */
+.admin-layout {
+    grid-template-columns: 232px minmax(0, 1fr);
+    min-height: calc(100vh - 64px);
+}
+
+.admin-sidebar {
+    top: 64px;
+    height: calc(100vh - 64px);
+    padding: 16px 12px;
+    overflow-y: auto;
+}
+
+.admin-drawer-head {
+    display: none;
+}
+
+.admin-nav {
+    gap: 14px;
+}
+
+.admin-nav-section {
+    display: grid;
+    gap: 2px;
+}
+
+.admin-nav-heading {
+    padding: 0 12px 4px;
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.admin-nav-link {
+    gap: 10px;
+    width: 100%;
+    min-height: 40px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    padding: 8px 12px;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.admin-nav-link:hover {
+    border-color: transparent;
+    background: var(--hover-surface);
+    color: var(--ink);
+}
+
+.admin-nav-link.active {
+    background: var(--primary-soft);
+    color: var(--ink);
+    box-shadow: inset 3px 0 0 var(--highlight);
+}
+
+.admin-nav-link.active .admin-icon {
+    color: var(--success);
+}
+
+.admin-sidebar-footer {
+    display: grid;
+    gap: 2px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 12px;
+}
+
+.admin-drawer-account {
+    display: none;
+}
+
+.admin-signout {
+    color: var(--danger);
+}
+
+.admin-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: var(--modal-overlay);
+}
+
+/* Main area */
+.admin-main {
+    padding: 28px 28px 48px;
+}
+
+.admin-layout .admin-main {
+    max-width: 1280px;
+}
+
+.admin-main .page-header {
+    margin-bottom: 20px;
+}
+
+.admin-main .page-header h1 {
+    font-size: 1.625rem;
+}
+
+.admin-main .page-header p {
+    font-size: 0.95rem;
+}
+
+.admin-main .page-header-action {
+    align-items: center;
+}
+
+.admin-main .page-header-action > div:last-child:not(:first-child),
+.admin-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-section-title {
+    margin: 26px 0 10px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* Stat cards: number first, no letter icons */
+.admin-main .stat-icon {
+    display: none;
+}
+
+.admin-main .stat-card {
+    min-height: 0;
+    padding: 16px;
+}
+
+.admin-main .stat-card.stat-positive,
+.admin-main .stat-card.stat-negative {
+    background: var(--bg-secondary);
+}
+
+.admin-main .stat-card.stat-positive {
+    box-shadow: inset 0 3px 0 var(--highlight);
+}
+
+.admin-main .stat-card.stat-negative {
+    box-shadow: inset 0 3px 0 var(--danger);
+}
+
+.admin-main .stat-content {
+    gap: 2px;
+}
+
+.admin-main .stat-label {
+    order: 0;
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    line-height: 1.3;
+}
+
+.admin-main .stat-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.5rem;
+    line-height: 1.2;
+}
+
+.admin-main .stat-subvalue {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.admin-report-summary {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.admin-report-summary strong {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.admin-content-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+}
+
+/* Collapsible "Add a user" form */
+.admin-create-user-card > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.admin-create-user-card > summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-create-user-card > summary h2 {
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.admin-create-user-card > summary p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.admin-create-user-card > summary::after {
+    content: '+';
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.admin-create-user-card[open] > summary {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.admin-create-user-card[open] > summary::after {
+    content: '\2212';
+}
+
+/* Tables */
+.admin-main .card-header {
+    flex-wrap: wrap;
+}
+
+.admin-main .admin-table td {
+    font-size: 0.9rem;
+}
+
+.admin-main .card-body:has(> .table-scroll),
+.admin-main .card-body:has(> .admin-datatable) {
+    padding: 0;
+}
+
+.admin-main .card-body > .admin-datatable {
+    border: 0;
+    border-radius: 0;
+}
+
+/* Tablet and phone */
+@media (max-width: 900px) {
+    .admin-topbar {
+        flex-direction: row;
+        align-items: center;
+        padding: 0 16px;
+    }
+
+    .admin-desktop-only {
+        display: none !important;
+    }
+
+    .admin-menu-button {
+        display: inline-flex;
+    }
+
+    .admin-layout {
+        display: block;
+    }
+
+    .admin-sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 100;
+        width: min(300px, 84vw);
+        height: 100%;
+        border-right: 1px solid var(--border-color);
+        border-bottom: 0;
+        background: var(--bg-secondary);
+        padding: 12px;
+        transform: translateX(-102%);
+        transition: transform 0.25s ease;
+        backdrop-filter: none;
+    }
+
+    .admin-menu-open .admin-sidebar {
+        transform: none;
+        box-shadow: var(--shadow);
+    }
+
+    .admin-menu-open {
+        overflow: hidden;
+    }
+
+    .admin-drawer-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        padding: 0 0 0 12px;
+        color: var(--ink);
+        font-weight: 700;
+    }
+
+    .admin-drawer-head .admin-menu-button {
+        display: inline-flex;
+    }
+
+    .admin-nav {
+        display: grid;
+        overflow: visible;
+    }
+
+    .admin-nav-link {
+        flex: none;
+        min-height: 44px;
+    }
+
+    .admin-sidebar-footer {
+        display: grid;
+    }
+
+    .admin-drawer-account {
+        display: grid;
+        gap: 2px;
+    }
+
+    .admin-drawer-account .admin-session-user {
+        max-width: none;
+        padding: 8px 12px 0;
+        font-size: 0.8rem;
+    }
+
+    .admin-main {
+        padding: 20px 16px 40px;
+    }
+
+    .admin-stats-grid,
+    .admin-main .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .admin-content-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .admin-main .page-header-action {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .admin-main .page-header-action .btn,
+    .admin-main .page-header-action select {
+        width: auto;
+    }
+
+    .admin-main .page-header-action > a,
+    .admin-main .page-header-action > form {
+        align-self: flex-start;
+    }
+
+    .admin-main .card-header {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .admin-main .stat-card {
+        justify-content: flex-start;
+        text-align: left;
+    }
+
+    .admin-main .stat-content {
+        align-items: flex-start;
+    }
+
+    .admin-main .admin-datatable-toolbar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .admin-main .datatable-length-control {
+        display: none;
+    }
+
+    .admin-main .datatable-search-control span {
+        display: none;
+    }
+
+    .admin-main .admin-table td.admin-cell-empty {
+        display: none;
+    }
+
+    .admin-main .page-header h1 {
+        font-size: 1.375rem;
+    }
+
+    .admin-main .stat-card {
+        padding: 12px;
+    }
+
+    .admin-main .stat-value {
+        font-size: 1.25rem;
+    }
+
+    .admin-main .stat-label {
+        font-size: 0.625rem;
+    }
+
+    .admin-report-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .admin-report-summary > div {
+        padding: 10px;
+    }
+
+    .admin-report-summary .stat-label {
+        font-size: 0.625rem;
+    }
+
+    .admin-report-summary strong {
+        font-size: 1.125rem;
+    }
+
+    .admin-main .card-header {
+        padding: 12px 14px;
+    }
+
+    .admin-main .card-body {
+        padding: 14px;
+    }
+
+    .admin-growth-chart {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 4px;
+        min-height: 180px;
+    }
+
+    .admin-chart-label {
+        font-size: 0.5625rem;
+    }
+
+    .admin-create-user-form .btn {
+        width: 100%;
+    }
+
+    /* Every table row becomes a small card of label / value lines. */
+    .admin-main .table-scroll {
+        overflow: visible;
+    }
+
+    .admin-main .admin-table,
+    .admin-main .admin-user-table {
+        min-width: 0;
+    }
+
+    .admin-main .admin-table thead {
+        display: none;
+    }
+
+    .admin-main .admin-table,
+    .admin-main .admin-table tbody,
+    .admin-main .admin-table tr,
+    .admin-main .admin-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .admin-main .admin-table tr {
+        border-bottom: 1px solid var(--border-color);
+        padding: 10px 14px;
+    }
+
+    .admin-main .admin-table tr[hidden] {
+        display: none;
+    }
+
+    .admin-main .admin-table tr:last-child {
+        border-bottom: 0;
+    }
+
+    .admin-main .admin-table td {
+        border: 0;
+        padding: 4px 0;
+        text-align: right;
+        position: static;
+        background: none;
+        box-shadow: none;
+        overflow-wrap: anywhere;
+    }
+
+    .admin-main .admin-table td::before {
+        content: attr(data-label);
+        float: left;
+        margin-right: 12px;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        font-weight: 700;
+        line-height: 1.6;
+        text-align: left;
+    }
+
+    .admin-main .admin-table td .table-secondary {
+        display: block;
+        max-width: none;
+        white-space: normal;
+    }
+
+    .admin-main .admin-table td:empty,
+    .admin-main .admin-table td[data-label=""]::before {
+        display: none;
+    }
+
+    /* First column is the row's title. */
+    .admin-main .admin-table td:first-child,
+    .admin-main .admin-user-table td.datatable-select-column + td {
+        display: block;
+        padding-bottom: 6px;
+        text-align: left;
+        font-weight: 700;
+    }
+
+    .admin-main .admin-table td:first-child::before,
+    .admin-main .admin-user-table td.datatable-select-column + td::before {
+        display: none;
+    }
+
+    .admin-main .admin-table td .table-secondary {
+        font-weight: 500;
+    }
+
+    .admin-main .admin-user-table td.datatable-select-column {
+        display: none;
+    }
+
+    .admin-main .admin-user-table td:last-child {
+        display: block;
+        padding-top: 8px;
+    }
+
+    .admin-main .admin-user-table td:last-child::before {
+        display: none;
+    }
+
+    .admin-main .admin-row-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .admin-main .admin-user-actions {
+        min-width: 0;
+        position: static;
+    }
+
+    .admin-main .admin-action-panel {
+        position: static;
+        width: 100%;
+        margin-top: 8px;
+        text-align: left;
+    }
+
+    .admin-main .admin-action-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-main .admin-datatable-toolbar {
+        padding: 12px 14px;
+    }
+
+    .admin-main .admin-datatable-footer {
+        padding: 12px 14px;
+    }
+}
+
+.admin-main .datatable-length-control span {
+    white-space: nowrap;
+}

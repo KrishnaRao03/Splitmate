@@ -5,6 +5,8 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- Admin-only email: addresses in `ADMIN_EMAILS` open `/admin` only. They can't sign in to the website or app, sign up, or be taken by a profile email change, and Quick split doesn't match them. `/admin/setup` emails the admin address a link to create or reset its password (the link also verifies it). The System page warns when an admin account also belongs to groups. `ADMIN_EMAILS` no longer falls back to `MAIL_USERNAME`.
+- Admin dashboard reorganized: grouped side menu with icons (People, Money, Outreach, Settings), a slide-in menu on phones, an Overview with key numbers and a "Needs attention" row, a collapsible "Add a user" form, and every table turns into stacked cards on phone screens.
 - Invite people by mobile number. `POST /api/mobile/groups/<id>/invites` takes `{"phone": ...}` as well as `{"email": ...}` and returns the invite link plus `sms_message`, which the app opens in the phone's own Messages app (no SMS service). `POST /api/mobile/invite-splitmate` takes `{"phone": ...}` the same way. `group_invite` gets `phone` (encrypted) and `phone_hash` columns, added automatically at start-up. A mobile invite can be accepted by the account with that number, or by an account with no number yet, which then gets it.
 - `GET /api/mobile/friends` lists people you share a group with (`?group_id=` adds `in_group` / `invited`), and `POST /api/mobile/groups/<id>/invites` takes `{"friend_id": ...}` to invite one of them by their account email.
 

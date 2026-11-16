@@ -10,6 +10,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 import qrcode
 from sqlalchemy import func, or_
 
+from app.admin_utils import ADMIN_EMAIL_TAKEN, ADMIN_ONLY_MESSAGE, is_admin_email
 from app.group_notifications import notify_group_item_added
 from app import billing, db, limiter
 from app.email_validation import email_error_message, normalize_email
@@ -422,6 +423,8 @@ def login():
                 return json_error(locked_message(user), 423)
         return json_error('Invalid email or password.', 401)
     clear_failed_logins(user)
+    if is_admin_email(user.email):
+        return json_error(ADMIN_ONLY_MESSAGE, 403)
     if getattr(user, 'is_suspended', False):
         return json_error('This account is suspended.', 403)
     if not user.is_email_verified:
@@ -455,7 +458,7 @@ def register():
         return json_error('Passwords do not match.')
     if not country:
         return json_error('Choose your country.')
-    if registered_account(email):
+    if is_admin_email(email) or registered_account(email):
         return json_error('Email already registered.', 409)
 
     # The account is created only after the emailed code is verified.
@@ -599,8 +602,8 @@ def me():
         return json_error('Valid email is required.')
 
     existing_user = User.query.filter(User.email == email, User.id != user.id).first()
-    if existing_user:
-        return json_error('That email is already used by another account.', 409)
+    if existing_user or (is_admin_email(email) and email != user.email):
+        return json_error(ADMIN_EMAIL_TAKEN, 409)
 
     email_changed = email != user.email
     country = normalize_country(data.get('country')) if data.get('country') else (user.country or 'CA')
@@ -971,6 +974,8 @@ def find_user_by_contact(contact):
     contact = str(contact or '').strip()
     if '@' in contact:
         email = normalize_email(contact)
+        if is_admin_email(email):
+            return None, None
         return (User.query.filter_by(email=email).first() if email else None), email
     phone = normalize_phone(contact)
     return (User.query.filter_by(phone_hash=phone_lookup_hash(phone)).first() if phone else None), phone

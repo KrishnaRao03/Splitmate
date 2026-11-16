@@ -9,6 +9,7 @@ from qrcode.image.svg import SvgPathImage
 from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, flash, redirect, send_from_directory, url_for
 from flask_login import login_required, current_user, login_user, logout_user
 from app.account_deletion import delete_own_account, self_delete_error
+from app.admin_utils import ADMIN_EMAIL_TAKEN, is_admin_email
 from itsdangerous import BadSignature, URLSafeSerializer
 from sqlalchemy import func, or_
 from app import db, limiter
@@ -375,8 +376,8 @@ def profile():
                 User.email == email,
                 User.id != current_user.id
             ).first() if email else None
-            if existing_user:
-                errors.append('That email is already used by another account.')
+            if existing_user or (is_admin_email(email) and email != current_user.email):
+                errors.append(ADMIN_EMAIL_TAKEN)
 
             email_changed = bool(email) and email != current_user.email
             # Changing the sign-in email is a takeover risk, so it needs the current password.
