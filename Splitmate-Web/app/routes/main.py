@@ -16,6 +16,7 @@ from app.regions import countries_payload, normalize_country, payment_fields_for
 from app.email_validation import normalize_email
 from app.email_utils import app_url, send_group_invite_email, send_splitmate_invite_email
 from app.field_encryption import phone_lookup_hash
+from app.expense_visibility import can_see_expense, visible_expenses, visible_history
 from app.models import User, Group, GroupInvite, Expense, ExpenseSplit, ExpenseHistory, Note, Payment, RewardTransaction, Task
 from app.routes.auth import send_user_otp, set_pending_verification
 from app.group_utils import (
@@ -45,7 +46,7 @@ def receipt_file(filename):
         abort(404)
 
     signed_ok = split_routes.receipt_signature_valid(filename, request.args.get('sig'))
-    member_ok = current_user.is_authenticated and current_user in expense.group.members
+    member_ok = current_user.is_authenticated and can_see_expense(expense, current_user)
     if not (signed_ok or member_ok):
         abort(404)
 
@@ -213,14 +214,14 @@ def home():
     # Build monthly totals and recent items. ExpenseHistory already holds a copy
     # of every active expense, so summing Expense too would double count.
     for group in groups:
-        history_sum = db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
+        history_sum = visible_history(db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
             ExpenseHistory.group_id == group.id,
             ExpenseHistory.date >= month_start
-        ).scalar()
+        ), current_user).scalar()
 
         monthly_spending[group.name] = float(history_sum)
 
-        recent = Expense.query.filter_by(group_id=group.id) \
+        recent = visible_expenses(Expense.query.filter_by(group_id=group.id), current_user) \
             .order_by(Expense.date.desc()) \
             .limit(5).all()
         recent_expenses.extend(recent)
@@ -257,9 +258,9 @@ def home():
 
     months = month_sequence(6)
     group_ids = [group.id for group in groups]
-    history_items = ExpenseHistory.query.filter(
+    history_items = visible_history(ExpenseHistory.query.filter(
         ExpenseHistory.group_id.in_(group_ids)
-    ).all() if group_ids else []
+    ), current_user).all() if group_ids else []
 
     category_totals = {}
     payer_totals = {}
@@ -557,7 +558,7 @@ def export_profile_data():
             'date': iso_datetime(expense.date),
             'group_id': expense.group_id,
             'paid_by_id': expense.paid_by_id,
-        } for expense in Expense.query.filter(Expense.group_id.in_(group_ids)).order_by(Expense.date.desc()).all()] if group_ids else [],
+        } for expense in visible_expenses(Expense.query.filter(Expense.group_id.in_(group_ids)), current_user).order_by(Expense.date.desc()).all()] if group_ids else [],
         'payments': [{
             'id': payment.id,
             'amount': round(payment.amount, 2),

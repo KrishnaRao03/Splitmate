@@ -302,6 +302,21 @@ def ensure_group_invite_schema():
         db.session.execute(text('CREATE INDEX IF NOT EXISTS ix_group_invite_phone_hash ON group_invite (phone_hash)'))
     db.session.commit()
 
+def ensure_expense_history_visibility_schema():
+    """History rows remember who each expense was shared with, so only they see it."""
+    inspector = inspect(db.engine)
+    if not inspector.has_table('expense_history'):
+        return
+    columns = {column['name'] for column in inspector.get_columns('expense_history')}
+    if 'participant_ids' not in columns:
+        db.session.execute(text('ALTER TABLE expense_history ADD COLUMN participant_ids VARCHAR(1000)'))
+    if 'expense_id' not in columns:
+        db.session.execute(text('ALTER TABLE expense_history ADD COLUMN expense_id INTEGER'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS ix_expense_history_expense_id ON expense_history (expense_id)'))
+    db.session.commit()
+    from app.expense_visibility import fill_history_participants
+    fill_history_participants()
+
 def ensure_region_schema():
     """Country per user and currency per group. Existing rows become Canada / CAD."""
     inspector = inspect(db.engine)
@@ -495,6 +510,7 @@ def create_app(config_class=Config):
         ensure_task_schema()
         ensure_group_members_schema()
         ensure_group_invite_schema()
+        ensure_expense_history_visibility_schema()
         ensure_region_schema()
         # Fails fast on a malformed FIELD_ENCRYPTION_KEY, then encrypts any plain-text payment handles.
         field_encryption.fernet()

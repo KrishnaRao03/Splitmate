@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from app import create_app, db
+from app.expense_visibility import history_for_expense
 from app.group_utils import set_member_nickname
 from app.models import Expense, ExpenseHistory, ExpenseSplit, Group, GroupInvite, Note, Payment, RewardTransaction, Task, User
 from app.routes.mobile_api import mobile_token_for
@@ -52,13 +53,8 @@ class MobileApiParityTests(unittest.TestCase):
                 user_id=admin.id,
                 amount_owed=30,
             ))
-            db.session.add(ExpenseHistory(
-                description=expense.description,
-                amount=expense.amount,
-                category=expense.category,
-                group_id=group.id,
-                paid_by_id=member.id,
-            ))
+            # Recorded the way the app records it: shared with the payer and the admin.
+            db.session.add(history_for_expense(expense, [admin.id]))
             db.session.add(Task(
                 title='Pay rent',
                 due_date=datetime.utcnow() + timedelta(days=2),
@@ -871,6 +867,71 @@ class MobileApiParityTests(unittest.TestCase):
         refused = self.client.post(f'/api/mobile/groups/{trip_id}/invites', headers=self.headers,
                                    json={'friend_id': stranger_id})
         self.assertEqual(refused.status_code, 404)
+
+    def test_expenses_are_only_shown_to_the_payer_and_people_in_the_split(self):
+        with self.app.app_context():
+            third = User(email='third@example.com', name='Third', is_email_verified=True)
+            third.set_password('password123')
+            group = db.session.get(Group, self.group_id)
+            group.members.append(third)
+            db.session.flush()
+            set_member_nickname(group.id, third)
+            # The member paid for a private taxi shared only with Third; the admin is not in it.
+            private = Expense(description='Private taxi', amount=40, category='Transport', group_id=group.id,
+                              paid_by_id=self.member_id)
+            db.session.add(private)
+            db.session.flush()
+            db.session.add(ExpenseSplit(expense_id=private.id, user_id=third.id, amount_owed=20))
+            db.session.add(ExpenseSplit(expense_id=private.id, user_id=self.member_id, amount_owed=20))
+            db.session.add(history_for_expense(private, [third.id, self.member_id]))
+            db.session.commit()
+            third_headers = {'Authorization': f'Bearer {mobile_token_for(third)}'}
+
+        def descriptions(headers):
+            seen = set()
+            detail = self.client.get(f'/api/mobile/groups/{self.group_id}', headers=headers).get_json()
+            seen |= {item['description'] for item in detail['expenses']}
+            seen |= {item['expense'] for item in detail['summaries']}
+            listed = self.client.get(f'/api/mobile/groups/{self.group_id}/expenses', headers=headers).get_json()
+            seen |= {item['description'] for item in listed}
+            activity = self.client.get(f'/api/mobile/groups/{self.group_id}/activity', headers=headers).get_json()
+            seen |= {item['description'] for item in activity['expense_results']}
+            found = self.client.get(f'/api/mobile/groups/{self.group_id}/expenses/search?q=taxi', headers=headers).get_json()
+            seen |= {item['description'] for item in found}
+            dashboard = self.client.get('/api/mobile/dashboard', headers=headers).get_json()
+            seen |= {item['description'] for item in dashboard['recent_expenses']}
+            csv_text = self.client.get(f'/api/mobile/groups/{self.group_id}/activity.csv', headers=headers).get_data(as_text=True)
+            if 'Private taxi' in csv_text:
+                seen.add('Private taxi (csv)')
+            return seen, dashboard['spending_insights']['total']
+
+        admin_seen, admin_total = descriptions(self.headers)
+        self.assertIn('Dinner', admin_seen)
+        self.assertFalse({'Private taxi', 'Private taxi (csv)'} & admin_seen)
+        self.assertEqual(admin_total, 60)
+
+        third_seen, third_total = descriptions(third_headers)
+        self.assertIn('Private taxi', third_seen)
+        self.assertIn('Private taxi (csv)', third_seen)
+        self.assertNotIn('Dinner', third_seen)
+        self.assertEqual(third_total, 40)
+
+    def test_older_history_rows_are_matched_to_their_expense_once(self):
+        from app.expense_visibility import fill_history_participants
+        with self.app.app_context():
+            old = ExpenseHistory.query.filter_by(description='Dinner').first()
+            old.participant_ids, old.expense_id = None, None
+            gone = ExpenseHistory(description='Deleted lunch', amount=12, group_id=self.group_id, paid_by_id=self.member_id)
+            db.session.add(gone)
+            db.session.commit()
+            fill_history_participants()
+            dinner = db.session.get(Expense, ExpenseHistory.query.filter_by(description='Dinner').first().expense_id)
+            self.assertEqual(dinner.description, 'Dinner')
+            self.assertEqual(ExpenseHistory.query.filter_by(description='Dinner').first().participant_ids,
+                             f',{min(self.admin_id, self.member_id)},{max(self.admin_id, self.member_id)},')
+            # An expense that was deleted before this existed stays visible to its payer only.
+            self.assertEqual(ExpenseHistory.query.filter_by(description='Deleted lunch').first().participant_ids,
+                             f',{self.member_id},')
 
     def test_receipt_scan_validates_upload_and_returns_parsed_items(self):
         import io

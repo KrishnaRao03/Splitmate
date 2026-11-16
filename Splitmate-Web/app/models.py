@@ -194,6 +194,10 @@ class ExpenseHistory(db.Model):
     date = db.Column(db.DateTime, default=datetime.utcnow)
     paid_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'))
+    # Who the expense was shared with when it was added (",3,7,": payer and everyone in the split),
+    # so history only shows it to them. expense_id links back while the live expense exists.
+    participant_ids = db.Column(db.String(1000))
+    expense_id = db.Column(db.Integer, index=True)
 
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)

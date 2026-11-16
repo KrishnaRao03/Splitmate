@@ -20,6 +20,7 @@ from app.group_utils import (
     group_member_payload, group_pending_invite_payload, invite_accept_problem, join_group_from_invite,
     member_nickname_rows, set_member_nickname,
 )
+from app.expense_visibility import history_for_expense, visible_expenses, visible_history
 from app.models import (
     MoneyRequest,
     PendingRegistration,
@@ -283,10 +284,10 @@ def note_payload(note, nicknames=None):
     }
 
 
-def summaries_for(group):
+def summaries_for(group, user):
     nicknames = member_nickname_rows(group.id)
     summaries = []
-    expenses = Expense.query.filter_by(group_id=group.id).order_by(Expense.date.desc()).all()
+    expenses = visible_expenses(Expense.query.filter_by(group_id=group.id), user).order_by(Expense.date.desc()).all()
     for expense in expenses:
         payer = nicknames.get(expense.paid_by_id) or expense.added_by.name
         for split in expense.splits:
@@ -310,8 +311,8 @@ def summaries_for(group):
     return summaries
 
 
-def analytics_for(group):
-    history_items = ExpenseHistory.query.filter_by(group_id=group.id).all()
+def analytics_for(group, user):
+    history_items = visible_history(ExpenseHistory.query.filter_by(group_id=group.id), user).all()
     now = datetime.utcnow()
     months = []
     for offset in range(5, -1, -1):
@@ -1048,14 +1049,7 @@ def quick_split():
     )
     db.session.add(expense)
     db.session.flush()
-    db.session.add(ExpenseHistory(
-        description=expense.description,
-        amount=expense.amount,
-        category=expense.category,
-        date=expense.date,
-        paid_by_id=expense.paid_by_id,
-        group_id=expense.group_id,
-    ))
+    db.session.add(history_for_expense(expense, [member.id for member, share in parsed['split_rows'] if share > 0]))
     for member, share in parsed['split_rows']:
         if share > 0:
             db.session.add(ExpenseSplit(expense_id=expense.id, user_id=member.id, amount_owed=float(share)))
@@ -1096,17 +1090,17 @@ def dashboard():
 
     for group in user_groups:
         # ExpenseHistory already holds a copy of every active expense.
-        history_sum = db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
+        history_sum = visible_history(db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
             ExpenseHistory.group_id == group.id,
             ExpenseHistory.date >= month_start,
-        ).scalar()
+        ), user).scalar()
         monthly_spending.append({
             'group_id': group.id,
             'group': group.name,
             'total': float(history_sum),
         })
         recent_expenses.extend(
-            Expense.query.filter_by(group_id=group.id).order_by(Expense.date.desc()).limit(5).all()
+            visible_expenses(Expense.query.filter_by(group_id=group.id), user).order_by(Expense.date.desc()).limit(5).all()
         )
 
     recent_expenses.sort(key=lambda expense: expense.date or datetime.min, reverse=True)
@@ -1129,9 +1123,9 @@ def dashboard():
     )
 
     group_ids = [group.id for group in user_groups]
-    history_items = ExpenseHistory.query.filter(
+    history_items = visible_history(ExpenseHistory.query.filter(
         ExpenseHistory.group_id.in_(group_ids)
-    ).all() if group_ids else []
+    ), user).all() if group_ids else []
 
     category_totals = {}
     payer_totals = {}
@@ -1183,11 +1177,11 @@ def dashboard():
             start = datetime(year, month, 1)
             end = datetime(year + (1 if month == 12 else 0), 1 if month == 12 else month + 1, 1)
             # ExpenseHistory already holds a copy of every active expense.
-            history_sum = db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
+            history_sum = visible_history(db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
                 ExpenseHistory.group_id == group.id,
                 ExpenseHistory.date >= start,
                 ExpenseHistory.date < end,
-            ).scalar()
+            ), user).scalar()
             points.append({
                 'month': f'{year}-{month:02d}',
                 'label': datetime(year, month, 1).strftime('%b'),
@@ -1258,7 +1252,7 @@ def group_detail(group_id):
         return error
 
     nicknames = member_nickname_rows(group.id)
-    expenses = Expense.query.filter_by(group_id=group.id).order_by(Expense.date.desc()).limit(20).all()
+    expenses = visible_expenses(Expense.query.filter_by(group_id=group.id), request.mobile_user).order_by(Expense.date.desc()).limit(20).all()
     tasks = Task.query.filter_by(group_id=group.id).order_by(Task.due_date.asc()).all()
     notes = Note.query.filter_by(group_id=group.id).order_by(Note.created_at.desc()).all()
     payments = Payment.query.filter_by(group_id=group.id).order_by(Payment.date.desc()).limit(20).all()
@@ -1271,7 +1265,7 @@ def group_detail(group_id):
         # Built-in categories plus the group's own, as suggestions for the free-text category field.
         'expense_categories': split_routes.group_categories(group),
         'balances': split_routes.group_balances(group, nicknames),
-        'summaries': summaries_for(group),
+        'summaries': summaries_for(group, request.mobile_user),
         'expenses': [expense_payload(expense, nicknames) for expense in expenses],
         'tasks': [task_payload(task, nicknames) for task in tasks],
         'notes': [note_payload(note, nicknames) for note in notes],
@@ -1706,7 +1700,7 @@ def add_expense(group_id):
         return error
 
     if request.method == 'GET':
-        query = Expense.query.filter_by(group_id=group.id)
+        query = visible_expenses(Expense.query.filter_by(group_id=group.id), request.mobile_user)
         search = (request.args.get('q') or '').strip()
         category = (request.args.get('category') or '').strip()
         payer_id = request.args.get('payer_id', type=int)
@@ -1749,14 +1743,7 @@ def add_expense(group_id):
     )
     db.session.add(expense)
     db.session.flush()
-    db.session.add(ExpenseHistory(
-        description=expense.description,
-        amount=expense.amount,
-        category=expense.category,
-        date=expense.date,
-        paid_by_id=expense.paid_by_id,
-        group_id=expense.group_id,
-    ))
+    db.session.add(history_for_expense(expense, [member.id for member, share in parsed['split_rows'] if share > 0]))
     for member, share in parsed['split_rows']:
         if share > 0:
             db.session.add(ExpenseSplit(expense_id=expense.id, user_id=member.id, amount_owed=float(share)))
@@ -1881,7 +1868,7 @@ def group_activity(group_id):
     if error:
         return error
 
-    history_query = ExpenseHistory.query.filter_by(group_id=group.id)
+    history_query = visible_history(ExpenseHistory.query.filter_by(group_id=group.id), request.mobile_user)
     search = (request.args.get('q') or '').strip()
     category = (request.args.get('category') or '').strip()
     payer_id = request.args.get('payer_id', type=int)
@@ -1941,7 +1928,7 @@ def group_activity(group_id):
     return jsonify({
         'expense_results': expense_rows,
         'transactions': transactions[:150],
-        'analytics': analytics_for(group),
+        'analytics': analytics_for(group, request.mobile_user),
     })
 
 
@@ -1958,7 +1945,7 @@ def search_group_expenses(group_id):
     min_amount_raw = (request.args.get('min_amount') or '').strip()
     max_amount_raw = (request.args.get('max_amount') or '').strip()
 
-    history_query = ExpenseHistory.query.filter_by(group_id=group.id)
+    history_query = visible_history(ExpenseHistory.query.filter_by(group_id=group.id), request.mobile_user)
 
     if query_text:
         history_query = history_query.filter(ExpenseHistory.description.ilike(f'%{query_text}%'))
@@ -2497,7 +2484,7 @@ def export_my_data():
             'date': iso_datetime(expense.date),
             'group_id': expense.group_id,
             'paid_by_id': expense.paid_by_id,
-        } for expense in Expense.query.filter(Expense.group_id.in_(group_ids)).order_by(Expense.date.desc()).all()] if group_ids else [],
+        } for expense in visible_expenses(Expense.query.filter(Expense.group_id.in_(group_ids)), user).order_by(Expense.date.desc()).all()] if group_ids else [],
         'payments': [{
             'id': payment.id,
             'amount': round(payment.amount, 2),
@@ -2570,7 +2557,7 @@ def export_group_activity_csv(group_id):
     ])
 
     rows = []
-    for item in ExpenseHistory.query.filter_by(group_id=group.id).all():
+    for item in visible_history(ExpenseHistory.query.filter_by(group_id=group.id), request.mobile_user).all():
         payer = User.query.get(item.paid_by_id) if item.paid_by_id else None
         rows.append({
             'date': item.date,

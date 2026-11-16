@@ -284,31 +284,6 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       {isAdmin ? (
         <Card>
           <Text style={styles.sectionTitle}>Invite people</Text>
-          <TextField label="Their email or mobile number" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-          <AppButton
-            icon={inviteByText ? 'phone-portrait-outline' : 'mail-outline'}
-            onPress={inviteMember}
-            disabled={!inviteEmail.trim()}
-          >
-            {inviteByText ? 'Text invite' : 'Send invite'}
-          </AppButton>
-          <Text style={styles.help}>
-            Emails are sent for you. For a mobile number, your Messages app opens with the invite ready to send. Works for new and existing Splitmate accounts, and they join once they accept. {INVITE_POINTS_NOTE}
-          </Text>
-          {lastInvite ? (
-            <View style={styles.invitePanel}>
-              <Text style={styles.memberName}>Invite for {lastInvite.sentTo}</Text>
-              <Text style={styles.help}>Show this QR code, or share the link, so they can join right away.</Text>
-              {lastInvite.qrRows.length ? <View style={styles.qrWrap}><QrCode rows={lastInvite.qrRows} size={180} /></View> : null}
-              <Text style={styles.help} selectable>{lastInvite.url}</Text>
-              {lastInvite.phone && lastInvite.text ? (
-                <AppButton icon="phone-portrait-outline" variant="outline" onPress={() => sendTextInvite(lastInvite.phone as string, lastInvite.text as string)}>
-                  Text it again
-                </AppButton>
-              ) : null}
-              <AppButton icon="share-social-outline" variant="outline" onPress={shareInvite}>Share invite link</AppButton>
-            </View>
-          ) : null}
           {friends.length ? (
             <View style={styles.friendList}>
               <Text style={styles.memberName}>Friends from your other groups</Text>
@@ -332,6 +307,31 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
                   )}
                 </View>
               ))}
+            </View>
+          ) : null}
+          <TextField label="Their email or mobile number" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+          <AppButton
+            icon={inviteByText ? 'phone-portrait-outline' : 'mail-outline'}
+            onPress={inviteMember}
+            disabled={!inviteEmail.trim()}
+          >
+            {inviteByText ? 'Text invite' : 'Send invite'}
+          </AppButton>
+          <Text style={styles.help}>
+            Emails are sent for you. For a mobile number, your Messages app opens with the invite ready to send. Works for new and existing Splitmate accounts, and they join once they accept. {INVITE_POINTS_NOTE}
+          </Text>
+          {lastInvite ? (
+            <View style={styles.invitePanel}>
+              <Text style={styles.memberName}>Invite for {lastInvite.sentTo}</Text>
+              <Text style={styles.help}>Show this QR code, or share the link, so they can join right away.</Text>
+              {lastInvite.qrRows.length ? <View style={styles.qrWrap}><QrCode rows={lastInvite.qrRows} size={180} /></View> : null}
+              <Text style={styles.help} selectable>{lastInvite.url}</Text>
+              {lastInvite.phone && lastInvite.text ? (
+                <AppButton icon="phone-portrait-outline" variant="outline" onPress={() => sendTextInvite(lastInvite.phone as string, lastInvite.text as string)}>
+                  Text it again
+                </AppButton>
+              ) : null}
+              <AppButton icon="share-social-outline" variant="outline" onPress={shareInvite}>Share invite link</AppButton>
             </View>
           ) : null}
         </Card>
@@ -504,8 +504,8 @@ const styles = StyleSheet.create({
     ...typography.label
   },
   friendList: {
-    gap: spacing.sm,
-    marginTop: spacing.sm
+    gap: spacing.xs,
+    marginBottom: spacing.sm
   },
   inviteRow: {
     flexDirection: 'row',
