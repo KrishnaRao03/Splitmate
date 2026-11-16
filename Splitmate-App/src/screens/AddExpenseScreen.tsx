@@ -286,6 +286,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       } : undefined;
       if (expense) {
         await api.updateExpense(expense.id, payload, receiptUpload);
+        notify('Expense updated', `${payload.description || expense.description} has your changes.`);
         navigation.goBack();
       } else {
         const added = await api.addExpense(groupId, payload, receiptUpload);

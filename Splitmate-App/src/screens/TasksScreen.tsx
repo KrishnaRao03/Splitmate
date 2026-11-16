@@ -68,6 +68,7 @@ export function TasksScreen() {
     setTasks(current => current.map(item => (item.id === task.id ? { ...item, is_completed: !item.is_completed } : item)));
     try {
       await api.toggleTask(task.id);
+      notify(task.is_completed ? 'Task reopened' : 'Task done', task.title);
       await load();
     } catch (error) {
       setTasks(current => current.map(item => (item.id === task.id ? { ...item, is_completed: task.is_completed } : item)));
@@ -78,6 +79,7 @@ export function TasksScreen() {
   async function deleteTask(task: Task) {
     try {
       await api.deleteTask(task.id);
+      notify('Task deleted', task.title);
       await load();
     } catch (error) {
       notify('Could not delete task', error instanceof Error ? error.message : 'Try again.');

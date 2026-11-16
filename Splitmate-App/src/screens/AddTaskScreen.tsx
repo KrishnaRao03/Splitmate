@@ -112,6 +112,7 @@ export function AddTaskScreen({ navigation, route }: Props) {
         recurrence,
         assigned_to_id: assignedToId === ANYONE ? null : assignedToId
       });
+      notify('Task added', reminder ? `${title.trim()} is on the list, and you'll get a reminder.` : `${title.trim()} is on the list.`);
       navigation.goBack();
     } catch (error) {
       notify('Could not add task', error instanceof Error ? error.message : 'Try again.');

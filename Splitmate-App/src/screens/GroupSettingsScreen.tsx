@@ -97,11 +97,15 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
         });
         await load();
         await sendTextInvite(result.phone, result.sms_message);
+        notify('Invite ready to text', `Send the text in Messages to ${result.sent_to || result.phone} to finish. It's listed under Pending invites.`);
         return;
       }
       const result = await api.inviteToGroup(groupId, inviteEmail);
       setInviteEmail('');
       setLastInvite(result.invite_url ? { sentTo: result.email, url: result.invite_url, qrRows: result.qr_rows || [] } : null);
+      notify(result.email_sent ? 'Invite sent by email' : 'Invite created', result.email_sent
+        ? `We emailed ${result.email}. They join once they accept.`
+        : `The email didn't go out, so share the link or QR code below with ${result.email}.`);
       await load();
     } catch (error) {
       notify('Could not create invite', error instanceof Error ? error.message : 'Try again.');
@@ -111,8 +115,13 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
   async function inviteFriend(friend: Friend) {
     setInvitingFriend(friend.id);
     try {
-      await api.inviteFriendToGroup(groupId, friend.id);
-      notify('Invite sent', `${friend.name} joins ${detail?.group.name ?? 'the group'} once they accept.`);
+      const result = await api.inviteFriendToGroup(groupId, friend.id);
+      notify(
+        result.email_sent ? 'Invite sent by email' : 'Invite created',
+        result.email_sent
+          ? `We emailed ${friend.name} at ${result.email}. They join ${detail?.group.name ?? 'the group'} once they accept.`
+          : `The email didn't go out, but ${friend.name} can accept it from Group invites in the app.`
+      );
       await load();
     } catch (error) {
       notify('Could not send invite', error instanceof Error ? error.message : 'Try again.');
@@ -284,6 +293,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       {isAdmin ? (
         <Card>
           <Text style={styles.sectionTitle}>Invite people</Text>
+          <Text style={styles.help}>Invite by email or mobile number, or pick a friend from your other groups.</Text>
           {friends.length ? (
             <View style={styles.friendList}>
               <Text style={styles.memberName}>Friends from your other groups</Text>
@@ -291,7 +301,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
                 <View key={friend.id} style={styles.inviteRow}>
                   <View style={styles.memberMain}>
                     <Text style={styles.memberName}>{friend.name}</Text>
-                    <Text style={styles.help}>In {friend.shared_groups.join(', ')}</Text>
+                    <Text style={styles.help}>{friend.email} · in {friend.shared_groups.join(', ')}</Text>
                   </View>
                   {friend.invited ? (
                     <Text style={styles.help}>Invited</Text>
@@ -384,8 +394,13 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
                 <Text style={styles.help}>Expires {formatDate(invite.expires_at, 'soon')}</Text>
               </View>
               <AppButton icon="close-outline" variant="danger" onPress={async () => {
-                await api.revokeGroupInvite(groupId, invite.id);
-                await load();
+                try {
+                  await api.revokeGroupInvite(groupId, invite.id);
+                  notify('Invite revoked', `The link for ${invite.sent_to || invite.email} no longer works.`);
+                  await load();
+                } catch (error) {
+                  notify('Could not revoke invite', error instanceof Error ? error.message : 'Try again.');
+                }
               }}>Revoke</AppButton>
             </View>
           ))}
@@ -421,8 +436,13 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
         )) : null}
         <AppButton icon="save-outline" loading={saving} onPress={saveDefaultSplit}>Save default</AppButton>
         <AppButton icon="refresh-outline" variant="outline" onPress={async () => {
-          await api.clearDefaultSplit(groupId);
-          await load();
+          try {
+            await api.clearDefaultSplit(groupId);
+            notify('Default reset', 'New expenses will split equally.');
+            await load();
+          } catch (error) {
+            notify('Could not reset default', error instanceof Error ? error.message : 'Try again.');
+          }
         }}>Reset to Equal</AppButton>
       </Card>
       ) : null}

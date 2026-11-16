@@ -8,6 +8,8 @@ All notable changes to the mobile app. The format follows [Keep a Changelog](htt
 - Group settings: type an email or a mobile number. For a number, "Text invite" opens Messages with the invite and link ready to send, and "Text it again" re-opens it. Pending invites show the number with most digits hidden.
 - Quick split: friends whose number isn't on Splitmate get a "Text an invite" button instead of being asked for an email.
 - Group settings lists "Friends from your other groups" with a one-tap Invite button.
+- Profile > Invite a friend takes an email or a mobile number (a number opens Messages with the invite).
+- A short message now confirms actions that used to finish silently: invites (saying whether by email or text), editing an expense, adding a task, adding/saving/ticking notes, ticking/deleting tasks, clearing expenses, payment and request answers, revoking an invite and resetting the default split.
 
 ### Changed
 - Expenses you didn't pay and aren't part of no longer show anywhere in the app.
