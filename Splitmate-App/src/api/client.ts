@@ -18,6 +18,7 @@ import type {
   ProfileQr,
   ReceiptScan,
   RewardsSummary,
+  SettlePerson,
   Task
 } from '@/types';
 
@@ -272,7 +273,8 @@ export class SplitmateApi {
           type: receipt.mimeType || 'application/octet-stream'
         } as unknown as Blob);
       }
-      return this.request<T>(path, { method, body: form });
+      // Uploading a photo over a slow connection takes longer than a normal request.
+      return this.request<T>(path, { method, body: form }, 60000);
     }
     return this.request<T>(path, {
       method,
@@ -534,6 +536,17 @@ export class SplitmateApi {
 
   rewards() {
     return this.request<RewardsSummary>('/rewards');
+  }
+
+  settleSummary(groupId: number) {
+    return this.request<{ group_id: number; people: SettlePerson[] }>(`/groups/${groupId}/settle-summary`);
+  }
+
+  settlePerson(groupId: number, userId: number) {
+    return this.request<{ settled: boolean; amount: number }>(`/groups/${groupId}/settle-person`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId })
+    });
   }
 
   deleteAccount(password: string) {

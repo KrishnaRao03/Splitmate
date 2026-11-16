@@ -111,6 +111,37 @@ class MobileApiParityTests(unittest.TestCase):
         with self.app.app_context():
             self.assertTrue(db.session.get(ExpenseSplit, split_id).is_settled)
 
+    def test_settle_summary_lists_open_items_per_person(self):
+        summary = self.client.get(f'/api/mobile/groups/{self.group_id}/settle-summary', headers=self.headers).get_json()
+        [person] = summary['people']
+        self.assertEqual(person['name'], 'Member User')
+        self.assertEqual(person['you_owe'], 30.0)
+        self.assertEqual(person['they_owe'], 0.0)
+        self.assertEqual(person['you_owe_items'][0]['description'], 'Dinner')
+        self.assertEqual(person['you_owe_items'][0]['total'], 60.0)
+        self.assertIsNotNone(person['last_settled_at'])
+
+    def test_settle_with_a_person_clears_everything_they_owe_at_once(self):
+        with self.app.app_context():
+            member = db.session.get(User, self.member_id)
+            member_headers = {'Authorization': f'Bearer {mobile_token_for(member)}'}
+            second = Expense(description='Taxi', amount=20, category='Travel', group_id=self.group_id, paid_by_id=self.member_id)
+            db.session.add(second)
+            db.session.flush()
+            db.session.add(ExpenseSplit(expense_id=second.id, user_id=self.admin_id, amount_owed=10))
+            db.session.commit()
+        # Only the person who is owed can do it.
+        self.assertEqual(self.client.post(f'/api/mobile/groups/{self.group_id}/settle-person', headers=self.headers,
+                                          json={'user_id': self.member_id}).status_code, 409)
+        with patch('app.email_utils.send_email', return_value=True):
+            response = self.client.post(f'/api/mobile/groups/{self.group_id}/settle-person', headers=member_headers,
+                                        json={'user_id': self.admin_id})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['amount'], 40.0)
+        with self.app.app_context():
+            self.assertEqual(ExpenseSplit.query.filter_by(user_id=self.admin_id, is_settled=False).count(), 0)
+            self.assertEqual(Payment.query.filter_by(payer_id=self.admin_id, amount=40.0, status='recorded').count(), 1)
+
     def test_expense_edit_and_delete_permissions_and_rules(self):
         with self.app.app_context():
             expense = Expense.query.filter_by(description='Dinner').first()

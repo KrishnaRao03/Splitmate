@@ -452,5 +452,29 @@ export type RootStackParamList = {
   MembershipWelcome: undefined;
   HelpChat: undefined;
   Welcome: { userId?: number } | undefined;
+  SplitPicker: undefined;
+  SettleUp: { groupId?: number; groupName?: string } | undefined;
   Invites: undefined;
+};
+
+export type UnsettledItem = {
+  split_id: number;
+  expense_id: number;
+  description: string;
+  date: string | null;
+  total: number;
+  share: number;
+  /** How many people the bill was split between. */
+  people: number;
+};
+
+export type SettlePerson = {
+  user_id: number;
+  name: string;
+  they_owe: number;
+  you_owe: number;
+  net: number;
+  last_settled_at: string | null;
+  they_owe_items: UnsettledItem[];
+  you_owe_items: UnsettledItem[];
 };

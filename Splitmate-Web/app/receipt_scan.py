@@ -80,7 +80,8 @@ def scan_receipt_image(data, media_type, client=None):
                 'Receipt scanning is not set up on the server yet. Add GEMINI_API_KEY to the server .env and restart it.',
                 503,
             )
-        client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+        # Give up after a minute so the app shows an error instead of loading forever.
+        client = genai.Client(api_key=os.environ['GEMINI_API_KEY'], http_options=types.HttpOptions(timeout=60000))
 
     try:
         response = client.models.generate_content(
@@ -88,6 +89,9 @@ def scan_receipt_image(data, media_type, client=None):
             contents=[types.Part.from_bytes(data=data, mime_type=media_type), PROMPT],
             config=types.GenerateContentConfig(
                 max_output_tokens=16000,
+                # Reading a receipt needs almost no step-by-step thinking; Gemini 3.6 Flash defaults to
+                # medium, which made scans slow enough to look stuck. (Older models use another setting.)
+                thinking_config=types.ThinkingConfig(thinking_level='minimal') if RECEIPT_MODEL.startswith('gemini-3') else None,
                 response_mime_type='application/json',
                 response_json_schema=RECEIPT_SCHEMA,
             ),
@@ -100,6 +104,8 @@ def scan_receipt_image(data, media_type, client=None):
         raise ReceiptScanError(f'The receipt could not be read: {exc.message}', 400)
     except errors.APIError:
         raise ReceiptScanError('Receipt scanning is temporarily unavailable. Try again shortly.', 502)
+    except httpx.TimeoutException:
+        raise ReceiptScanError('Reading the receipt took too long. Try again, or a clearer, closer photo.', 504)
     except httpx.TransportError:
         raise ReceiptScanError('The server could not reach the receipt scanner. Check its internet connection.', 502)
 

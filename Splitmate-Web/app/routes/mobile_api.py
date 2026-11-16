@@ -2000,6 +2000,85 @@ def settle_split(split_id):
     return jsonify({'settled': True})
 
 
+def split_people(expense):
+    """How many people share a bill: everyone with a share, plus the payer when they kept no share row."""
+    user_ids = {split.user_id for split in expense.splits}
+    return len(user_ids | {expense.paid_by_id})
+
+
+def _unsettled_rows(splits):
+    """One line per open share: what it was for, the bill total and how many people it was split between."""
+    rows = []
+    for split in splits:
+        expense = split.expense
+        rows.append({
+            'split_id': split.id,
+            'expense_id': expense.id,
+            'description': expense.description,
+            'date': iso_datetime(expense.date),
+            'total': round(float(expense.amount), 2),
+            'share': round(float(split.amount_owed), 2),
+            'people': split_people(expense),
+        })
+    return rows
+
+
+@mobile_api_bp.route('/groups/<int:group_id>/settle-summary')
+@mobile_login_required
+def settle_summary(group_id):
+    """Per person in the group: what is open between you, each open item, and when you last settled."""
+    group, error = require_group_member(group_id)
+    if error:
+        return error
+    me = request.mobile_user
+    names = {member['id']: member['name'] for member in group_member_payload(group)}
+    people = []
+    for other in group.members:
+        if other.id == me.id:
+            continue
+        they_owe, they_owe_total = split_routes.outstanding_splits_for(group, other, me)
+        i_owe, i_owe_total = split_routes.outstanding_splits_for(group, me, other)
+        last = Payment.query.filter(
+            Payment.group_id == group.id,
+            Payment.status == 'recorded',
+            ((Payment.payer_id == me.id) & (Payment.receiver_id == other.id))
+            | ((Payment.payer_id == other.id) & (Payment.receiver_id == me.id)),
+        ).order_by(Payment.date.desc()).first()
+        people.append({
+            'user_id': other.id,
+            'name': names.get(other.id, other.name),
+            'they_owe': float(they_owe_total),
+            'you_owe': float(i_owe_total),
+            'net': float(they_owe_total - i_owe_total),
+            'last_settled_at': iso_datetime(last.date) if last else None,
+            'they_owe_items': _unsettled_rows(they_owe),
+            'you_owe_items': _unsettled_rows(i_owe),
+        })
+    people.sort(key=lambda row: (row['they_owe'] == 0 and row['you_owe'] == 0, -abs(row['net'])))
+    return jsonify({'group_id': group.id, 'people': people})
+
+
+@mobile_api_bp.route('/groups/<int:group_id>/settle-person', methods=['POST'])
+@mobile_login_required
+def settle_person(group_id):
+    """You were paid back in full by someone: every share they owe you in this group is marked settled at once."""
+    group, error = require_group_member(group_id)
+    if error:
+        return error
+    me = request.mobile_user
+    other = db.session.get(User, json_body().get('user_id') or 0)
+    if other is None or other not in group.members or other.id == me.id:
+        return json_error('Choose someone in this group.')
+    _, total = split_routes.outstanding_splits_for(group, other, me)
+    if total <= 0:
+        return json_error(f'{other.name} does not owe you anything in this group.', 409)
+    split_routes.settle_outstanding_splits(group, other, me, total)
+    payment = split_routes.create_payment_record(group, other, me, total, status='recorded')
+    db.session.commit()
+    split_routes.notify_payment_confirmed(payment)
+    return jsonify({'settled': True, 'amount': float(total), 'payment_id': payment.id})
+
+
 @mobile_api_bp.route('/groups/<int:group_id>/tasks', methods=['POST'])
 @mobile_login_required
 def add_task(group_id):

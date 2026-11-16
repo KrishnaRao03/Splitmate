@@ -158,14 +158,6 @@ export function HomeScreen({ navigation }: Props) {
     load();
   }, [load]));
 
-  // With one group the expense form opens straight away; with several, the Split tab asks which group.
-  async function openExpenseForm() {
-    if (groups.length !== 1) {
-      navigation.navigate('Split');
-      return;
-    }
-    await openExpenseFor(groups[0].id);
-  }
 
   async function openExpenseFor(groupId: number, scanImage?: ReceiptFile) {
     setOpening(true);
@@ -210,9 +202,9 @@ export function HomeScreen({ navigation }: Props) {
 
   function settleUp() {
     if (groups.length === 1) {
-      navigation.navigate('GroupDetail', { groupId: groups[0].id, groupName: groups[0].name });
+      navigation.navigate('SettleUp', { groupId: groups[0].id, groupName: groups[0].name });
     } else {
-      navigation.navigate('Split');
+      navigation.navigate('SettleUp');
     }
   }
 
@@ -252,7 +244,7 @@ export function HomeScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.actions}>
-        <Action label="Split a bill" icon="add-outline" filled onPress={openExpenseForm} disabled={opening} />
+        <Action label="Split a bill" icon="add-outline" filled onPress={() => navigation.navigate('SplitPicker')} />
         <Action label="Scan receipt" icon="scan-outline" onPress={scanReceipt} disabled={opening} />
         <Action label="Settle up" icon="swap-horizontal-outline" onPress={settleUp} />
         <Action label="Quick split" icon="flash-outline" onPress={() => navigation.navigate('QuickSplit')} />
@@ -275,7 +267,7 @@ export function HomeScreen({ navigation }: Props) {
         <SectionTitle title="People" />
         <View style={styles.people}>
           {owing.map(person => (
-            <Pressable key={person.user_id} accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate('Split')}>
+            <Pressable key={person.user_id} accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate('SettleUp', person.groups.length === 1 ? { groupId: person.groups[0].group_id, groupName: person.groups[0].group_name } : undefined)}>
               <View style={[styles.avatar, person.net < 0 && styles.avatarOwe]}>
                 <Text style={[styles.avatarText, person.net < 0 && styles.avatarOweText]}>{initials(person.name)}</Text>
               </View>

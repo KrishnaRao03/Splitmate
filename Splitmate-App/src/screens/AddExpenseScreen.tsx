@@ -298,6 +298,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
         <AppButton icon="scan-outline" variant="outline" loading={scanning} onPress={scanReceipt}>
           {scannedItems.length ? 'Scan a Different Receipt' : 'Scan a receipt instead'}
         </AppButton>
+        {scanning ? <Text style={styles.helper}>Reading your receipt. This usually takes 5 to 20 seconds.</Text> : null}
         {scanUsage ? <Text style={styles.helper}>{scanUsage}</Text> : null}
         {scanLimit ? <UpgradePrompt message={scanLimit} /> : null}
       </Card>
