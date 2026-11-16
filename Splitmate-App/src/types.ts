@@ -151,6 +151,9 @@ export type Payment = {
 export type PendingInvite = {
   id: number;
   email: string;
+  /** The email, or the mobile number with most digits hidden. */
+  sent_to?: string;
+  by_phone?: boolean;
   created_at: string | null;
   expires_at: string | null;
   invited_by: string;

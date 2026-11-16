@@ -337,7 +337,7 @@
                     ${pendingInvites.map(invite => `
                         <div class="pending-invite-item">
                             <div>
-                                <strong>${escapeHtml(invite.email)}</strong>
+                                <strong>${escapeHtml(invite.sent_to || invite.email)}</strong>
                                 <span>Expires ${new Date(invite.expires_at).toLocaleDateString()}</span>
                             </div>
                             <form method="POST" action="/group/${group.id}/invites/${invite.id}/revoke">

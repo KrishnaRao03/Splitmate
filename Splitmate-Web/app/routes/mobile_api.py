@@ -16,7 +16,10 @@ from app.email_validation import email_error_message, normalize_email
 from app.grocery_compare import (
     compare_grocery_list, compare_grocery_note, note_allows_grocery_comparison, parse_grocery_items_from_text,
 )
-from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows, set_member_nickname
+from app.group_utils import (
+    group_member_payload, group_pending_invite_payload, invite_accept_problem, join_group_from_invite,
+    member_nickname_rows, set_member_nickname,
+)
 from app.models import (
     MoneyRequest,
     PendingRegistration,
@@ -38,7 +41,7 @@ from app.regions import (
 )
 from app.rewards import record_referral, redeem, rewards_payload
 from app.account_deletion import delete_own_account, self_delete_error
-from app.email_utils import send_money_request_email, send_password_reset_email, send_splitmate_invite_email
+from app.email_utils import app_url, send_money_request_email, send_password_reset_email, send_splitmate_invite_email
 from app.payment_security import (
     apply_payment_handle_changes, payment_status_payload, send_interac_code, verify_interac_code,
 )
@@ -46,7 +49,7 @@ from app.routes.auth import (
     OTP_LOCKED_MESSAGE, complete_pending_registration, generate_password_reset_token, registered_account,
     send_user_otp, start_pending_registration,
 )
-from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload, user_from_friend_code
+from app.routes.main import SPLITMATE_INVITE_MESSAGE, group_invite_text, invite_phone_to_group, invite_to_group, profile_qr_payload, user_from_friend_code
 from app.receipt_scan import ReceiptScanError, scan_receipt_image
 from app.routes import split as split_routes
 from app.field_encryption import phone_lookup_hash
@@ -775,22 +778,10 @@ def my_invite_payload(invite):
 
 def accept_invite_for(user, invite):
     """Shared accept rules, matching the website's /invite/<token> page."""
-    if not invite or invite.revoked_at:
-        return json_error('That invite link is invalid or was revoked.', 404)
-    if invite.accepted_at:
-        return json_error('That invite was already accepted.', 409)
-    if invite.expires_at <= datetime.utcnow():
-        return json_error('That invite link has expired. Ask the group admin for a new invite.', 410)
-    if normalize_email(user.email) != invite.email:
-        return json_error(f'This invite was sent to {invite.email}. Sign in with that email to accept it.', 403)
-
-    if user not in invite.group.members:
-        invite.group.members.append(user)
-        db.session.flush()
-        set_member_nickname(invite.group.id, user)
-
-    invite.accepted_at = datetime.utcnow()
-    invite.accepted_by_id = user.id
+    problem = invite_accept_problem(user, invite)
+    if problem:
+        return json_error(*problem)
+    join_group_from_invite(user, invite)
     db.session.commit()
     return jsonify({
         'joined': True,
@@ -803,8 +794,11 @@ def accept_invite_for(user, invite):
 @mobile_login_required
 def my_invites():
     user = request.mobile_user
+    sent_to_me = GroupInvite.email == normalize_email(user.email)
+    if user.phone_hash:
+        sent_to_me = db.or_(sent_to_me, GroupInvite.phone_hash == user.phone_hash)
     invites = GroupInvite.query.filter(
-        GroupInvite.email == normalize_email(user.email),
+        sent_to_me,
         GroupInvite.accepted_at.is_(None),
         GroupInvite.revoked_at.is_(None),
         GroupInvite.expires_at > datetime.utcnow(),
@@ -837,7 +831,20 @@ def accept_invite_link():
 @mobile_login_required
 @limiter.limit('10 per hour')
 def invite_splitmate():
-    email = normalize_email(json_body().get('email'))
+    body = json_body()
+    if str(body.get('phone') or '').strip():
+        # Texted from the user's own phone; we only write the message.
+        phone = normalize_phone(body.get('phone'))
+        if not phone:
+            return json_error('Enter a valid mobile number, like 416 555 0123.')
+        join_url = app_url('/')
+        return jsonify({
+            'phone': phone,
+            'invite_url': join_url,
+            'sms_message': (f'{request.mobile_user.name} invited you to Splitmate, the easy way to split bills '
+                            f'with friends. Get it here: {join_url}'),
+        })
+    email = normalize_email(body.get('email'))
     if not email:
         return json_error('Enter a valid email address.')
     if email == normalize_email(request.mobile_user.email):
@@ -1351,7 +1358,11 @@ def group_invites(group_id):
     if request.method == 'GET':
         return jsonify(group_pending_invite_payload(group))
 
-    email = normalize_email(json_body().get('email'))
+    body = json_body()
+    if str(body.get('phone') or '').strip():
+        return invite_phone_number(group, body.get('phone'))
+
+    email = normalize_email(body.get('email'))
     if not email:
         return json_error('Enter a valid email address.')
 
@@ -1374,6 +1385,39 @@ def group_invites(group_id):
         'created_new': created_new,
         'invite_url': invite_url,
         # The invitee can scan this from the admin's screen instead of waiting for the email.
+        'qr_rows': qr_rows(invite_url),
+        'expires_at': invite.expires_at.isoformat(),
+    }), 201 if created_new else 200
+
+
+def invite_phone_number(group, raw_phone):
+    """A group invite for a mobile number. The app opens the admin's own Messages app with the text ready,
+    so it costs nothing and needs no SMS service."""
+    phone = normalize_phone(raw_phone)
+    if not phone:
+        return json_error('Enter a valid mobile number, like 416 555 0123.')
+    if phone == request.mobile_user.phone:
+        return json_error('That is your own number. Enter the number of the person you want to invite.')
+    existing_user = User.query.filter_by(phone_hash=phone_lookup_hash(phone)).first()
+    if existing_user and existing_user in group.members:
+        return jsonify({
+            'already_member': True,
+            'message': f'{existing_user.name} is already in "{group.name}".',
+        })
+
+    invite, created_new = invite_phone_to_group(group, request.mobile_user, phone)
+    db.session.commit()
+    invite_url = app_url(f'/?invite={invite.token}')
+    return jsonify({
+        'id': invite.id,
+        'message': f'Invite ready for {invite.sent_to}. Send the text to finish.',
+        'phone': phone,
+        'sent_to': invite.sent_to,
+        'by_phone': True,
+        'email_sent': False,
+        'created_new': created_new,
+        'invite_url': invite_url,
+        'sms_message': group_invite_text(group, request.mobile_user, invite),
         'qr_rows': qr_rows(invite_url),
         'expires_at': invite.expires_at.isoformat(),
     }), 201 if created_new else 200

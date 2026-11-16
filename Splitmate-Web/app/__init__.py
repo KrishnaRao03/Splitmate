@@ -289,6 +289,19 @@ def ensure_group_members_schema():
 
     db.session.commit()
 
+def ensure_group_invite_schema():
+    """Group invites can go to a mobile number as well as an email."""
+    inspector = inspect(db.engine)
+    if not inspector.has_table('group_invite'):
+        return
+    columns = {column['name'] for column in inspector.get_columns('group_invite')}
+    if 'phone' not in columns:
+        db.session.execute(text(f'ALTER TABLE group_invite ADD COLUMN phone VARCHAR({field_encryption.ENCRYPTED_COLUMN_LENGTH})'))
+    if 'phone_hash' not in columns:
+        db.session.execute(text('ALTER TABLE group_invite ADD COLUMN phone_hash VARCHAR(64)'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS ix_group_invite_phone_hash ON group_invite (phone_hash)'))
+    db.session.commit()
+
 def ensure_region_schema():
     """Country per user and currency per group. Existing rows become Canada / CAD."""
     inspector = inspect(db.engine)
@@ -481,6 +494,7 @@ def create_app(config_class=Config):
         ensure_group_default_split_schema()
         ensure_task_schema()
         ensure_group_members_schema()
+        ensure_group_invite_schema()
         ensure_region_schema()
         # Fails fast on a malformed FIELD_ENCRYPTION_KEY, then encrypts any plain-text payment handles.
         field_encryption.fernet()

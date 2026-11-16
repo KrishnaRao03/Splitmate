@@ -761,6 +761,88 @@ class MobileApiParityTests(unittest.TestCase):
             self.assertIn(invitee_id, [member.id for member in group.members])
             self.assertEqual(db.session.get(GroupInvite, live_id).accepted_by_id, invitee_id)
 
+    def test_admin_can_invite_by_mobile_number_and_invitee_joins(self):
+        response = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers,
+                                    json={'phone': '(416) 555-0123'})
+        self.assertEqual(response.status_code, 201)
+        data = response.get_json()
+        self.assertTrue(data['by_phone'])
+        self.assertEqual(data['phone'], '+14165550123')
+        self.assertEqual(data['sent_to'], '+1 ••• ••• 0123')
+        self.assertIn('/?invite=', data['invite_url'])
+        self.assertIn(data['invite_url'], data['sms_message'])
+        self.assertIn('Parity Group', data['sms_message'])
+        token = data['invite_url'].split('invite=')[1]
+        # The website's invite page works for it too, without showing the whole number.
+        page = self.client.get(f'/invite/{token}').get_data(as_text=True)
+        self.assertIn('+1 ••• ••• 0123', page)
+        self.assertNotIn('5550123', page)
+
+        # Asking again reuses the same pending invite.
+        again = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers,
+                                 json={'phone': '416 555 0123'})
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.get_json()['id'], data['id'])
+
+        pending = self.client.get(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers).get_json()
+        self.assertEqual([(item['sent_to'], item['by_phone']) for item in pending], [('+1 ••• ••• 0123', True)])
+        with self.app.app_context():
+            stored = db.session.get(GroupInvite, data['id'])
+            self.assertEqual(stored.email, '')
+            self.assertNotIn('5550123', db.session.execute(
+                db.text('SELECT phone FROM group_invite WHERE id = :id'), {'id': data['id']}).scalar())
+
+        with self.app.app_context():
+            other_phone = User(email='other@example.com', name='Other', is_email_verified=True, phone='+16475550000')
+            no_phone = User(email='newbie@example.com', name='Newbie', is_email_verified=True)
+            for user in (other_phone, no_phone):
+                user.set_password('password123')
+            db.session.add_all([other_phone, no_phone])
+            db.session.commit()
+            other_headers = {'Authorization': f'Bearer {mobile_token_for(other_phone)}'}
+            newbie_headers = {'Authorization': f'Bearer {mobile_token_for(no_phone)}'}
+            newbie_id = no_phone.id
+
+        # An account with a different number can't use the link.
+        blocked = self.client.post('/api/mobile/invites/accept-link', headers=other_headers, json={'link': token})
+        self.assertEqual(blocked.status_code, 403)
+
+        # An account with no number joins, and the invited number is saved to it.
+        joined = self.client.post('/api/mobile/invites/accept-link', headers=newbie_headers, json={'link': token})
+        self.assertEqual(joined.status_code, 200)
+        with self.app.app_context():
+            newbie = db.session.get(User, newbie_id)
+            self.assertEqual(newbie.phone, '+14165550123')
+            self.assertIn(newbie, db.session.get(Group, self.group_id).members)
+
+    def test_phone_invite_shows_in_app_for_account_with_that_number(self):
+        with self.app.app_context():
+            friend = User(email='friend@example.com', name='Friend', is_email_verified=True, phone='+14165550199')
+            friend.set_password('password123')
+            db.session.add(friend)
+            db.session.commit()
+            friend_headers = {'Authorization': f'Bearer {mobile_token_for(friend)}'}
+
+        created = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers,
+                                   json={'phone': '4165550199'}).get_json()
+        listed = self.client.get('/api/mobile/invites', headers=friend_headers).get_json()
+        self.assertEqual([item['id'] for item in listed], [created['id']])
+        accepted = self.client.post(f'/api/mobile/invites/{created["id"]}/accept', headers=friend_headers)
+        self.assertEqual(accepted.status_code, 200)
+
+        # Members already in the group are reported instead of invited again.
+        member_again = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers,
+                                        json={'phone': '4165550199'})
+        self.assertTrue(member_again.get_json()['already_member'])
+
+    def test_phone_invite_rejects_bad_numbers_and_splitmate_invite_writes_text(self):
+        bad = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers, json={'phone': '12'})
+        self.assertEqual(bad.status_code, 400)
+        text = self.client.post('/api/mobile/invite-splitmate', headers=self.headers, json={'phone': '416-555-0177'})
+        self.assertEqual(text.status_code, 200)
+        self.assertEqual(text.get_json()['phone'], '+14165550177')
+        self.assertIn('Admin User invited you to Splitmate', text.get_json()['sms_message'])
+
     def test_receipt_scan_validates_upload_and_returns_parsed_items(self):
         import io
         import json as jsonlib

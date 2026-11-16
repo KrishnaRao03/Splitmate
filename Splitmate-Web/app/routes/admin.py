@@ -850,9 +850,9 @@ def revoke_group_invite(group_id, invite_id):
     invite = GroupInvite.query.filter_by(id=invite_id, group_id=group_id).first_or_404()
     if not invite.revoked_at and not invite.accepted_at:
         invite.revoked_at = datetime.utcnow()
-        audit('group.revoke_invite', 'group', group_id, invite.email)
+        audit('group.revoke_invite', 'group', group_id, invite.sent_to)
         db.session.commit()
-        flash(f'Revoked the invite for {invite.email}.', 'success')
+        flash(f'Revoked the invite for {invite.sent_to}.', 'success')
     return redirect(url_for('admin.group_detail', group_id=group_id))
 
 

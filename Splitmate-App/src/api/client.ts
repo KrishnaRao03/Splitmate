@@ -232,6 +232,14 @@ export class SplitmateApi {
     });
   }
 
+  /** Writes a Splitmate invite text for a mobile number; the app opens Messages so the user sends it. */
+  textSplitmateInvite(phone: string) {
+    return this.request<{ phone: string; invite_url: string; sms_message: string }>('/invite-splitmate', {
+      method: 'POST',
+      body: JSON.stringify({ phone })
+    });
+  }
+
   dashboard() {
     return this.request<Dashboard>('/dashboard');
   }
@@ -394,6 +402,17 @@ export class SplitmateApi {
     return this.request<{ message: string; email: string; email_sent: boolean; invite_url: string; qr_rows: string[] }>(`/groups/${groupId}/invites`, {
       method: 'POST',
       body: JSON.stringify({ email })
+    });
+  }
+
+  /** Creates (or reuses) an invite for a mobile number; the reply carries the text to send from the user's phone. */
+  inviteToGroupByPhone(groupId: number, phone: string) {
+    return this.request<{
+      message: string; already_member?: boolean; phone?: string; sent_to?: string; invite_url?: string;
+      sms_message?: string; qr_rows?: string[];
+    }>(`/groups/${groupId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ phone })
     });
   }
 

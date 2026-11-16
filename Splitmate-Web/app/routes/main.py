@@ -15,9 +15,13 @@ from app import db, limiter
 from app.regions import countries_payload, normalize_country, payment_fields_for
 from app.email_validation import normalize_email
 from app.email_utils import app_url, send_group_invite_email, send_splitmate_invite_email
+from app.field_encryption import phone_lookup_hash
 from app.models import User, Group, GroupInvite, Expense, ExpenseSplit, ExpenseHistory, Note, Payment, RewardTransaction, Task
 from app.routes.auth import send_user_otp, set_pending_verification
-from app.group_utils import group_member_payload, group_pending_invite_payload, set_member_nickname
+from app.group_utils import (
+    group_member_payload, group_pending_invite_payload, invite_accept_problem, join_group_from_invite,
+    set_member_nickname,
+)
 from app import billing
 from app.rewards import record_referral, redeem, rewards_payload
 from app.routes import split as split_routes
@@ -80,6 +84,37 @@ def invite_to_group(group, inviter, email):
     except Exception as exc:
         current_app.logger.exception('Failed to send group invite email to %s: %s', email, exc)
     return invite, created_new, email_sent
+
+def invite_phone_to_group(group, inviter, phone):
+    """Creates (or reuses) a pending invite for a mobile number. The inviter texts it from their own phone,
+    so nothing is sent from here. Returns (invite, created_new)."""
+    invite = GroupInvite.query.filter(
+        GroupInvite.group_id == group.id,
+        GroupInvite.phone_hash == phone_lookup_hash(phone),
+        GroupInvite.accepted_at.is_(None),
+        GroupInvite.revoked_at.is_(None),
+        GroupInvite.expires_at > datetime.utcnow()
+    ).order_by(GroupInvite.created_at.desc()).first()
+    if invite:
+        return invite, False
+    invite = GroupInvite(
+        group_id=group.id,
+        email='',
+        phone=phone,
+        token=generate_invite_token(),
+        invited_by_id=inviter.id,
+        expires_at=datetime.utcnow() + timedelta(days=current_app.config['GROUP_INVITE_EXPIRY_DAYS'])
+    )
+    db.session.add(invite)
+    db.session.flush()
+    return invite, True
+
+
+def group_invite_text(group, inviter, invite):
+    """The text message the inviter sends. The link opens the app, which accepts the invite after sign-in."""
+    return (f'{inviter.name} invited you to the group "{group.name}" on Splitmate, to split bills together. '
+            f'Join here: {app_url(f"/?invite={invite.token}")}')
+
 
 def safe_redirect_target(default_endpoint='main.home'):
     target = request.form.get('next', '').strip()
@@ -772,7 +807,7 @@ def revoke_group_invite(group_id, invite_id):
 
     invite.revoked_at = datetime.utcnow()
     db.session.commit()
-    flash(f'Invite for {invite.email} revoked.', 'success')
+    flash(f'Invite for {invite.sent_to} revoked.', 'success')
     return redirect(redirect_target)
 
 
@@ -800,17 +835,12 @@ def accept_group_invite(token):
             app_invite_url=app_url(f'/?invite={invite.token}'),
         )
 
-    if normalize_email(current_user.email) != invite.email:
-        flash(f'This invite was sent to {invite.email}. Sign in with that email to accept it.', 'error')
+    problem = invite_accept_problem(current_user, invite)
+    if problem:
+        flash(problem[0], 'error')
         return redirect(url_for('main.home'))
 
-    if current_user not in invite.group.members:
-        invite.group.members.append(current_user)
-        db.session.flush()
-        set_member_nickname(invite.group.id, current_user)
-
-    invite.accepted_at = datetime.utcnow()
-    invite.accepted_by_id = current_user.id
+    join_group_from_invite(current_user, invite)
     db.session.commit()
     flash(f'You joined "{invite.group.name}".', 'success')
     return redirect(url_for('main.home'))

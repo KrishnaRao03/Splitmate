@@ -270,7 +270,11 @@ class Task(db.Model):
 class GroupInvite(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False, index=True)
+    # An invite goes to an email, or to a mobile number (texted from the inviter's own phone).
+    # Phone invites keep email as '' and store the number encrypted, with a keyed hash for lookups.
     email = db.Column(db.String(120), nullable=False, index=True)
+    phone = db.Column(EncryptedString)
+    phone_hash = db.Column(db.String(64), index=True)
     token = db.Column(db.String(128), unique=True, nullable=False, index=True)
     invited_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     accepted_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -281,6 +285,31 @@ class GroupInvite(db.Model):
 
     invited_by = db.relationship('User', foreign_keys=[invited_by_id], backref='sent_group_invites')
     accepted_by = db.relationship('User', foreign_keys=[accepted_by_id], backref='accepted_group_invites')
+
+    @validates('phone')
+    def _sync_phone_hash(self, key, value):
+        self.phone_hash = phone_lookup_hash(value) if value else None
+        return value
+
+    @property
+    def is_phone_invite(self):
+        return not self.email and bool(self.phone_hash)
+
+    @property
+    def sent_to(self):
+        """Who it went to, for lists: the email, or the mobile number shown as '+1 ••• ••• 0123'."""
+        if self.email:
+            return self.email
+        return masked_phone(self.phone)
+
+
+def masked_phone(phone):
+    """'+14165550123' -> '+1 ••• ••• 0123', so a list never shows someone's whole number."""
+    digits = ''.join(char for char in str(phone or '') if char.isdigit())
+    if len(digits) < 4:
+        return 'a mobile number'
+    country = digits[:-10] if len(digits) > 10 else ''
+    return f"{'+' + country + ' ' if country else ''}••• ••• {digits[-4:]}"
 
 class MobileDevice(db.Model):
     id = db.Column(db.Integer, primary_key=True)

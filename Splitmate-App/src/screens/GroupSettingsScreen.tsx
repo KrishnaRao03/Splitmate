@@ -19,11 +19,13 @@ import { formatDate } from '@/utils/dates';
 import { confirm, notify } from '@/state/UndoToast';
 import type { DefaultSplit, GroupDetail, GroupMember, RootStackParamList } from '@/types';
 import { INVITE_POINTS_NOTE } from '@/utils/points';
+import { sendTextInvite } from '@/utils/textInvite';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupSettings'>;
 type SplitType = DefaultSplit['type'];
 
-type LastInvite = { email: string; url: string; qrRows: string[] };
+/** `phone` and `text` are set for an invite by mobile number, so it can be texted again. */
+type LastInvite = { sentTo: string; url: string; qrRows: string[]; phone?: string; text?: string };
 
 export function GroupSettingsScreen({ navigation, route }: Props) {
   const { groupId } = route.params;
@@ -31,6 +33,8 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
   const [lastInvite, setLastInvite] = useState<LastInvite | null>(null);
+  // Digits without an @ mean a mobile number.
+  const inviteByText = !inviteEmail.includes('@') && /\d{3}/.test(inviteEmail);
   const [groupName, setGroupName] = useState('');
   const [nicknames, setNicknames] = useState<Record<number, string>>({});
   const [splitType, setSplitType] = useState<SplitType>('equal');
@@ -72,11 +76,28 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
   }
 
   // One invite flow for everyone: new or existing accounts both get an invite they accept to join.
+  // Anything without an @ is treated as a mobile number: the app opens Messages with the invite typed out.
   async function inviteMember() {
     try {
+      if (!inviteEmail.includes('@')) {
+        const result = await api.inviteToGroupByPhone(groupId, inviteEmail.trim());
+        setInviteEmail('');
+        if (result.already_member || !result.phone || !result.sms_message || !result.invite_url) {
+          setLastInvite(null);
+          notify('Already in the group', result.message);
+          return;
+        }
+        setLastInvite({
+          sentTo: result.sent_to || result.phone, url: result.invite_url, qrRows: result.qr_rows || [],
+          phone: result.phone, text: result.sms_message,
+        });
+        await load();
+        await sendTextInvite(result.phone, result.sms_message);
+        return;
+      }
       const result = await api.inviteToGroup(groupId, inviteEmail);
       setInviteEmail('');
-      setLastInvite(result.invite_url ? { email: result.email, url: result.invite_url, qrRows: result.qr_rows || [] } : null);
+      setLastInvite(result.invite_url ? { sentTo: result.email, url: result.invite_url, qrRows: result.qr_rows || [] } : null);
       await load();
     } catch (error) {
       notify('Could not create invite', error instanceof Error ? error.message : 'Try again.');
@@ -246,15 +267,28 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       {isAdmin ? (
         <Card>
           <Text style={styles.sectionTitle}>Invite people</Text>
-          <TextField label="Their email" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-          <AppButton icon="mail-outline" onPress={inviteMember} disabled={!inviteEmail.trim()}>Send invite</AppButton>
-          <Text style={styles.help}>Works for new and existing Splitmate accounts. They join once they accept. {INVITE_POINTS_NOTE}</Text>
+          <TextField label="Their email or mobile number" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+          <AppButton
+            icon={inviteByText ? 'phone-portrait-outline' : 'mail-outline'}
+            onPress={inviteMember}
+            disabled={!inviteEmail.trim()}
+          >
+            {inviteByText ? 'Text invite' : 'Send invite'}
+          </AppButton>
+          <Text style={styles.help}>
+            Emails are sent for you. For a mobile number, your Messages app opens with the invite ready to send. Works for new and existing Splitmate accounts, and they join once they accept. {INVITE_POINTS_NOTE}
+          </Text>
           {lastInvite ? (
             <View style={styles.invitePanel}>
-              <Text style={styles.memberName}>Invite for {lastInvite.email}</Text>
+              <Text style={styles.memberName}>Invite for {lastInvite.sentTo}</Text>
               <Text style={styles.help}>Show this QR code, or share the link, so they can join right away.</Text>
               {lastInvite.qrRows.length ? <View style={styles.qrWrap}><QrCode rows={lastInvite.qrRows} size={180} /></View> : null}
               <Text style={styles.help} selectable>{lastInvite.url}</Text>
+              {lastInvite.phone && lastInvite.text ? (
+                <AppButton icon="phone-portrait-outline" variant="outline" onPress={() => sendTextInvite(lastInvite.phone as string, lastInvite.text as string)}>
+                  Text it again
+                </AppButton>
+              ) : null}
               <AppButton icon="share-social-outline" variant="outline" onPress={shareInvite}>Share invite link</AppButton>
             </View>
           ) : null}
@@ -304,7 +338,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
           {detail.pending_invites.map(invite => (
             <View key={invite.id} style={styles.inviteRow}>
               <View style={styles.memberMain}>
-                <Text style={styles.memberName}>{invite.email}</Text>
+                <Text style={styles.memberName}>{invite.sent_to || invite.email}</Text>
                 <Text style={styles.help}>Expires {formatDate(invite.expires_at, 'soon')}</Text>
               </View>
               <AppButton icon="close-outline" variant="danger" onPress={async () => {
