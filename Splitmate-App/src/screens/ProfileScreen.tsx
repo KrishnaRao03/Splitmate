@@ -111,7 +111,7 @@ export function ProfileScreen({ navigation }: Props) {
   const paymentFields = paymentFieldsFor(country);
   const typedInterac = interacEmail.trim().toLowerCase();
   const paymentChanged =
-    (typedInterac !== (auth.user?.interac_email || '').toLowerCase() && typedInterac !== (auth.user?.pending_interac_email || '').toLowerCase())
+    (paymentFields.includes('interac_email') && typedInterac !== (auth.user?.interac_email || '').toLowerCase() && typedInterac !== (auth.user?.pending_interac_email || '').toLowerCase())
     || paypalUsername.trim() !== (auth.user?.paypal_username || '')
     || upiId.trim() !== (auth.user?.upi_id || '');
   const pendingInterac = auth.user?.pending_interac_email || '';

@@ -193,7 +193,7 @@ function GroupSettleUp({ groupId }: { groupId: number }) {
         <Card key={`ask-${item.id}`} style={styles.alert}>
           <Text style={styles.name}>{item.requester} asked you for {money(item.amount)}</Text>
           <View style={styles.buttons}>
-            <AppButton style={styles.grow} variant="outline" onPress={() => run(`ap-${item.id}`, () => api.answerMoneyRequest(item.id, 'approve'), 'Could not approve')}>Share my Interac</AppButton>
+            <AppButton style={styles.grow} variant="outline" onPress={() => run(`ap-${item.id}`, () => api.answerMoneyRequest(item.id, 'approve'), 'Could not approve')}>Share my email</AppButton>
             <AppButton style={styles.grow} variant="ghost" onPress={() => run(`de-${item.id}`, () => api.answerMoneyRequest(item.id, 'decline'), 'Could not decline')}>Decline</AppButton>
           </View>
         </Card>
@@ -269,7 +269,7 @@ function GroupSettleUp({ groupId }: { groupId: number }) {
                       {`Pay with ${method.label}`}
                     </AppButton>
                   ) : null
-                )) : <Text style={styles.muted}>{person.name} hasn't added Interac, PayPal or UPI yet. Pay them however you agreed.</Text>}
+                )) : <Text style={styles.muted}>{person.name} hasn't added PayPal or UPI yet. Pay them however you agreed.</Text>}
                 <Text style={styles.muted}>2. Then tell {person.name}. {SETTLE_POINTS_NOTE}</Text>
                 <TextField label="Amount sent" value={payAmount} onChangeText={setPayAmount} keyboardType="decimal-pad" />
                 <AppButton icon="checkmark-circle-outline" loading={busy === `pay-${person.user_id}`} onPress={() => recordPayment(person)}>I've paid</AppButton>

@@ -40,7 +40,7 @@
                             {% if request.form.get('country') == country.code %}selected{% endif %}>{{ country.name }} ({{ country.currency }})</option>
                     {% endfor %}
                 </select>
-                <small class="form-hint">Sets your currency and which payment apps you can add (e.g. Interac in Canada, UPI in India).</small>
+                <small class="form-hint">Sets your currency and which payment apps you can add (e.g. UPI in India; PayPal works everywhere).</small>
             </div>
 
             <div class="form-group">

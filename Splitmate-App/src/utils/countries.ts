@@ -36,7 +36,6 @@ export const CURRENCIES = Array.from(new Set(COUNTRIES.map(country => country.cu
 
 /** Payment-detail fields that make sense in each country; PayPal works everywhere. */
 export function paymentFieldsFor(country?: string | null): string[] {
-  if (country === 'CA') return ['interac_email', 'paypal_username'];
   if (country === 'IN') return ['upi_id', 'paypal_username'];
   return ['paypal_username'];
 }

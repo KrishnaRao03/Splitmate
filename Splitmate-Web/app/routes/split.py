@@ -354,7 +354,7 @@ def payment_options(group, payer, nicknames=None):
 def money_requests(group, receiver, nicknames=None):
     """Who owes `receiver` in this group, and the state of receiver's request to each of them.
 
-    A payer's Interac email is only included once they approved the request in Splitmate.
+    A payer's account email is only included once they approved the request in Splitmate.
     """
     from app.models import MoneyRequest
     from app.payment_security import mask_email
@@ -373,8 +373,7 @@ def money_requests(group, receiver, nicknames=None):
         approved = bool(latest and latest.status == 'approved')
         email = None
         if approved:
-            verified = payer.interac_email and getattr(payer, 'interac_email_verified', False)
-            email = payer.interac_email if verified else payer.email
+            email = payer.email
         requests.append({
             'payer_id': payer.id,
             'payer': nicknames.get(payer.id) or payer.name,

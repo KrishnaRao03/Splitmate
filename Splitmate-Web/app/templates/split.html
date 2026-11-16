@@ -403,7 +403,7 @@
                     ${safeUrl ? `<a class="btn btn-outline btn-sm" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener">Open</a>` : ''}
                 </div>
             `;
-        }).join('') : `<p class="text-subtle">${escapeHtml(option.receiver)} hasn't added Interac, PayPal or UPI details yet. Pay them however you agreed.</p>`;
+        }).join('') : `<p class="text-subtle">${escapeHtml(option.receiver)} hasn't added PayPal or UPI details yet. Pay them however you agreed.</p>`;
     }
 
     async function loadPayments() {

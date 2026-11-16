@@ -181,21 +181,13 @@ class HighFixes(SecurityFixTests):
         self.web_login('member@example.com')
         self.assertEqual(self.client.post('/split/stripe/pay').status_code, 404)
 
-        codes = []
-        with patch('app.payment_security.send_interac_verification_code',
-                   side_effect=lambda user, email, otp: codes.append(otp) or True):
-            self.client.patch('/api/mobile/me', headers=self.admin_h, json={
-                'name': 'Admin', 'email': 'admin@example.com', 'current_password': 'password123',
-                'interac_email': 'admin-pay@example.com', 'paypal_username': 'adminpays', 'upi_id': 'admin@okbank',
-            })
+        self.client.patch('/api/mobile/me', headers=self.admin_h, json={
+            'name': 'Admin', 'email': 'admin@example.com', 'current_password': 'password123',
+            'paypal_username': 'adminpays', 'upi_id': 'admin@okbank',
+        })
         options = self.client.get(f'/api/mobile/groups/{self.group_id}', headers=self.member_h).get_json()['payment_options']
         methods = {method['type']: method for method in options[0]['payment_methods']}
-        self.assertNotIn('interac', methods)  # Not shown until its owner confirms the emailed code.
-        self.client.post('/api/mobile/me/interac/verify', headers=self.admin_h, json={'otp': codes[-1]})
-        options = self.client.get(f'/api/mobile/groups/{self.group_id}', headers=self.member_h).get_json()['payment_options']
-        methods = {method['type']: method for method in options[0]['payment_methods']}
-        self.assertEqual(methods['interac']['handle'], 'admin-pay@example.com')
-        self.assertEqual(methods['interac']['masked'], 'a•••y@example.com')
+        self.assertNotIn('interac', methods)  # The Interac e-Transfer email field was removed.
         self.assertEqual(methods['paypal']['url'], 'https://paypal.me/adminpays/30.00CAD')
         # Payment apps follow the receiver's country: UPI is only offered for people in India.
         self.assertNotIn('upi', methods)
@@ -219,14 +211,8 @@ class HighFixes(SecurityFixTests):
         self.assertIsNone(requests[0]['email'])  # Hidden until the payer approves a request.
         self.assertEqual(requests[0]['request_status'], 'none')
 
-        # Their verified Interac email is shown once they approve, and pending payments are not requested twice.
-        codes = []
-        with patch('app.payment_security.send_interac_verification_code',
-                   side_effect=lambda user, email, otp: codes.append(otp) or True):
-            self.client.patch('/api/mobile/me', headers=self.member_h, json={
-                'name': 'Member', 'email': 'member@example.com', 'current_password': 'password123',
-                'interac_email': 'member-pay@example.com'})
-        self.client.post('/api/mobile/me/interac/verify', headers=self.member_h, json={'otp': codes[-1]})
+        # Their account email is shown once they approve (the separate Interac email field was removed),
+        # and pending payments are not requested twice.
         with patch('app.routes.mobile_api.send_money_request_email'):
             created = self.client.post(f'/api/mobile/groups/{self.group_id}/money-requests', headers=self.admin_h,
                                        json={'payer_id': self.member_id}).get_json()
@@ -234,7 +220,7 @@ class HighFixes(SecurityFixTests):
         self.client.post(f'/api/mobile/groups/{self.group_id}/payments', headers=self.member_h,
                          json={'receiver_id': self.admin_id, 'amount': '10'})
         requests = self.client.get(f'/api/mobile/groups/{self.group_id}', headers=self.admin_h).get_json()['money_requests']
-        self.assertEqual(requests[0]['email'], 'member-pay@example.com')
+        self.assertEqual(requests[0]['email'], 'member@example.com')
         self.assertEqual(requests[0]['amount'], 20.0)
 
         # The person who owes has nobody to request from.

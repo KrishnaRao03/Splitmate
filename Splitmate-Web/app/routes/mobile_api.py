@@ -110,7 +110,6 @@ def user_payload(user):
         'membership_plan': 'pro' if billing.is_pro(user) else 'free',
         'membership_status': user.membership_status or 'active',
         'created_at': user.created_at.isoformat() if user.created_at else None,
-        'interac_email': user.interac_email or '',
         'paypal_username': user.paypal_username or '',
         'upi_id': user.upi_id or '',
         **payment_status_payload(user),
