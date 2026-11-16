@@ -843,6 +843,35 @@ class MobileApiParityTests(unittest.TestCase):
         self.assertEqual(text.get_json()['phone'], '+14165550177')
         self.assertIn('Admin User invited you to Splitmate', text.get_json()['sms_message'])
 
+    def test_friends_from_one_group_can_be_invited_to_another(self):
+        with self.app.app_context():
+            stranger = User(email='stranger@example.com', name='Stranger', is_email_verified=True)
+            stranger.set_password('password123')
+            db.session.add(stranger)
+            trip = Group(name='Trip', admin_id=self.admin_id)
+            trip.members.append(db.session.get(User, self.admin_id))
+            db.session.add(trip)
+            db.session.commit()
+            trip_id, stranger_id = trip.id, stranger.id
+
+        friends = self.client.get(f'/api/mobile/friends?group_id={trip_id}', headers=self.headers).get_json()
+        self.assertEqual([(row['id'], row['in_group'], row['invited']) for row in friends],
+                         [(self.member_id, False, False)])
+        self.assertEqual(friends[0]['shared_groups'], ['Parity Group'])
+
+        with patch('app.routes.main.send_group_invite_email', return_value=True) as sent:
+            invited = self.client.post(f'/api/mobile/groups/{trip_id}/invites', headers=self.headers,
+                                       json={'friend_id': self.member_id})
+        self.assertEqual(invited.status_code, 201)
+        self.assertEqual(sent.call_args[0][0], 'member@example.com')
+        friends = self.client.get(f'/api/mobile/friends?group_id={trip_id}', headers=self.headers).get_json()
+        self.assertTrue(friends[0]['invited'])
+
+        # Someone you share no group with can't be invited by id.
+        refused = self.client.post(f'/api/mobile/groups/{trip_id}/invites', headers=self.headers,
+                                   json={'friend_id': stranger_id})
+        self.assertEqual(refused.status_code, 404)
+
     def test_receipt_scan_validates_upload_and_returns_parsed_items(self):
         import io
         import json as jsonlib

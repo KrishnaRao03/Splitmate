@@ -366,6 +366,17 @@ export type MembershipPlan = {
   is_current: boolean;
 };
 
+/** Someone you share at least one group with. */
+export type Friend = {
+  id: number;
+  name: string;
+  email: string;
+  shared_groups: string[];
+  /** Only meaningful when the list was fetched for a group. */
+  in_group: boolean;
+  invited: boolean;
+};
+
 export type FriendPreview = {
   id: number;
   name: string;

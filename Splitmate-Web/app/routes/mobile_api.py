@@ -757,6 +757,53 @@ def friend_preview():
     })
 
 
+def friends_of(user):
+    """Everyone the user shares at least one group with, by name, with the groups they share."""
+    friends = {}
+    for group in user.groups.all():
+        for member in group.members:
+            if member.id == user.id or getattr(member, 'is_suspended', False):
+                continue
+            entry = friends.setdefault(member.id, {'user': member, 'group_ids': set()})
+            entry['group_ids'].add(group.id)
+    return friends
+
+
+@mobile_api_bp.route('/friends')
+@mobile_login_required
+def my_friends():
+    """People you share a group with. With ?group_id=, says who is already in that group or invited to it,
+    so the admin can invite the rest in one tap."""
+    me = request.mobile_user
+    friends = friends_of(me)
+    group = None
+    group_id = request.args.get('group_id', type=int)
+    if group_id:
+        group, error = require_group_member(group_id)
+        if error:
+            return error
+    member_ids = {member.id for member in group.members} if group else set()
+    invited_emails = {
+        invite.email for invite in GroupInvite.query.filter(
+            GroupInvite.group_id == group.id,
+            GroupInvite.accepted_at.is_(None),
+            GroupInvite.revoked_at.is_(None),
+            GroupInvite.expires_at > datetime.utcnow(),
+        ).all()
+    } if group else set()
+    group_names = {group_row.id: group_row.name for group_row in me.groups.all()}
+    rows = [{
+        'id': friend_id,
+        'name': entry['user'].name,
+        'email': entry['user'].email,
+        'shared_groups': sorted(group_names[gid] for gid in entry['group_ids']),
+        'in_group': friend_id in member_ids,
+        'invited': normalize_email(entry['user'].email) in invited_emails,
+    } for friend_id, entry in friends.items()]
+    rows.sort(key=lambda row: row['name'].lower())
+    return jsonify(rows)
+
+
 def qr_rows(text):
     """QR modules as '0'/'1' strings, so the app can draw the code without an SVG library."""
     qr = qrcode.QRCode(border=0, error_correction=qrcode.constants.ERROR_CORRECT_M)
@@ -1361,6 +1408,15 @@ def group_invites(group_id):
     body = json_body()
     if str(body.get('phone') or '').strip():
         return invite_phone_number(group, body.get('phone'))
+    if body.get('friend_id') not in (None, ''):
+        # A friend from another group: invite them by the email on their account.
+        try:
+            friend = friends_of(request.mobile_user).get(int(body.get('friend_id')), {}).get('user')
+        except (TypeError, ValueError):
+            friend = None
+        if not friend:
+            return json_error('You can only invite people you share a group with this way.', 404)
+        body['email'] = friend.email
 
     email = normalize_email(body.get('email'))
     if not email:

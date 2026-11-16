@@ -17,7 +17,7 @@ import { colors, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDate } from '@/utils/dates';
 import { confirm, notify } from '@/state/UndoToast';
-import type { DefaultSplit, GroupDetail, GroupMember, RootStackParamList } from '@/types';
+import type { DefaultSplit, Friend, GroupDetail, GroupMember, RootStackParamList } from '@/types';
 import { INVITE_POINTS_NOTE } from '@/utils/points';
 import { sendTextInvite } from '@/utils/textInvite';
 
@@ -36,6 +36,8 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
   // Digits without an @ mean a mobile number.
   const inviteByText = !inviteEmail.includes('@') && /\d{3}/.test(inviteEmail);
   const [groupName, setGroupName] = useState('');
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [invitingFriend, setInvitingFriend] = useState<number | null>(null);
   const [nicknames, setNicknames] = useState<Record<number, string>>({});
   const [splitType, setSplitType] = useState<SplitType>('equal');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -47,6 +49,8 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
     try {
       const next = await api.groupDetail(groupId);
       setDetail(next);
+      // Friends from your other groups who aren't in this one yet, for one-tap invites.
+      api.friends(groupId).then(list => setFriends(list.filter(friend => !friend.in_group))).catch(() => setFriends([]));
       setGroupName(next.group.name);
       setNicknames(Object.fromEntries(next.group.members.map(member => [member.id, member.nickname])));
       setSplitType(next.default_split.type);
@@ -101,6 +105,19 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       await load();
     } catch (error) {
       notify('Could not create invite', error instanceof Error ? error.message : 'Try again.');
+    }
+  }
+
+  async function inviteFriend(friend: Friend) {
+    setInvitingFriend(friend.id);
+    try {
+      await api.inviteFriendToGroup(groupId, friend.id);
+      notify('Invite sent', `${friend.name} joins ${detail?.group.name ?? 'the group'} once they accept.`);
+      await load();
+    } catch (error) {
+      notify('Could not send invite', error instanceof Error ? error.message : 'Try again.');
+    } finally {
+      setInvitingFriend(null);
     }
   }
 
@@ -292,6 +309,31 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
               <AppButton icon="share-social-outline" variant="outline" onPress={shareInvite}>Share invite link</AppButton>
             </View>
           ) : null}
+          {friends.length ? (
+            <View style={styles.friendList}>
+              <Text style={styles.memberName}>Friends from your other groups</Text>
+              {friends.map(friend => (
+                <View key={friend.id} style={styles.inviteRow}>
+                  <View style={styles.memberMain}>
+                    <Text style={styles.memberName}>{friend.name}</Text>
+                    <Text style={styles.help}>In {friend.shared_groups.join(', ')}</Text>
+                  </View>
+                  {friend.invited ? (
+                    <Text style={styles.help}>Invited</Text>
+                  ) : (
+                    <AppButton
+                      icon="person-add-outline"
+                      variant="outline"
+                      loading={invitingFriend === friend.id}
+                      onPress={() => inviteFriend(friend)}
+                    >
+                      Invite
+                    </AppButton>
+                  )}
+                </View>
+              ))}
+            </View>
+          ) : null}
         </Card>
       ) : null}
 
@@ -460,6 +502,10 @@ const styles = StyleSheet.create({
   adminLabel: {
     color: colors.primary,
     ...typography.label
+  },
+  friendList: {
+    gap: spacing.sm,
+    marginTop: spacing.sm
   },
   inviteRow: {
     flexDirection: 'row',
