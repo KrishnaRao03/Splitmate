@@ -126,7 +126,7 @@ export type ReceiptScan = {
   usage?: FeatureUsage;
   merchant: string;
   currency: string;
-  items: Array<{ name: string; quantity: number; price: number }>;
+  items: Array<{ name: string; quantity: number; price: number; taxed?: boolean }>;
   tax: number;
   total: number;
 };

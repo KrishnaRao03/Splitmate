@@ -25,7 +25,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'AddExpense'>;
 type SplitType = 'equal' | 'selected' | 'exact' | 'percentage';
 // What the user picks. "Equally" covers both the server's 'equal' (everyone ticked) and 'selected' (some ticked).
 type SplitMode = 'equal' | 'exact' | 'percentage';
-type ScannedItem = { key: number; name: string; quantity: number; price: string; keep: boolean; isTax?: boolean };
+type ScannedItem = { key: number; name: string; quantity: number; price: string; keep: boolean; taxed?: boolean; isTax?: boolean };
+
+/** Sets the tax line to the receipt's tax times the share of taxed items still ticked. */
+function withTax(items: ScannedItem[], receiptTax: number): ScannedItem[] {
+  const taxed = items.filter(item => item.taxed && !item.isTax);
+  const all = taxed.reduce((sum, item) => sum + (parseAmount(item.price) ?? 0), 0);
+  const kept = taxed.filter(item => item.keep).reduce((sum, item) => sum + (parseAmount(item.price) ?? 0), 0);
+  const tax = all > 0 ? Math.round(receiptTax * (kept / all) * 100) / 100 : 0;
+  return items.map(item => (item.isTax ? { ...item, price: tax.toFixed(2) } : item));
+}
 
 /**
  * Works out how an existing expense was split so the edit form can start from it:
@@ -80,6 +89,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
   const [scanLimit, setScanLimit] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
+  const [receiptTax, setReceiptTax] = useState(0);
   const [merchant, setMerchant] = useState<string | null>(null);
 
   const activeMembers = useMemo(() => {
@@ -125,7 +135,10 @@ export function AddExpenseScreen({ navigation, route }: Props) {
   }
 
   function updateItem(key: number, change: Partial<ScannedItem>) {
-    applyItems(scannedItems.map(item => (item.key === key ? { ...item, ...change } : item)), merchant);
+    const items = scannedItems.map(item => (item.key === key ? { ...item, ...change } : item));
+    // Editing the tax line itself keeps what you typed; any other change works the tax out again.
+    const edited = items.find(item => item.key === key);
+    applyItems(edited?.isTax ? items : withTax(items, receiptTax), merchant);
   }
 
   function scanReceipt() {
@@ -154,12 +167,15 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       setScanLimit('');
       const scan = await api.scanReceipt(image);
       setScanUsage(scan.usage?.limit != null ? `${scan.usage.remaining} of ${scan.usage.limit} free scans left this month.` : '');
+      // If the scanner couldn't tell which lines were taxed, treat them all as taxed.
+      const anyTaxed = scan.items.some(item => item.taxed);
       const items: ScannedItem[] = scan.items.map((item, index) => ({
-        key: index, name: item.name, quantity: item.quantity, price: item.price.toFixed(2), keep: true
+        key: index, name: item.name, quantity: item.quantity, price: item.price.toFixed(2), keep: true, taxed: anyTaxed ? !!item.taxed : true
       }));
       if (scan.tax > 0) {
         items.push({ key: items.length, name: 'Tax', quantity: 1, price: scan.tax.toFixed(2), keep: true, isTax: true });
       }
+      setReceiptTax(scan.tax);
       setReceipt(image);
       setMerchant(scan.merchant || null);
       applyItems(items, scan.merchant || null);
@@ -330,7 +346,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
             </View>
           ))}
           <Text style={styles.helper}>
-            {scannedItems.filter(item => item.keep).length} of {scannedItems.length} items kept - {money(parsedAmount ?? 0)}. Untick anything that isn't part of this split.
+            {scannedItems.filter(item => item.keep).length} of {scannedItems.length} items kept - {money(parsedAmount ?? 0)}. Untick anything that isn't part of this split, and the tax adjusts to match.
           </Text>
         </Card>
       ) : null}

@@ -26,8 +26,9 @@ RECEIPT_SCHEMA = {
                     'name': {'type': 'string'},
                     'quantity': {'type': 'number'},
                     'price': {'type': 'number'},
+                    'taxed': {'type': 'boolean'},
                 },
-                'required': ['name', 'quantity', 'price'],
+                'required': ['name', 'quantity', 'price', 'taxed'],
                 'additionalProperties': False,
             },
         },
@@ -44,6 +45,7 @@ PROMPT = """Read this receipt and list what was bought.
 - Use clean, readable item names: expand obvious abbreviations, but don't invent items you can't read.
 - Discounts or coupons that apply to a line: subtract them from that line's price. Store-wide discounts: add a line with a negative price.
 - Don't list subtotal, tax, tip, payment, change or loyalty lines as items. Put the total tax in `tax` and the final amount paid in `total` (0 if not shown).
+- `taxed` is true when tax was charged on that line (look for tax codes such as H, G, P, T or * next to the price). If the receipt has tax but shows no codes, mark every line taxed.
 - `merchant` is the store name ('' if unreadable); `currency` is the ISO code if you can tell, else ''.
 - If the image is not a receipt, set `is_receipt` to false and return no items."""
 
@@ -67,7 +69,7 @@ def _money(value):
 
 
 def scan_receipt_image(data, media_type, client=None):
-    """Returns {merchant, currency, items: [{name, quantity, price}], tax, total}."""
+    """Returns {merchant, currency, items: [{name, quantity, price, taxed}], tax, total}."""
     if media_type not in ALLOWED_IMAGE_TYPES:
         raise ReceiptScanError('Upload a JPG, PNG, WEBP or GIF photo of the receipt.')
     if not data:
@@ -134,6 +136,7 @@ def scan_receipt_image(data, media_type, client=None):
             'name': name[:120],
             'quantity': quantity if isinstance(quantity, (int, float)) and quantity > 0 else 1,
             'price': _money(row.get('price')),
+            'taxed': bool(row.get('taxed')),
         })
     if not items:
         raise ReceiptScanError('No items could be read from that receipt. Try a clearer photo.', 422)

@@ -22,9 +22,9 @@ class FakeModels:
 class ReceiptScanTests(unittest.TestCase):
     def test_reads_items_with_minimal_thinking(self):
         models = FakeModels(json.dumps({'is_receipt': True, 'merchant': 'Shop', 'currency': 'CAD',
-                                        'items': [{'name': 'Milk', 'quantity': 1, 'price': 4.5}], 'tax': 0.2, 'total': 4.7}))
+                                        'items': [{'name': 'Milk', 'quantity': 1, 'price': 4.5, 'taxed': True}], 'tax': 0.2, 'total': 4.7}))
         result = scan_receipt_image(b'jpg', 'image/jpeg', client=SimpleNamespace(models=models))
-        self.assertEqual(result['items'], [{'name': 'Milk', 'quantity': 1, 'price': 4.5}])
+        self.assertEqual(result['items'], [{'name': 'Milk', 'quantity': 1, 'price': 4.5, 'taxed': True}])
         self.assertEqual(models.config.thinking_config.thinking_level.value, 'MINIMAL')
 
     def test_a_slow_scanner_gives_a_clear_error_instead_of_hanging(self):
