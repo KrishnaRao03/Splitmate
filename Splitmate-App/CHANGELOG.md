@@ -4,6 +4,10 @@ All notable changes to the mobile app. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+- Group settings: type an email or a mobile number. For a number, "Text invite" opens Messages with the invite and link ready to send, and "Text it again" re-opens it. Pending invites show the number with most digits hidden.
+- Quick split: friends whose number isn't on Splitmate get a "Text an invite" button instead of being asked for an email.
+
 ## [0.1.0] - 2026-11-11
 
 First documented release.

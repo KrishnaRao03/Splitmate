@@ -4,6 +4,9 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- Invite people by mobile number. `POST /api/mobile/groups/<id>/invites` takes `{"phone": ...}` as well as `{"email": ...}` and returns the invite link plus `sms_message`, which the app opens in the phone's own Messages app (no SMS service). `POST /api/mobile/invite-splitmate` takes `{"phone": ...}` the same way. `group_invite` gets `phone` (encrypted) and `phone_hash` columns, added automatically at start-up. A mobile invite can be accepted by the account with that number, or by an account with no number yet, which then gets it.
+
 ### Changed
 - Grocery comparison uses real prices only: weekly TrimCart data, plus a Gemini + Google Search lookup of the stores' websites for items the weekly data lacks. The automatic fallback to sample prices is gone.
 - New "Compare grocery prices" box on the Notes screen (app and website): type a list, get stores sorted cheapest first (`POST /api/mobile/grocery/compare`).
