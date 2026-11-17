@@ -444,7 +444,7 @@ export type RootStackParamList = {
   AddExpense: {
     groupId: number;
     groupName?: string;
-    /** A receipt photo picked from Home's Scan receipt, scanned as soon as the form opens. */
+    /** A receipt photo picked before the form opens, scanned as soon as it does. */
     scanImage?: { uri: string; name: string; mimeType?: string; file?: File };
     members: GroupMember[];
     currentUserId: number;
@@ -460,6 +460,8 @@ export type RootStackParamList = {
   Profile: undefined;
   GroupSettings: { groupId: number; groupName: string };
   Insights: { groupId: number; groupName: string; members: GroupMember[]; categories: string[] };
+  /** All of your spending breakdowns (by category, group, payer), from Home's "View all". */
+  SpendingInsights: undefined;
   TaskCalendar: { groupId: number; groupName: string };
   Settings: undefined;
   Membership: undefined;

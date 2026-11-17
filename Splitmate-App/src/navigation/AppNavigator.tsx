@@ -26,6 +26,7 @@ import { TabNavigator } from '@/navigation/TabNavigator';
 import { WelcomeScreen } from '@/screens/WelcomeScreen';
 import { SplitPickerScreen } from '@/screens/SplitPickerScreen';
 import { SettleUpScreen } from '@/screens/SettleUpScreen';
+import { SpendingInsightsScreen } from '@/screens/SpendingInsightsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -62,6 +63,7 @@ export function AppNavigator() {
           <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
           <Stack.Screen name="GroupSettings" component={GroupSettingsScreen} options={({ route }) => ({ title: `${route.params.groupName} settings` })} />
           <Stack.Screen name="Insights" component={InsightsScreen} options={({ route }) => ({ title: `${route.params.groupName} insights` })} />
+          <Stack.Screen name="SpendingInsights" component={SpendingInsightsScreen} options={{ title: 'Spending insights' }} />
           <Stack.Screen name="TaskCalendar" component={TaskCalendarScreen} options={({ route }) => ({ title: `${route.params.groupName} calendar` })} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
           <Stack.Screen name="Membership" component={MembershipScreen} options={{ title: 'Membership' }} />

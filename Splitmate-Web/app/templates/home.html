@@ -43,38 +43,12 @@
             {% endif %}
         </div>
     </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h2>Recent activity</h2>
-        </div>
-        <div class="card-body">
-            {% if recent_expenses %}
-            <div class="activity-list">
-                {% for expense in recent_expenses %}
-                <div class="activity-item">
-                    <div class="activity-icon">{{ currency_symbol }}</div>
-                    <div class="activity-content">
-                        <span class="activity-title">{{ expense.description }}</span>
-                        <span class="activity-meta">
-                                {{ expense.added_by.name }} &bull; {{ expense.group.name }}
-                            </span>
-                    </div>
-                    <span class="activity-amount">{{ expense.amount|money }}</span>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="empty-state">No recent activity</p>
-            {% endif %}
-        </div>
-    </div>
 </div>
 
 <div class="card spending-insights-card" id="spending-insights">
     <div class="card-header">
         <h2>Spending insights</h2>
-        <span class="badge">{{ spending_insights.count }} expenses</span>
+        {% if spending_insights.count %}<a class="btn btn-text-action btn-sm" href="{{ url_for('main.insights') }}">View all</a>{% endif %}
     </div>
     <div class="card-body">
         <div class="analytics-stats">
@@ -92,69 +66,7 @@
             </div>
         </div>
 
-        {% if spending_insights.count %}
-        <div class="analytics-grid">
-            <section class="analytics-panel">
-                <h3>By category</h3>
-                <div class="splitmate-bar-chart">
-                    {% for row in spending_insights.category_totals %}
-                    <div class="bar-row">
-                        <div class="bar-row-label">
-                            <span>{{ row.category }}</span>
-                            <strong>{{ row.total|money }}</strong>
-                        </div>
-                        <div class="bar-track"><span style="width: {{ row.percent }}%"></span></div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </section>
-
-            <section class="analytics-panel">
-                <h3>Monthly trend</h3>
-                <div class="splitmate-column-chart">
-                    {% for row in spending_insights.monthly_totals %}
-                    <div class="column-row">
-                        <div class="column-track"><span style="height: {{ row.percent }}%"></span></div>
-                        <strong>{{ row.label }}</strong>
-                        <small>{{ row.total|money }}</small>
-                    </div>
-                    {% endfor %}
-                </div>
-            </section>
-
-            {% if spending_insights.group_totals|length > 1 %}
-            <section class="analytics-panel">
-                <h3>By group</h3>
-                <div class="splitmate-bar-chart">
-                    {% for row in spending_insights.group_totals %}
-                    <div class="bar-row">
-                        <div class="bar-row-label">
-                            <span>{{ row.name }}</span>
-                            <strong>{{ row.total|money }}</strong>
-                        </div>
-                        <div class="bar-track"><span style="width: {{ row.percent }}%"></span></div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </section>
-            {% endif %}
-
-            <section class="analytics-panel">
-                <h3>Paid by</h3>
-                <div class="splitmate-bar-chart">
-                    {% for row in spending_insights.payer_totals %}
-                    <div class="bar-row">
-                        <div class="bar-row-label">
-                            <span>{{ row.name }}</span>
-                            <strong>{{ row.total|money }}</strong>
-                        </div>
-                        <div class="bar-track"><span style="width: {{ row.percent }}%"></span></div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </section>
-        </div>
-        {% else %}
+        {% if not spending_insights.count %}
         <p class="empty-state">No spending insights yet.</p>
         {% endif %}
     </div>

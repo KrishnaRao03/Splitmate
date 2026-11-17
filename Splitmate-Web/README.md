@@ -144,7 +144,7 @@ All settings are read in `config.py` from the process environment, then from `.e
 | `MAIL_USERNAME` / `MAIL_PASSWORD` | none | SMTP login. For Gmail use an app password; spaces are stripped. |
 | `MAIL_DEFAULT_SENDER` | `MAIL_USERNAME` | From address |
 | `BREVO_API_KEY` | none | When set, emails are sent through [Brevo](https://www.brevo.com)'s HTTPS API instead of SMTP. Needed on hosts that block SMTP, such as Render's free plan. `MAIL_DEFAULT_SENDER` must be a verified sender in Brevo. |
-| `ADMIN_EMAILS` | `MAIL_USERNAME` | Comma-separated admin addresses |
+| `ADMIN_EMAILS` | none | Comma-separated admin-only addresses (they can't use the app itself) |
 | `OTP_EXPIRY_MINUTES` | `10` | How long an email verification code is valid |
 | `OTP_RESEND_COOLDOWN_SECONDS` | `60` | Wait before another code can be sent |
 | `PASSWORD_RESET_EXPIRY_MINUTES` | `30` | Reset link lifetime |
@@ -229,7 +229,7 @@ See [`docs/API.md`](docs/API.md) for every endpoint.
 
 ## Admin panel
 
-Open `/admin` and sign in with an account whose email is listed in `ADMIN_EMAILS`. Nobody else can sign in, even with a valid Splitmate password. The admin account must exist in that server's database and have a verified email. Failed sign-ins are rate limited, and the session ends after 30 minutes without activity.
+Open `/admin` and sign in with an account whose email is listed in `ADMIN_EMAILS`. Nobody else can sign in, even with a valid Splitmate password. Admin addresses are admin-only: they can't sign in to the website or app or be used to sign up. To create the admin account or reset its password, open `/admin/setup` and enter the admin address; the emailed link sets the password and verifies the address. Failed sign-ins are rate limited, and the session ends after 30 minutes without activity.
 
 | Page | What it's for |
 | --- | --- |

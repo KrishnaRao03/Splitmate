@@ -4,6 +4,7 @@ import secrets
 from flask import Blueprint, current_app, render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, login_required, current_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from app.admin_utils import ADMIN_ONLY_MESSAGE, is_admin_email
 from app.login_guard import clear_failed_logins, locked_message, minutes_locked, record_failed_login
 from app import db, limiter
 from app.email_utils import app_url, send_password_reset_email, send_verification_otp
@@ -201,6 +202,9 @@ def login():
 
         elif user:
             clear_failed_logins(user)
+            if is_admin_email(user.email):
+                flash(ADMIN_ONLY_MESSAGE, 'error')
+                return render_template('login.html')
             if getattr(user, 'is_suspended', False):
                 flash('Your Splitmate account is suspended. Contact an administrator.', 'error')
                 return render_template('login.html')
@@ -331,7 +335,7 @@ def register():
             errors.append('Passwords do not match')
         if not country:
             errors.append('Choose your country')
-        if email and registered_account(email):
+        if email and (is_admin_email(email) or registered_account(email)):
             errors.append('Email already registered')
 
         if errors:

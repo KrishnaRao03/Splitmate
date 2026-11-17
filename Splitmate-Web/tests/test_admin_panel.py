@@ -182,6 +182,52 @@ class AdminPanelTests(unittest.TestCase):
             self.assertEqual(response.status_code, 302, path)
             self.assertIn('/admin/login', response.headers['Location'])
 
+    def test_admin_email_cannot_sign_in_to_the_app(self):
+        response = self.client.post('/login', data={'email': 'owner@example.com', 'password': 'owner-password'})
+        self.assertIn(b'admin-only account', response.data)
+        response = self.client.post('/api/mobile/auth/login', json={'email': 'owner@example.com', 'password': 'owner-password'})
+        self.assertEqual(response.status_code, 403)
+        self.assertIn('admin-only', response.get_json()['error'])
+
+    def test_admin_email_cannot_be_used_to_sign_up(self):
+        with self.app.app_context():
+            AdminPanelTestConfig.ADMIN_EMAILS.add('new-admin@example.com')
+        try:
+            response = self.client.post('/api/mobile/auth/register', json={
+                'email': 'new-admin@example.com', 'name': 'Someone', 'password': 'Str0ng-pass-123', 'country': 'CA',
+            })
+            self.assertEqual(response.status_code, 409)
+        finally:
+            AdminPanelTestConfig.ADMIN_EMAILS.discard('new-admin@example.com')
+
+    def test_admin_email_cannot_be_taken_by_a_profile_change(self):
+        token = self.client.post('/api/mobile/auth/login', json={
+            'email': 'member@example.com', 'password': 'member-password',
+        }).get_json()['token']
+        response = self.client.patch('/api/mobile/me', json={'name': 'Member', 'email': 'owner@example.com'},
+                                   headers={'Authorization': f'Bearer {token}'})
+        self.assertEqual(response.status_code, 409)
+
+    def test_setup_link_creates_a_verified_admin_account(self):
+        AdminPanelTestConfig.ADMIN_EMAILS.add('ops@example.com')
+        try:
+            with patch('app.routes.admin.send_password_reset_email', return_value=True) as send:
+                self.client.post('/admin/setup', data={'email': 'ops@example.com'})
+                self.client.post('/admin/setup', data={'email': 'member@example.com'})
+            self.assertEqual(send.call_count, 1)
+            setup_url = send.call_args[0][1]
+            path = setup_url.split('localhost', 1)[1]
+            response = self.client.post(path, data={'password': 'Str0ng-pass-123', 'confirm_password': 'Str0ng-pass-123'})
+            self.assertIn('/admin/login', response.headers['Location'])
+            response = self.admin_login('ops@example.com', 'Str0ng-pass-123')
+            self.assertIn('/admin', response.headers['Location'])
+            self.assertNotIn('/admin/login', response.headers['Location'])
+            # The link works once.
+            response = self.client.post(path, data={'password': 'An0ther-pass-456', 'confirm_password': 'An0ther-pass-456'})
+            self.assertIn('/admin/setup', response.headers['Location'])
+        finally:
+            AdminPanelTestConfig.ADMIN_EMAILS.discard('ops@example.com')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -97,9 +97,10 @@ class Config:
     SUPPORT_EMAIL = os.environ.get('SUPPORT_EMAIL') or MAIL_DEFAULT_SENDER
     # When set, email goes through Brevo's HTTPS API instead of SMTP.
     BREVO_API_KEY = (os.environ.get('BREVO_API_KEY') or '').strip().strip('"').strip("'") or None
+    # Admin-only accounts: these addresses open /admin and can't sign in to or sign up for the app.
     ADMIN_EMAILS = {
         email.strip().lower()
-        for email in (os.environ.get('ADMIN_EMAILS') or MAIL_USERNAME or '').split(',')
+        for email in (os.environ.get('ADMIN_EMAILS') or '').split(',')
         if email.strip()
     }
     OTP_EXPIRY_MINUTES = int(os.environ.get('OTP_EXPIRY_MINUTES') or 10)

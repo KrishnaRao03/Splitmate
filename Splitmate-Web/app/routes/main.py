@@ -9,6 +9,7 @@ from qrcode.image.svg import SvgPathImage
 from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, flash, redirect, send_from_directory, url_for
 from flask_login import login_required, current_user, login_user, logout_user
 from app.account_deletion import delete_own_account, self_delete_error
+from app.admin_utils import ADMIN_EMAIL_TAKEN, is_admin_email
 from itsdangerous import BadSignature, URLSafeSerializer
 from sqlalchemy import func, or_
 from app import db, limiter
@@ -200,47 +201,9 @@ def join_splitmate():
         app_link=app_url('/'),
     )
 
-@main_bp.route('/')
-@login_required
-def home():
-    groups = current_user.groups.all()
-
+def _spending_insights(groups):
+    """Totals by category, payer, group and month over the expenses the current user can see."""
     now = datetime.utcnow()
-    month_start = datetime(now.year, now.month, 1)
-
-    monthly_spending = {}
-    recent_expenses = []
-
-    # Build monthly totals and recent items. ExpenseHistory already holds a copy
-    # of every active expense, so summing Expense too would double count.
-    for group in groups:
-        history_sum = visible_history(db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
-            ExpenseHistory.group_id == group.id,
-            ExpenseHistory.date >= month_start
-        ), current_user).scalar()
-
-        monthly_spending[group.name] = float(history_sum)
-
-        recent = visible_expenses(Expense.query.filter_by(group_id=group.id), current_user) \
-            .order_by(Expense.date.desc()) \
-            .limit(5).all()
-        recent_expenses.extend(recent)
-
-    recent_expenses.sort(key=lambda x: x.date, reverse=True)
-    recent_expenses = recent_expenses[:10]
-
-    # Totals owed/owes for current user (unchanged)
-    total_owed_to_user = 0
-    total_user_owes = 0
-
-    for expense in Expense.query.filter_by(paid_by_id=current_user.id).all():
-        for split in expense.splits:
-            if split.user_id != current_user.id and not split.is_settled:
-                total_owed_to_user += split.amount_owed
-
-    for split in ExpenseSplit.query.filter_by(user_id=current_user.id, is_settled=False).all():
-        if split.expense.paid_by_id != current_user.id:
-            total_user_owes += split.amount_owed
 
     # Build last 6 months series for charts. ExpenseHistory has a copy of every
     # expense ever added, so it alone is the source of truth for totals.
@@ -329,7 +292,43 @@ def home():
         'average': insight_total / len(history_items) if history_items else 0.0,
         'monthly_totals': list(insight_months.values())
     }
+    return spending_insights
 
+
+@main_bp.route('/')
+@login_required
+def home():
+    groups = current_user.groups.all()
+
+    now = datetime.utcnow()
+    month_start = datetime(now.year, now.month, 1)
+
+    monthly_spending = {}
+
+    # Build monthly totals. ExpenseHistory already holds a copy
+    # of every active expense, so summing Expense too would double count.
+    for group in groups:
+        history_sum = visible_history(db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
+            ExpenseHistory.group_id == group.id,
+            ExpenseHistory.date >= month_start
+        ), current_user).scalar()
+
+        monthly_spending[group.name] = float(history_sum)
+
+    # Totals owed/owes for current user (unchanged)
+    total_owed_to_user = 0
+    total_user_owes = 0
+
+    for expense in Expense.query.filter_by(paid_by_id=current_user.id).all():
+        for split in expense.splits:
+            if split.user_id != current_user.id and not split.is_settled:
+                total_owed_to_user += split.amount_owed
+
+    for split in ExpenseSplit.query.filter_by(user_id=current_user.id, is_settled=False).all():
+        if split.expense.paid_by_id != current_user.id:
+            total_user_owes += split.amount_owed
+
+    spending_insights = _spending_insights(groups)
 
     # JSON-safe group data for Manage modal (prevents "User is not JSON serializable")
     groups_json = [
@@ -348,11 +347,17 @@ def home():
         groups=groups,
         groups_json=groups_json,
         monthly_spending=monthly_spending,
-        recent_expenses=recent_expenses,
         total_owed_to_user=total_owed_to_user,
         total_user_owes=total_user_owes,
         spending_insights=spending_insights
     )
+
+@main_bp.route('/insights')
+@login_required
+def insights():
+    """Every spending breakdown, opened from "View all" on the dashboard."""
+    return render_template('insights.html', spending_insights=_spending_insights(current_user.groups.all()))
+
 
 @main_bp.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -375,8 +380,8 @@ def profile():
                 User.email == email,
                 User.id != current_user.id
             ).first() if email else None
-            if existing_user:
-                errors.append('That email is already used by another account.')
+            if existing_user or (is_admin_email(email) and email != current_user.email):
+                errors.append(ADMIN_EMAIL_TAKEN)
 
             email_changed = bool(email) and email != current_user.email
             # Changing the sign-in email is a takeover risk, so it needs the current password.
