@@ -11,6 +11,7 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 - `GET /api/mobile/friends` lists people you share a group with (`?group_id=` adds `in_group` / `invited`), and `POST /api/mobile/groups/<id>/invites` takes `{"friend_id": ...}` to invite one of them by their account email.
 
 ### Changed
+- Dashboard: Recent activity removed. Spending insights keeps the totals, with a "View all" link on the heading's line that opens a new `/insights` page holding By category, Monthly trend, By group and Paid by.
 - Expenses are shown only to the person who paid and the people in the split, in every list, history, search, chart, dashboard and export, on the website and in the app. Other group members, including the admin, no longer see them. `expense_history` gets `participant_ids` and `expense_id`; at start-up existing rows are matched to their live expense, and rows whose expense was already deleted stay visible to the payer only. Receipts follow the same rule.
 - Grocery comparison uses real prices only: weekly TrimCart data, plus a Gemini + Google Search lookup of the stores' websites for items the weekly data lacks. The automatic fallback to sample prices is gone.
 - New "Compare grocery prices" box on the Notes screen (app and website): type a list, get stores sorted cheapest first (`POST /api/mobile/grocery/compare`).

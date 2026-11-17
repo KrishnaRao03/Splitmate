@@ -8,7 +8,6 @@ import { Icon, IconName } from '@/components/Icon';
 
 import { api } from '@/api/client';
 import { AppText as Text } from '@/components/AppText';
-import { BarList, MonthBars } from '@/components/Charts';
 import { Screen } from '@/components/Screen';
 import { ErrorState, LoadingState } from '@/components/States';
 import { configureNotifications, scheduleTaskReminders } from '@/services/notifications';
@@ -17,8 +16,7 @@ import { colors, fonts, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDateTime } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
-import { confirm, notify, useUndo } from '@/state/UndoToast';
-import { pickReceiptImage, type ReceiptFile } from '@/utils/receiptPicker';
+import { notify } from '@/state/UndoToast';
 import { takeLaunchLink } from '@/utils/launchLinks';
 import type { Dashboard, Group, MainTabParamList, MyInvite, PersonBalance, RootStackParamList, Task } from '@/types';
 import { tourSeenKey } from '@/screens/WelcomeScreen';
@@ -36,18 +34,12 @@ export function HomeScreen({ navigation }: Props) {
   const [reminders, setReminders] = useState<Task[]>([]);
   const [invites, setInvites] = useState<MyInvite[]>([]);
   const [people, setPeople] = useState<PersonBalance[]>([]);
-  const [opening, setOpening] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const hasLoaded = useRef(false);
   const money = (value: number) => formatMoney(value, currencyCode);
   const cacheKey = `splitmate.cache.dashboard.${user?.id ?? 'guest'}`;
-  // Clearing Recent activity only hides it on this device; group history is untouched.
-  // Expense ids only grow, so anything newer than the last cleared id shows again.
-  const clearedKey = `splitmate.activity.cleared.${user?.id ?? 'guest'}`;
-  const [clearedThrough, setClearedThrough] = useState(0);
-  const showUndo = useUndo();
 
   // Only the very first load shows a full-screen spinner; later reloads (on focus,
   // pull-to-refresh) keep the current content visible.
@@ -101,20 +93,6 @@ export function HomeScreen({ navigation }: Props) {
     }).catch(() => undefined);
   }, [navigation, user]);
 
-  useEffect(() => {
-    AsyncStorage.getItem(clearedKey).then(value => setClearedThrough(Number(value) || 0)).catch(() => undefined);
-  }, [clearedKey]);
-
-  function clearActivity() {
-    const newest = Math.max(0, ...(dashboard?.recent_expenses ?? []).map(expense => expense.id));
-    const previous = clearedThrough;
-    setClearedThrough(newest);
-    showUndo('Recent activity cleared', {
-      commit: () => { AsyncStorage.setItem(clearedKey, String(newest)).catch(() => undefined); },
-      undo: () => setClearedThrough(previous)
-    });
-  }
-
   // Links the app was opened with (Stripe checkout return, group invite email), acted on once
   // Home has data so a sign-in restore that remounts the screens can't swallow them.
   useEffect(() => {
@@ -159,47 +137,6 @@ export function HomeScreen({ navigation }: Props) {
   }, [load]));
 
 
-  async function openExpenseFor(groupId: number, scanImage?: ReceiptFile) {
-    setOpening(true);
-    try {
-      const detail = await api.groupDetail(groupId);
-      navigation.navigate('AddExpense', {
-        groupId,
-        members: detail.group.members,
-        groupName: detail.group.name,
-        currentUserId: detail.current_user_id,
-        categories: detail.expense_categories,
-        defaultSplit: detail.default_split,
-        scanImage
-      });
-    } catch (error) {
-      notify('Could not open the expense form', error instanceof Error ? error.message : 'Try again.');
-    } finally {
-      setOpening(false);
-    }
-  }
-
-  // Scan receipt opens the camera (or the photo picker on the web build) first, then the
-  // expense form with the receipt already being read.
-  async function scanReceipt() {
-    if (!groups.length) {
-      notify('Create a group first', 'Receipts are split with a group.');
-      return;
-    }
-    const image = await pickReceiptImage('camera');
-    if (!image) {
-      return;
-    }
-    if (groups.length === 1) {
-      await openExpenseFor(groups[0].id, image);
-      return;
-    }
-    confirm('Which group is this receipt for?', undefined, [
-      ...groups.slice(0, 6).map(group => ({ text: group.name, onPress: () => { void openExpenseFor(group.id, image); } })),
-      { text: 'Cancel', style: 'cancel' as const }
-    ]);
-  }
-
   function settleUp() {
     if (groups.length === 1) {
       navigation.navigate('SettleUp', { groupId: groups[0].id, groupName: groups[0].name });
@@ -218,8 +155,6 @@ export function HomeScreen({ navigation }: Props) {
   const insights = dashboard.spending_insights;
   const net = dashboard.total_owed_to_user - dashboard.total_user_owes;
   const firstName = (user?.name || '').split(' ')[0] || 'there';
-  const owing = people.filter(person => person.net !== 0).slice(0, 6);
-  const recentActivity = dashboard.recent_expenses.filter(expense => expense.id > clearedThrough);
   // My balance in each group, from the per-person balances (positive: they owe me).
   const groupNet = new Map<number, number>();
   people.forEach(person => person.groups.forEach(item => groupNet.set(item.group_id, (groupNet.get(item.group_id) ?? 0) + item.net)));
@@ -244,8 +179,8 @@ export function HomeScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.actions}>
+        <Action label="Groups" icon="people-outline" onPress={() => navigation.navigate('Groups')} />
         <Action label="Split a bill" icon="add-outline" filled onPress={() => navigation.navigate('SplitPicker')} />
-        <Action label="Scan receipt" icon="scan-outline" onPress={scanReceipt} disabled={opening} />
         <Action label="Settle up" icon="swap-horizontal-outline" onPress={settleUp} />
         <Action label="Quick split" icon="flash-outline" onPress={() => navigation.navigate('QuickSplit')} />
       </View>
@@ -264,25 +199,6 @@ export function HomeScreen({ navigation }: Props) {
       ) : null}
 
       <View style={styles.section}>
-        <SectionTitle title="People" />
-        <View style={styles.people}>
-          {owing.map(person => (
-            <Pressable key={person.user_id} accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate('SettleUp', person.groups.length === 1 ? { groupId: person.groups[0].group_id, groupName: person.groups[0].group_name } : undefined)}>
-              <View style={[styles.avatar, person.net < 0 && styles.avatarOwe]}>
-                <Text style={[styles.avatarText, person.net < 0 && styles.avatarOweText]}>{initials(person.name)}</Text>
-              </View>
-              <Text style={styles.personName} numberOfLines={1}>{person.name.split(' ')[0]}</Text>
-              <Text style={styles.personAmount} numberOfLines={1}>{signed(person.net)}</Text>
-            </Pressable>
-          ))}
-          <Pressable accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate(groups.length ? 'Groups' : 'CreateGroup')}>
-            <View style={[styles.avatar, styles.addAvatar]}><Icon name="add" size={20} color={colors.ink} /></View>
-            <Text style={styles.personName}>{groups.length ? 'Invite' : 'New group'}</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.section}>
         <SectionTitle title="Groups" action={groups.length ? 'See all' : 'New group'} onAction={() => navigation.navigate(groups.length ? 'Groups' : 'CreateGroup')} />
         {groups.length ? (
           <View>
@@ -294,24 +210,6 @@ export function HomeScreen({ navigation }: Props) {
             ))}
           </View>
         ) : <Text style={styles.rowMeta}>No groups yet. Create one to start splitting.</Text>}
-      </View>
-
-      <View style={styles.section}>
-        <SectionTitle title="Recent activity" action={recentActivity.length ? 'Clear' : undefined} onAction={clearActivity} />
-        {recentActivity.length ? (
-          <View>
-            {recentActivity.slice(0, 8).map(expense => (
-              <View key={expense.id} style={styles.line}>
-                <Icon name={categoryIcon(expense.category)} size={20} color={colors.ink} />
-                <View style={styles.flex}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>{expense.description}</Text>
-                  <Text style={styles.rowMeta} numberOfLines={1}>{expense.group_name} · {expense.category}</Text>
-                </View>
-                <Text style={styles.lineAmount}>{plain(expense.amount)}</Text>
-              </View>
-            ))}
-          </View>
-        ) : <Text style={styles.rowMeta}>{clearedThrough ? 'All caught up. New expenses will show here.' : 'No expenses yet. Add one to see it here.'}</Text>}
       </View>
 
       <View style={styles.section}>
@@ -329,7 +227,7 @@ export function HomeScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.section}>
-        <SectionTitle title="Spending insights" />
+        <SectionTitle title="Spending insights" action={insights.count ? 'View all' : undefined} onAction={() => navigation.navigate('SpendingInsights')} />
         {insights.count ? (
           <>
             <View style={styles.statsGrid}>
@@ -337,24 +235,6 @@ export function HomeScreen({ navigation }: Props) {
               <Stat label="Expenses" value={String(insights.count)} />
               <Stat label="Average" value={money(insights.average ?? insights.total / insights.count)} />
               <Stat label="Top category" value={insights.top_category || 'None'} />
-            </View>
-            <View style={styles.panel}>
-              <Text style={styles.cardTitle}>By category</Text>
-              <BarList rows={insights.category_totals.map(row => ({ label: row.category, total: row.total }))} format={money} emptyLabel="No categories yet." />
-            </View>
-            <View style={styles.panel}>
-              <Text style={styles.cardTitle}>By group</Text>
-              <BarList rows={(insights.group_totals || []).map(row => ({ label: row.name, total: row.total }))} format={money} emptyLabel="No group spending yet." />
-            </View>
-            {insights.monthly_totals?.length ? (
-              <View style={styles.panel}>
-                <Text style={styles.cardTitle}>Monthly trend</Text>
-                <MonthBars rows={insights.monthly_totals} />
-              </View>
-            ) : null}
-            <View style={styles.panel}>
-              <Text style={styles.cardTitle}>Paid by</Text>
-              <BarList rows={insights.payer_totals.map(row => ({ label: row.name, total: row.total }))} format={money} emptyLabel="No payers yet." />
             </View>
           </>
         ) : <Text style={styles.rowMeta}>Add an expense to see spending insights.</Text>}
@@ -380,34 +260,14 @@ export function HomeScreen({ navigation }: Props) {
   );
 }
 
-const CATEGORY_ICONS: Record<string, IconName> = {
-  Groceries: 'cart-outline',
-  Dining: 'restaurant-outline',
-  Rent: 'home-outline',
-  Utilities: 'wifi-outline',
-  Transport: 'car-outline',
-  Travel: 'airplane-outline',
-  Entertainment: 'film-outline',
-  Shopping: 'pricetags-outline',
-  Health: 'medkit-outline'
-};
-
-function categoryIcon(category: string): IconName {
-  return CATEGORY_ICONS[category] || 'receipt-outline';
-}
-
-function initials(name: string) {
-  return name.split(' ').filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || '?';
-}
-
 function greeting() {
   const hour = new Date().getHours();
   return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-function Action({ icon, label, onPress, disabled, filled }: { icon: IconName; label: string; onPress: () => void; disabled?: boolean; filled?: boolean }) {
+function Action({ icon, label, onPress, filled }: { icon: IconName; label: string; onPress: () => void; filled?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.action, filled && styles.actionFilled, pressed && styles.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.action, filled && styles.actionFilled, pressed && styles.pressed]}>
       <Icon name={icon} size={18} color={filled ? colors.onHighlight : colors.ink} />
       <Text style={[styles.actionLabel, filled && styles.actionLabelFilled]}>{label}</Text>
     </Pressable>
@@ -542,50 +402,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     textDecorationLine: 'underline'
   },
-  people: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md
-  },
-  person: {
-    width: 64,
-    alignItems: 'center',
-    gap: spacing.xs
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 9999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.ink
-  },
-  avatarOwe: {
-    borderColor: colors.highlight,
-    backgroundColor: colors.highlight
-  },
-  addAvatar: {
-    borderStyle: 'dashed'
-  },
-  avatarText: {
-    ...typography.h3,
-    fontFamily: fonts.bold,
-    color: colors.ink
-  },
-  avatarOweText: {
-    color: colors.onHighlight
-  },
-  personName: {
-    ...typography.caption,
-    color: colors.ink
-  },
-  personAmount: {
-    fontFamily: fonts.mono,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.ink
-  },
   line: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -637,10 +453,6 @@ const styles = StyleSheet.create({
   },
   statValue: {
     ...typography.h2,
-    color: colors.ink
-  },
-  cardTitle: {
-    ...typography.h3,
     color: colors.ink
   }
 });
