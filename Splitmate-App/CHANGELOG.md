@@ -12,7 +12,7 @@ All notable changes to the mobile app. The format follows [Keep a Changelog](htt
 - A short message now confirms actions that used to finish silently: invites (saying whether by email or text), editing an expense, adding a task, adding/saving/ticking notes, ticking/deleting tasks, clearing expenses, payment and request answers, revoking an invite and resetting the default split.
 
 ### Changed
-- Home rearranged: the shortcuts are now Groups, Split a bill, Settle up and Quick split (Scan receipt left Home; scanning stays in the Add expense form). Recent activity is gone from Home. Spending insights on Home keeps the four totals with a "View all" link beside the heading, which opens a new Spending insights page with By category, By group, Paid by and Monthly trend.
+- Home rearranged: the People circles are gone (group balances stay in Groups). The shortcuts are now Groups, Split a bill, Settle up and Quick split (Scan receipt left Home; scanning stays in the Add expense form). Recent activity is gone from Home. Spending insights on Home keeps the four totals with a "View all" link beside the heading, which opens a new Spending insights page with By category, By group, Paid by and Monthly trend.
 - Expenses you didn't pay and aren't part of no longer show anywhere in the app.
 
 ## [0.1.0] - 2026-11-11

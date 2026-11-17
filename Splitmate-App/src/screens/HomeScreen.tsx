@@ -155,7 +155,6 @@ export function HomeScreen({ navigation }: Props) {
   const insights = dashboard.spending_insights;
   const net = dashboard.total_owed_to_user - dashboard.total_user_owes;
   const firstName = (user?.name || '').split(' ')[0] || 'there';
-  const owing = people.filter(person => person.net !== 0).slice(0, 6);
   // My balance in each group, from the per-person balances (positive: they owe me).
   const groupNet = new Map<number, number>();
   people.forEach(person => person.groups.forEach(item => groupNet.set(item.group_id, (groupNet.get(item.group_id) ?? 0) + item.net)));
@@ -198,25 +197,6 @@ export function HomeScreen({ navigation }: Props) {
           <Icon name="chevron-forward" size={16} color={colors.muted} />
         </Pressable>
       ) : null}
-
-      <View style={styles.section}>
-        <SectionTitle title="People" />
-        <View style={styles.people}>
-          {owing.map(person => (
-            <Pressable key={person.user_id} accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate('SettleUp', person.groups.length === 1 ? { groupId: person.groups[0].group_id, groupName: person.groups[0].group_name } : undefined)}>
-              <View style={[styles.avatar, person.net < 0 && styles.avatarOwe]}>
-                <Text style={[styles.avatarText, person.net < 0 && styles.avatarOweText]}>{initials(person.name)}</Text>
-              </View>
-              <Text style={styles.personName} numberOfLines={1}>{person.name.split(' ')[0]}</Text>
-              <Text style={styles.personAmount} numberOfLines={1}>{signed(person.net)}</Text>
-            </Pressable>
-          ))}
-          <Pressable accessibilityRole="button" style={styles.person} onPress={() => navigation.navigate(groups.length ? 'Groups' : 'CreateGroup')}>
-            <View style={[styles.avatar, styles.addAvatar]}><Icon name="add" size={20} color={colors.ink} /></View>
-            <Text style={styles.personName}>{groups.length ? 'Invite' : 'New group'}</Text>
-          </Pressable>
-        </View>
-      </View>
 
       <View style={styles.section}>
         <SectionTitle title="Groups" action={groups.length ? 'See all' : 'New group'} onAction={() => navigation.navigate(groups.length ? 'Groups' : 'CreateGroup')} />
@@ -278,10 +258,6 @@ export function HomeScreen({ navigation }: Props) {
       </View>
     </Screen>
   );
-}
-
-function initials(name: string) {
-  return name.split(' ').filter(Boolean).slice(0, 2).map(part => part[0].toUpperCase()).join('') || '?';
 }
 
 function greeting() {
@@ -425,50 +401,6 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.ink,
     textDecorationLine: 'underline'
-  },
-  people: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md
-  },
-  person: {
-    width: 64,
-    alignItems: 'center',
-    gap: spacing.xs
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 9999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.ink
-  },
-  avatarOwe: {
-    borderColor: colors.highlight,
-    backgroundColor: colors.highlight
-  },
-  addAvatar: {
-    borderStyle: 'dashed'
-  },
-  avatarText: {
-    ...typography.h3,
-    fontFamily: fonts.bold,
-    color: colors.ink
-  },
-  avatarOweText: {
-    color: colors.onHighlight
-  },
-  personName: {
-    ...typography.caption,
-    color: colors.ink
-  },
-  personAmount: {
-    fontFamily: fonts.mono,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.ink
   },
   line: {
     flexDirection: 'row',
