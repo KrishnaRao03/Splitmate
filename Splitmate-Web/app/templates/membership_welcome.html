@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to Pro - Splitmate{% endblock %}
+
+{% block content %}
+{% set is_pro = membership.membership_plan == 'pro' %}
+{% if not is_pro %}<meta http-equiv="refresh" content="4">{% endif %}
+<section class="confirm-page">
+    <div class="confirm-card card">
+        <div class="confirm-icon {{ 'is-done' if is_pro else 'is-waiting' }}" aria-hidden="true">
+            {% if is_pro %}
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+            {% else %}
+            <span class="confirm-spinner"></span>
+            {% endif %}
+        </div>
+        {% if is_pro %}
+        <h1>Welcome to Splitmate Pro</h1>
+        <p class="text-subtle">
+            Your payment went through and Pro is on. You're billed {{ 'yearly' if membership.membership_interval == 'year' else 'monthly' }}{% if membership.membership_renews_at %}, next on {{ membership.membership_renews_at[:10] }}{% endif %}.
+            A confirmation email is on its way to {{ current_user.email }}.
+        </p>
+        <ul class="confirm-list">
+            <li>Unlimited receipt scans</li>
+            <li>Unlimited grocery price comparisons</li>
+            <li>Cancel any time from Manage subscription</li>
+        </ul>
+        <div class="confirm-actions">
+            <a class="btn btn-primary" href="{{ url_for('main.home') }}">Go to dashboard</a>
+            <a class="btn btn-outline" href="{{ url_for('main.profile') }}#membership-panel">View membership</a>
+        </div>
+        {% else %}
+        <h1>Payment received</h1>
+        <p class="text-subtle">We're switching on Pro for you. This page updates by itself in a few seconds.</p>
+        <div class="confirm-actions">
+            <a class="btn btn-outline" href="{{ url_for('main.home') }}">Go to dashboard</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

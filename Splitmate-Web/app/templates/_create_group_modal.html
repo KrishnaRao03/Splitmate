@@ -1,0 +1,30 @@
+<div id="createGroupModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Create new group</h2>
+            <button class="modal-close" type="button" onclick="closeModal('createGroupModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('main.create_group') }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="form-group">
+                <label for="groupName">Group name</label>
+                <input type="text" id="groupName" name="name" required
+                       placeholder="e.g., Apartment 4B, Trip to Paris">
+            </div>
+            <div class="form-group">
+                <label for="groupCurrency">Currency</label>
+                <select id="groupCurrency" name="currency">
+                    {% for code in available_currencies %}
+                    <option value="{{ code }}" {% if code == currency_code %}selected{% endif %}>{{ code }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-hint">Every expense and balance in this group uses this currency.</small>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline"
+                        onclick="closeModal('createGroupModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create group</button>
+            </div>
+        </form>
+    </div>
+</div>

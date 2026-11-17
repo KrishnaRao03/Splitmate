@@ -8,6 +8,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 .pytest_cache/
+*.log
 
 # Virtual environments
 venv/
@@ -29,4 +30,15 @@ instance/
 Thumbs.db
 
 # User uploaded files
-app/static/uploads/
+Splitmate-Web/app/static/uploads/
+
+# Local-only folders
+Splitmate-App/_backup_sdk57/
+Humber Submissions/
+
+# Local Claude Code settings (agents/ is shared, settings.local.json is per machine)
+**/.claude/settings.local.json
+
+# Generated reports and files set aside during cleanup
+output/
+unwanted/
