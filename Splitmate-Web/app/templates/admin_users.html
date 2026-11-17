@@ -64,7 +64,7 @@
                 </td>
                 <td data-sort-value="{{ user.name|lower }}">
                     <span class="table-primary">{{ user.name }}</span>
-                    <span class="table-secondary">{{ user.email }}</span>
+                    <span class="table-secondary">{{ user.email }}{% if user.is_pro %} · Pro{% endif %}</span>
                 </td>
                 <td data-sort-value="{% if user.is_admin %}0-admin{% elif user.is_suspended %}3-suspended{% elif user.is_email_verified %}1-verified{% else %}2-unverified{% endif %}">
                     {{ user_status(user) }}
@@ -139,6 +139,18 @@
                             <form method="POST" action="{{ url_for('admin.send_user_password_reset', user_id=user.id) }}" class="admin-action-form">
                                 <input type="hidden" name="tab" value="{{ tab_id }}">
                                 <button type="submit" class="btn btn-outline btn-sm">Send password reset</button>
+                            </form>
+
+                            <form method="POST" action="{{ url_for('admin.set_user_pro', user_id=user.id) }}" class="admin-action-form">
+                                <input type="hidden" name="tab" value="{{ tab_id }}">
+                                {% if user.has_stripe_subscription %}
+                                <span class="table-secondary">Pro is paid through Stripe; change it there.</span>
+                                {% elif user.is_pro %}
+                                <button type="submit" class="btn btn-outline btn-sm">Remove Pro</button>
+                                {% else %}
+                                <input type="hidden" name="pro" value="on">
+                                <button type="submit" class="btn btn-primary btn-sm">Give Pro</button>
+                                {% endif %}
                             </form>
 
                             <form method="POST" action="{{ url_for('admin.sign_out_user_everywhere', user_id=user.id) }}" class="admin-action-form">

@@ -160,6 +160,21 @@ class AdminPanelTests(unittest.TestCase):
             self.assertEqual(db.session.get(User, self.member_id).token_version, before + 1)
         self.assertIn('user.sign_out_everywhere', self.audit_actions())
 
+    def test_give_and_remove_pro(self):
+        self.admin_login()
+        self.client.post(f'/admin/users/{self.member_id}/pro', data={'pro': 'on'})
+        with self.app.app_context():
+            member = db.session.get(User, self.member_id)
+            self.assertEqual((member.membership_plan, member.membership_status), ('pro', 'active'))
+            self.assertIsNone(member.membership_renews_at)
+            self.assertEqual(db.session.get(User, self.unused_id).membership_plan, 'free')
+        self.assertIn('user.give_pro', self.audit_actions())
+
+        self.client.post(f'/admin/users/{self.member_id}/pro')
+        with self.app.app_context():
+            self.assertEqual(db.session.get(User, self.member_id).membership_plan, 'free')
+        self.assertIn('user.remove_pro', self.audit_actions())
+
     def test_users_export_is_csv(self):
         self.admin_login()
         response = self.client.get('/admin/users/export.csv')

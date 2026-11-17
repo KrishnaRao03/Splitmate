@@ -11,6 +11,7 @@ from sqlalchemy import func, text
 from app.login_guard import clear_failed_logins, locked_message, minutes_locked, record_failed_login
 from app import db, limiter
 from app.admin_utils import core_activity_user_ids, is_admin_email, is_app_admin, month_sequence, split_user_ids_since, user_last_usage_at
+from app.billing import is_paid_pro
 from app.email_utils import send_password_reset_email
 from app.email_validation import normalize_email
 from app.inactivity_reminders import inactive_reminder_candidates, send_inactivity_reminders
@@ -316,6 +317,8 @@ def user_row(user, now, metrics=None, month_start=None, inactive_cutoff=None,
         'last_inactivity_email_sent_sort': timestamp_value(user.last_inactivity_email_sent_at),
         'is_suspended': getattr(user, 'is_suspended', False),
         'is_email_verified': user.is_email_verified,
+        'is_pro': is_paid_pro(user),
+        'has_stripe_subscription': bool(user.stripe_subscription_id),
         'is_admin': is_app_admin(user),
         'is_deleted': is_deleted_user(user),
         'member_group_count': metrics.get('member_groups', {}).get(user.id, 0),
@@ -714,6 +717,29 @@ def user_has_history(user):
         Task.query.filter((Task.created_by_id == user.id) | (Task.assigned_to_id == user.id)).count(),
         GroupInvite.query.filter((GroupInvite.invited_by_id == user.id) | (GroupInvite.accepted_by_id == user.id)).count(),
     ))
+
+
+@admin_bp.route('/users/<int:user_id>/pro', methods=['POST'])
+@admin_required
+def set_user_pro(user_id):
+    """Give or take away Pro by hand, with no end date. Stripe subscriptions are left to Stripe."""
+    user = db.get_or_404(User, user_id)
+    tab = request.form.get('tab') or 'all'
+    if user.stripe_subscription_id:
+        flash(f'{user.name} pays for Pro through Stripe, so change it there.', 'info')
+        return admin_users_redirect(user.id, tab)
+
+    give = request.form.get('pro') == 'on'
+    before = f'{user.membership_plan}/{user.membership_status}'
+    user.membership_plan = 'pro' if give else 'free'
+    user.membership_status = 'active'
+    user.membership_interval = None
+    user.membership_renews_at = None
+    user.membership_cancel_at_period_end = False
+    audit('user.give_pro' if give else 'user.remove_pro', 'user', user.id, f'{user.email}; was {before}')
+    db.session.commit()
+    flash(f'{user.name} is now {"Pro (no end date)" if give else "on the free plan"}.', 'success')
+    return admin_users_redirect(user.id, tab)
 
 
 @admin_bp.route('/users/<int:user_id>/sign-out', methods=['POST'])
