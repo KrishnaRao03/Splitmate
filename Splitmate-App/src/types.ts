@@ -151,6 +151,9 @@ export type Payment = {
 export type PendingInvite = {
   id: number;
   email: string;
+  /** The email, or the mobile number with most digits hidden. */
+  sent_to?: string;
+  by_phone?: boolean;
   created_at: string | null;
   expires_at: string | null;
   invited_by: string;
@@ -361,6 +364,17 @@ export type MembershipPlan = {
   /** 'month' or 'year' for a Pro plan that can be bought; null for Free. */
   checkout_interval: 'month' | 'year' | null;
   is_current: boolean;
+};
+
+/** Someone you share at least one group with. */
+export type Friend = {
+  id: number;
+  name: string;
+  email: string;
+  shared_groups: string[];
+  /** Only meaningful when the list was fetched for a group. */
+  in_group: boolean;
+  invited: boolean;
 };
 
 export type FriendPreview = {

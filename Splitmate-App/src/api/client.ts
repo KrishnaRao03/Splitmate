@@ -5,6 +5,7 @@ import type {
   Dashboard,
   DefaultSplit,
   Expense,
+  Friend,
   FriendPreview,
   ExpenseSearchResult,
   GroceryComparison,
@@ -232,6 +233,14 @@ export class SplitmateApi {
     });
   }
 
+  /** Writes a Splitmate invite text for a mobile number; the app opens Messages so the user sends it. */
+  textSplitmateInvite(phone: string) {
+    return this.request<{ phone: string; invite_url: string; sms_message: string }>('/invite-splitmate', {
+      method: 'POST',
+      body: JSON.stringify({ phone })
+    });
+  }
+
   dashboard() {
     return this.request<Dashboard>('/dashboard');
   }
@@ -394,6 +403,30 @@ export class SplitmateApi {
     return this.request<{ message: string; email: string; email_sent: boolean; invite_url: string; qr_rows: string[] }>(`/groups/${groupId}/invites`, {
       method: 'POST',
       body: JSON.stringify({ email })
+    });
+  }
+
+  /** People you share a group with; with a group id, also whether each is in that group or invited to it. */
+  friends(groupId?: number) {
+    return this.request<Friend[]>(groupId ? `/friends?group_id=${groupId}` : '/friends');
+  }
+
+  /** Invites a friend from another group to this one, by the email on their account. */
+  inviteFriendToGroup(groupId: number, friendId: number) {
+    return this.request<{ message: string; email: string; email_sent: boolean }>(`/groups/${groupId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ friend_id: friendId })
+    });
+  }
+
+  /** Creates (or reuses) an invite for a mobile number; the reply carries the text to send from the user's phone. */
+  inviteToGroupByPhone(groupId: number, phone: string) {
+    return this.request<{
+      message: string; already_member?: boolean; phone?: string; sent_to?: string; invite_url?: string;
+      sms_message?: string; qr_rows?: string[];
+    }>(`/groups/${groupId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ phone })
     });
   }
 

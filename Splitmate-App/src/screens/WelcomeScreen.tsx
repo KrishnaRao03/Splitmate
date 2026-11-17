@@ -18,7 +18,7 @@ const STEPS: Array<{ icon: IconName; title: string; body: string }> = [
   {
     icon: 'people-outline',
     title: 'Make a group',
-    body: 'Create a group for your home, trip or friends, then invite people by email or QR code.'
+    body: 'Create a group for your home, trip or friends, then invite people by email, text message or QR code.'
   },
   {
     icon: 'receipt-outline',
