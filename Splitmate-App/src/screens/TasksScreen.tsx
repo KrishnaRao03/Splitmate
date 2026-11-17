@@ -173,7 +173,7 @@ export function TasksScreen() {
       ) : filteredTasks.map(task => (
         <Card key={task.id} style={styles.taskCard}>
           <View style={styles.rowBetween}>
-            <Pressable onPress={() => toggleTask(task)} style={styles.taskMain}>
+            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: task.is_completed }} onPress={() => toggleTask(task)} style={styles.taskMain}>
               <Icon name={task.is_completed ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
               <View style={styles.headerText}>
                 <Text style={[styles.title, task.is_completed && styles.completed]}>{task.title}</Text>
@@ -181,7 +181,7 @@ export function TasksScreen() {
               </View>
             </Pressable>
             {task.can_delete ? (
-              <Pressable hitSlop={8} accessibilityLabel={`Delete ${task.title}`} onPress={() => confirmDeleteTask(task)} style={styles.iconButton}>
+              <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel={`Delete ${task.title}`} onPress={() => confirmDeleteTask(task)} style={styles.iconButton}>
                 <Icon name="trash-outline" size={20} color={colors.danger} />
               </Pressable>
             ) : null}

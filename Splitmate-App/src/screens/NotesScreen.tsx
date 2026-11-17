@@ -329,7 +329,7 @@ export function NotesScreen() {
             </>
           ) : (
             <>
-              <Pressable hitSlop={8} onPress={() => {
+              <Pressable hitSlop={8} accessibilityRole="checkbox" accessibilityState={{ checked: note.is_completed }} onPress={() => {
                 setNotes(current => current.map(item => (item.id === note.id ? { ...item, is_completed: !item.is_completed } : item)));
                 runAction(() => api.toggleNote(note.id), 'Could not update note', [note.is_completed ? 'Marked not done' : 'Marked done', note.title]);
               }} style={styles.rowBetween}>
@@ -340,15 +340,15 @@ export function NotesScreen() {
               <Text style={styles.muted}>{note.group_name} · by {note.created_by}</Text>
               <View style={styles.iconActionRow}>
                 {note.can_compare_prices ? (
-                  <Pressable hitSlop={8} accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}>
+                  <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel={`Compare ${note.title} grocery prices`} onPress={() => compareNote(note.id)} style={styles.iconButton}>
                     <Icon name={comparisons[note.id] ? 'close-outline' : 'cart-outline'} size={20} color={colors.primaryDark} />
                   </Pressable>
                 ) : null}
-                <Pressable hitSlop={8} accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}>
+                <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit ${note.title}`} onPress={() => beginEditNote(note)} style={styles.iconButton}>
                   <Icon name="pencil-outline" size={20} color={colors.primaryDark} />
                 </Pressable>
                 {note.can_delete ? (
-                  <Pressable hitSlop={8} accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}>
+                  <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel={`Delete ${note.title}`} onPress={() => confirmDeleteNote(note)} style={styles.iconButton}>
                     <Icon name="trash-outline" size={20} color={colors.danger} />
                   </Pressable>
                 ) : null}
