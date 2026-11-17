@@ -112,5 +112,26 @@ class CsrfTests(WebSecurityTests):
         self.assertNotEqual(response.status_code, 400)
 
 
+
+class DashboardInsightsTests(WebSecurityTests):
+    def test_dashboard_links_to_insights_page_and_drops_recent_activity(self):
+        self.login('admin@example.com')
+        home = self.client.get('/').get_data(as_text=True)
+        self.assertIn('Spending insights', home)
+        self.assertIn('href="/insights"', home)
+        self.assertNotIn('Recent activity', home)
+        self.assertNotIn('Paid by', home)
+
+    def test_insights_page_shows_the_breakdowns(self):
+        self.login('admin@example.com')
+        response = self.client.get('/insights')
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        for heading in ('By category', 'Monthly trend', 'Paid by'):
+            self.assertIn(heading, page)
+
+    def test_insights_page_needs_sign_in(self):
+        self.assertEqual(self.client.get('/insights').status_code, 302)
+
 if __name__ == '__main__':
     unittest.main()
