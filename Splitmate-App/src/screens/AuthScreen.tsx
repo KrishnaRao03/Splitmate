@@ -177,7 +177,7 @@ export function AuthScreen() {
             <CountryPicker
               value={country}
               onChange={setCountry}
-              hint="Sets your currency and which payment apps you can add (e.g. Interac in Canada, UPI in India)."
+              hint="Sets your currency and which payment apps you can add (e.g. UPI in India; PayPal works everywhere)."
             />
           </>
         ) : null}

@@ -56,18 +56,16 @@ class PaymentHandleEncryptionTests(unittest.TestCase):
                 'name': 'Payee',
                 'email': 'payee@example.com',
                 'current_password': 'password123',
-                'interac_email': 'pay@example.com',
                 'paypal_username': 'payee',
                 'upi_id': 'payee@upi',
             },
             headers={'Authorization': f'Bearer {self.token}'},
         )
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
-        # A new Interac email waits (encrypted) for its emailed code before it becomes the real one.
-        self.assertEqual(response.get_json()['user']['pending_interac_email'], 'pay@example.com')
+        # The Interac field is gone from the forms, but Interac emails saved earlier stay encrypted at rest.
         with self.app.app_context():
             user = db.session.get(User, self.user_id)
-            user.interac_email, user.interac_email_verified = user.pending_interac_email, True
+            user.interac_email = user.pending_interac_email = 'pay@example.com'
             db.session.commit()
             pending_raw = db.session.execute(
                 text('SELECT pending_interac_email FROM "user" WHERE id = :id'), {'id': self.user_id}).scalar()

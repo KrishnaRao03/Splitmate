@@ -94,9 +94,12 @@ export function GroupDetailScreen({ navigation, route }: Props) {
     });
   }, [groupName, navigation, openManage]);
 
-  async function runAction(action: () => Promise<unknown>, title: string) {
+  async function runAction(action: () => Promise<unknown>, title: string, done?: [string, string?]) {
     try {
       await action();
+      if (done) {
+        notify(...done);
+      }
       await load();
     } catch (error) {
       notify(title, error instanceof Error ? error.message : 'Try again.');
@@ -142,7 +145,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
   function clearRecentExpenses() {
     confirm('Clear recent expenses?', 'Balances from active expenses will be cleared, but transaction history stays available.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: () => runAction(() => api.clearExpenses(groupId), 'Could not clear expenses') }
+      { text: 'Clear', style: 'destructive', onPress: () => runAction(() => api.clearExpenses(groupId), 'Could not clear expenses', ['Expenses cleared', 'Transaction history still has them.']) }
     ]);
   }
 

@@ -21,6 +21,7 @@ import { formatDate } from '@/utils/dates';
 import { passwordError as describePasswordError } from '@/utils/validation';
 import { notify } from '@/state/UndoToast';
 import { INVITE_POINTS_NOTE, POINTS } from '@/utils/points';
+import { sendTextInvite } from '@/utils/textInvite';
 import type { ProfileQr, RewardsSummary, RootStackParamList } from '@/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
@@ -44,6 +45,7 @@ export function ProfileScreen({ navigation }: Props) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
+  const inviteByText = !inviteEmail.includes('@') && /\d{3}/.test(inviteEmail);
   const [savingDetails, setSavingDetails] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -111,7 +113,7 @@ export function ProfileScreen({ navigation }: Props) {
   const paymentFields = paymentFieldsFor(country);
   const typedInterac = interacEmail.trim().toLowerCase();
   const paymentChanged =
-    (typedInterac !== (auth.user?.interac_email || '').toLowerCase() && typedInterac !== (auth.user?.pending_interac_email || '').toLowerCase())
+    (paymentFields.includes('interac_email') && typedInterac !== (auth.user?.interac_email || '').toLowerCase() && typedInterac !== (auth.user?.pending_interac_email || '').toLowerCase())
     || paypalUsername.trim() !== (auth.user?.paypal_username || '')
     || upiId.trim() !== (auth.user?.upi_id || '');
   const pendingInterac = auth.user?.pending_interac_email || '';
@@ -204,10 +206,18 @@ export function ProfileScreen({ navigation }: Props) {
   async function inviteFriend() {
     setInviting(true);
     try {
+      // Anything without an @ is a mobile number: Messages opens with the invite typed out.
+      if (!inviteEmail.includes('@')) {
+        const text = await api.textSplitmateInvite(inviteEmail.trim());
+        setInviteEmail('');
+        await sendTextInvite(text.phone, text.sms_message);
+        notify('Invite ready to text', `Send the text in Messages to ${text.phone} to finish.`);
+        return;
+      }
       const result = await api.inviteSplitmate(inviteEmail);
       setInviteEmail('');
       // The reply is the same whether or not the address already has an account (so it can't be used to look people up).
-      notify('Invite sent', result.message);
+      notify('Invite sent by email', result.message);
     } catch (error) {
       notify('Could not invite friend', error instanceof Error ? error.message : 'Try again.');
     } finally {
@@ -433,11 +443,19 @@ export function ProfileScreen({ navigation }: Props) {
           </View>
         ) : null}
         <View style={styles.divider} />
-        {sectionRow('invite', 'person-add-outline', 'Invite a friend', `Earn ${POINTS.friendJoins} points when they join`)}
+        {sectionRow('invite', 'person-add-outline', 'Invite a friend', `By email or text · earn ${POINTS.friendJoins} points when they join`)}
         {openSection === 'invite' ? (
           <View style={styles.panel}>
-            <TextField label="Email" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-            <AppButton icon="mail-outline" loading={inviting} onPress={inviteFriend}>Send invite</AppButton>
+            <Text style={styles.help}>Invite by email, or by mobile number to send a text from your phone.</Text>
+            <TextField label="Email or mobile number" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+            <AppButton
+              icon={inviteByText ? 'phone-portrait-outline' : 'mail-outline'}
+              loading={inviting}
+              onPress={inviteFriend}
+              disabled={!inviteEmail.trim()}
+            >
+              {inviteByText ? 'Text invite' : 'Send invite'}
+            </AppButton>
             <Text style={styles.help}>{INVITE_POINTS_NOTE}</Text>
           </View>
         ) : null}

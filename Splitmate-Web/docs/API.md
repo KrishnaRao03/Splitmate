@@ -50,14 +50,14 @@ The JSON API the Expo app (`Splitmate-App`) uses. Source: [`app/routes/mobile_ap
 | POST | `/auth/resend-otp` | `email` | Sends a new code (cooldown `OTP_RESEND_COOLDOWN_SECONDS`). |
 | POST | `/auth/forgot-password` | `email` | Emails a reset link. The response is the same whether or not the account exists. |
 
-`user` object: `id`, `name`, `email`, `is_email_verified`, `reward_points`, `membership_plan`, `membership_status`, `created_at`, `interac_email`, `paypal_username`, `upi_id`.
+`user` object: `id`, `name`, `email`, `is_email_verified`, `reward_points`, `membership_plan`, `membership_status`, `created_at`, `paypal_username`, `upi_id`.
 
 ### Account
 
 | Method | Path | Body | Notes |
 | --- | --- | --- | --- |
 | GET | `/me` | | Current user |
-| PATCH | `/me` | `name`, `email`, `interac_email`, `paypal_username`, `upi_id`, `current_password` | `current_password` is required only when changing `email`. |
+| PATCH | `/me` | `name`, `email`, `paypal_username`, `upi_id`, `current_password` | `current_password` is required only when changing `email`. |
 | POST | `/me/password` | `current_password`, `new_password`, `confirm_password` | Revokes all other tokens. |
 | POST | `/me/logout-all` | | Revokes every token, including this one. |
 | GET | `/me/qr` | | Profile QR code: `{payload, size, rows}` (a boolean matrix to draw). |

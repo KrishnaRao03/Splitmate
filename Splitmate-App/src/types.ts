@@ -151,6 +151,9 @@ export type Payment = {
 export type PendingInvite = {
   id: number;
   email: string;
+  /** The email, or the mobile number with most digits hidden. */
+  sent_to?: string;
+  by_phone?: boolean;
   created_at: string | null;
   expires_at: string | null;
   invited_by: string;
@@ -363,6 +366,17 @@ export type MembershipPlan = {
   is_current: boolean;
 };
 
+/** Someone you share at least one group with. */
+export type Friend = {
+  id: number;
+  name: string;
+  email: string;
+  shared_groups: string[];
+  /** Only meaningful when the list was fetched for a group. */
+  in_group: boolean;
+  invited: boolean;
+};
+
 export type FriendPreview = {
   id: number;
   name: string;
@@ -430,7 +444,7 @@ export type RootStackParamList = {
   AddExpense: {
     groupId: number;
     groupName?: string;
-    /** A receipt photo picked from Home's Scan receipt, scanned as soon as the form opens. */
+    /** A receipt photo picked before the form opens, scanned as soon as it does. */
     scanImage?: { uri: string; name: string; mimeType?: string; file?: File };
     members: GroupMember[];
     currentUserId: number;
@@ -446,6 +460,8 @@ export type RootStackParamList = {
   Profile: undefined;
   GroupSettings: { groupId: number; groupName: string };
   Insights: { groupId: number; groupName: string; members: GroupMember[]; categories: string[] };
+  /** All of your spending breakdowns (by category, group, payer), from Home's "View all". */
+  SpendingInsights: undefined;
   TaskCalendar: { groupId: number; groupName: string };
   Settings: undefined;
   Membership: undefined;

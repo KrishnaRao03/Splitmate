@@ -93,7 +93,8 @@ class RegionTests(unittest.TestCase):
         self.assertEqual(data['default'], 'CA')
         canada = next(country for country in data['countries'] if country['code'] == 'CA')
         self.assertEqual(canada['currency'], 'CAD')
-        self.assertIn('interac_email', canada['payment_fields'])
+        # The Interac e-Transfer email field was removed, so Canada only offers PayPal.
+        self.assertEqual(canada['payment_fields'], ['paypal_username'])
 
     def test_existing_rows_become_canada_and_cad(self):
         user_id, _ = self.make_user(country='US')

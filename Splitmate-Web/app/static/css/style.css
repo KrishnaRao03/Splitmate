@@ -4541,6 +4541,12 @@ input[type="file"]::file-selector-button:hover {
         flex-direction: column;
     }
 
+    /* "View all" stays on the same line as the Spending insights heading. */
+    .spending-insights-card .card-header {
+        align-items: center;
+        flex-direction: row;
+    }
+
     .calendar-grid {
         gap: 3px;
     }

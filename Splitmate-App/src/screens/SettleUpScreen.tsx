@@ -155,6 +155,7 @@ function GroupSettleUp({ groupId }: { groupId: number }) {
           const now = Date.now();
           setClearedAt(now);
           AsyncStorage.setItem(clearedKey, String(now)).catch(() => undefined);
+          notify('Payment history cleared', 'Only on this device. Balances are the same.');
         }
       }
     ]);
@@ -184,7 +185,7 @@ function GroupSettleUp({ groupId }: { groupId: number }) {
           <Text style={styles.muted}>Check it arrived before you confirm.</Text>
           <View style={styles.buttons}>
             <AppButton style={styles.grow} loading={busy === `c-${payment.id}`} onPress={() => run(`c-${payment.id}`, () => api.confirmPayment(payment.id), 'Could not confirm', 'Payment confirmed')}>Got it</AppButton>
-            <AppButton style={styles.grow} variant="outline" onPress={() => run(`d-${payment.id}`, () => api.declinePayment(payment.id), 'Could not decline')}>Not received</AppButton>
+            <AppButton style={styles.grow} variant="outline" onPress={() => run(`d-${payment.id}`, () => api.declinePayment(payment.id), 'Could not decline', `We told ${payment.payer} it hasn't arrived`)}>Not received</AppButton>
           </View>
         </Card>
       ))}
@@ -193,8 +194,8 @@ function GroupSettleUp({ groupId }: { groupId: number }) {
         <Card key={`ask-${item.id}`} style={styles.alert}>
           <Text style={styles.name}>{item.requester} asked you for {money(item.amount)}</Text>
           <View style={styles.buttons}>
-            <AppButton style={styles.grow} variant="outline" onPress={() => run(`ap-${item.id}`, () => api.answerMoneyRequest(item.id, 'approve'), 'Could not approve')}>Share my Interac</AppButton>
-            <AppButton style={styles.grow} variant="ghost" onPress={() => run(`de-${item.id}`, () => api.answerMoneyRequest(item.id, 'decline'), 'Could not decline')}>Decline</AppButton>
+            <AppButton style={styles.grow} variant="outline" onPress={() => run(`ap-${item.id}`, () => api.answerMoneyRequest(item.id, 'approve'), 'Could not approve', `${item.requester} can now see your email`)}>Share my email</AppButton>
+            <AppButton style={styles.grow} variant="ghost" onPress={() => run(`de-${item.id}`, () => api.answerMoneyRequest(item.id, 'decline'), 'Could not decline', 'Request declined')}>Decline</AppButton>
           </View>
         </Card>
       ))}
@@ -269,7 +270,7 @@ function GroupSettleUp({ groupId }: { groupId: number }) {
                       {`Pay with ${method.label}`}
                     </AppButton>
                   ) : null
-                )) : <Text style={styles.muted}>{person.name} hasn't added Interac, PayPal or UPI yet. Pay them however you agreed.</Text>}
+                )) : <Text style={styles.muted}>{person.name} hasn't added PayPal or UPI yet. Pay them however you agreed.</Text>}
                 <Text style={styles.muted}>2. Then tell {person.name}. {SETTLE_POINTS_NOTE}</Text>
                 <TextField label="Amount sent" value={payAmount} onChangeText={setPayAmount} keyboardType="decimal-pad" />
                 <AppButton icon="checkmark-circle-outline" loading={busy === `pay-${person.user_id}`} onPress={() => recordPayment(person)}>I've paid</AppButton>
@@ -293,7 +294,7 @@ function GroupSettleUp({ groupId }: { groupId: number }) {
       <Card style={styles.flush}>
         {history.length ? history.slice(0, shown).map((payment, index) => (
           <PaymentRow key={payment.id} payment={payment} money={money} divider={index > 0}
-            onCancel={payment.can_decline && !payment.can_confirm ? () => run(`x-${payment.id}`, () => api.declinePayment(payment.id), 'Could not cancel payment') : undefined} />
+            onCancel={payment.can_decline && !payment.can_confirm ? () => run(`x-${payment.id}`, () => api.declinePayment(payment.id), 'Could not cancel payment', 'Payment cancelled') : undefined} />
         )) : <Text style={[styles.muted, styles.emptyLine]}>No payments here.</Text>}
       </Card>
       {history.length > shown ? <AppButton variant="ghost" onPress={() => setShown(count => count + HISTORY_PAGE)}>Show more</AppButton> : null}
