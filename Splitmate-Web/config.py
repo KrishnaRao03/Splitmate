@@ -95,6 +95,11 @@ class Config:
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or MAIL_USERNAME
     # Shown in the privacy policy and store listings as the place to ask about your data.
     SUPPORT_EMAIL = os.environ.get('SUPPORT_EMAIL') or MAIL_DEFAULT_SENDER
+    # Purchase inbox: a mailbox people forward bank purchase alerts to, read over IMAP.
+    # Each user gets INBOX_EMAIL with "+their-token" added, e.g. splitmate.inbox+ab12cd34@gmail.com.
+    INBOX_EMAIL = (os.environ.get('INBOX_EMAIL') or '').strip() or None
+    INBOX_IMAP_HOST = os.environ.get('INBOX_IMAP_HOST') or 'imap.gmail.com'
+    INBOX_IMAP_PASSWORD = (os.environ.get('INBOX_IMAP_PASSWORD') or '').replace(' ', '') or None
     # When set, email goes through Brevo's HTTPS API instead of SMTP.
     BREVO_API_KEY = (os.environ.get('BREVO_API_KEY') or '').strip().strip('"').strip("'") or None
     # Admin-only accounts: these addresses open /admin and can't sign in to or sign up for the app.

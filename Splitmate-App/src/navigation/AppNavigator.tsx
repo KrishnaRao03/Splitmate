@@ -20,6 +20,7 @@ import { InvitesScreen } from '@/screens/InvitesScreen';
 import { MembershipScreen } from '@/screens/MembershipScreen';
 import { MembershipWelcomeScreen } from '@/screens/MembershipWelcomeScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
+import { PurchaseInboxScreen } from '@/screens/PurchaseInboxScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { TaskCalendarScreen } from '@/screens/TaskCalendarScreen';
 import { TabNavigator } from '@/navigation/TabNavigator';
@@ -73,6 +74,7 @@ export function AppNavigator() {
           <Stack.Screen name="SplitPicker" component={SplitPickerScreen} options={{ title: 'Split a bill' }} />
           <Stack.Screen name="SettleUp" component={SettleUpScreen} options={({ route }) => ({ title: route.params?.groupName ? `Settle up · ${route.params.groupName}` : 'Settle up' })} />
           <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }} />
+          <Stack.Screen name="PurchaseInbox" component={PurchaseInboxScreen} options={{ title: 'Receipts' }} />
         </>
       )}
     </Stack.Navigator>

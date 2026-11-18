@@ -12,11 +12,13 @@ import type {
   Group,
   GroupActivity,
   GroupDetail,
+  InboxPurchase,
   MyInvite,
   Note,
   PaymentHandles,
   PersonBalance,
   ProfileQr,
+  PurchaseInbox,
   ReceiptScan,
   RewardsSummary,
   SettlePerson,
@@ -313,6 +315,44 @@ export class SplitmateApi {
     }
     // Reading a receipt with the vision model can take well over the default timeout.
     return this.request<ReceiptScan>('/receipts/scan', { method: 'POST', body: form }, 90000);
+  }
+
+  /** Moves an expense to another of your groups; it is split the way that group splits by default. */
+  moveExpense(expenseId: number, groupId: number) {
+    return this.request<Expense>(`/expenses/${expenseId}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ group_id: groupId })
+    });
+  }
+
+  purchaseInbox() {
+    return this.request<PurchaseInbox>('/inbox');
+  }
+
+  setDefaultGroup(groupId: number | null) {
+    return this.request<PurchaseInbox>('/inbox/settings', {
+      method: 'POST',
+      body: JSON.stringify({ default_group_id: groupId })
+    });
+  }
+
+  /** Adds a purchase from bank alert text the user copied. */
+  pastePurchase(text: string) {
+    return this.request<InboxPurchase>('/inbox/paste', {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    });
+  }
+
+  sharePurchase(purchaseId: number, groupId: number) {
+    return this.request<{ purchase: InboxPurchase; expense: Expense; group: { id: number; name: string } }>(`/inbox/${purchaseId}/share`, {
+      method: 'POST',
+      body: JSON.stringify({ group_id: groupId })
+    });
+  }
+
+  markPurchasePersonal(purchaseId: number) {
+    return this.request<InboxPurchase>(`/inbox/${purchaseId}/personal`, { method: 'POST' });
   }
 
   deleteExpense(expenseId: number) {

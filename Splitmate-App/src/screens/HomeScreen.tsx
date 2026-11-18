@@ -198,6 +198,19 @@ export function HomeScreen({ navigation }: Props) {
         </Pressable>
       ) : null}
 
+      {dashboard.inbox_pending_count ? (
+        <Pressable accessibilityRole="button" onPress={() => navigation.navigate('PurchaseInbox')} style={styles.notice}>
+          <Icon name="receipt-outline" size={20} color={colors.ink} />
+          <View style={styles.flex}>
+            <Text style={styles.rowTitle}>
+              {dashboard.inbox_pending_count === 1 ? '1 receipt to share' : `${dashboard.inbox_pending_count} receipts to share`}
+            </Text>
+            <Text style={styles.rowMeta}>Share with a group or keep it personal.</Text>
+          </View>
+          <Icon name="chevron-forward" size={16} color={colors.muted} />
+        </Pressable>
+      ) : null}
+
       <View style={styles.section}>
         <SectionTitle title="Groups" action={groups.length ? 'See all' : 'New group'} onAction={() => navigation.navigate(groups.length ? 'Groups' : 'CreateGroup')} />
         {groups.length ? (

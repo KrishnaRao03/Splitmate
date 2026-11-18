@@ -329,6 +329,19 @@ def ensure_region_schema():
             db.session.execute(text(f'ALTER TABLE "{table}" ADD COLUMN {column} {definition}'))
     db.session.commit()
 
+def ensure_purchase_inbox_schema():
+    """Default group and inbox address per user. The inbox_purchase table itself comes from create_all."""
+    inspector = inspect(db.engine)
+    if not inspector.has_table('user'):
+        return
+    columns = {c['name'] for c in inspector.get_columns('user')}
+    if 'default_group_id' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN default_group_id INTEGER'))
+    if 'inbox_token' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN inbox_token VARCHAR(32)'))
+        db.session.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS ix_user_inbox_token ON "user" (inbox_token)'))
+    db.session.commit()
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -448,8 +461,9 @@ def create_app(config_class=Config):
         if scheduler_started['value']:
             return
 
-        from app.scheduler import start_inactivity_scheduler
+        from app.scheduler import start_inactivity_scheduler, start_inbox_poller
         start_inactivity_scheduler(app)
+        start_inbox_poller(app)
         scheduler_started['value'] = True
 
     @app.before_request
@@ -512,6 +526,7 @@ def create_app(config_class=Config):
         ensure_group_invite_schema()
         ensure_expense_history_visibility_schema()
         ensure_region_schema()
+        ensure_purchase_inbox_schema()
         # Fails fast on a malformed FIELD_ENCRYPTION_KEY, then encrypts any plain-text payment handles.
         field_encryption.fernet()
         field_encryption.encrypt_existing_payment_handles(db)

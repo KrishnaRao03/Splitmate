@@ -22,6 +22,26 @@ export type User = PaymentHandles & {
   /** A new Interac email waiting for its code; the old one stays in use until then. */
   pending_interac_email?: string;
   created_at?: string | null;
+  /** Card purchases from the inbox are shared with this group unless the user picks another. */
+  default_group_id?: number | null;
+};
+
+/** A card purchase from a forwarded or pasted bank alert, waiting to be shared or marked personal. */
+export type InboxPurchase = {
+  id: number;
+  amount: number;
+  merchant: string;
+  purchased_at: string | null;
+  source: 'email' | 'paste';
+  status: 'pending' | 'shared' | 'personal';
+};
+
+export type PurchaseInbox = {
+  /** The user's own forwarding address; null when the server has no inbox mailbox set up. */
+  address: string | null;
+  default_group_id: number | null;
+  groups: { id: number; name: string; currency: string }[];
+  purchases: InboxPurchase[];
 };
 
 export type GroupMember = {
@@ -225,6 +245,8 @@ export type GroupActivity = {
 
 export type Dashboard = {
   groups: Group[];
+  /** Card purchases waiting in the inbox to be shared or marked personal. */
+  inbox_pending_count?: number;
   monthly_spending: Array<{ group_id: number; group: string; total: number }>;
   recent_expenses: Array<Expense & { group_id: number; group_name: string }>;
   total_owed_to_user: number;
@@ -471,6 +493,7 @@ export type RootStackParamList = {
   SplitPicker: undefined;
   SettleUp: { groupId?: number; groupName?: string } | undefined;
   Invites: undefined;
+  PurchaseInbox: undefined;
 };
 
 export type UnsettledItem = {

@@ -175,6 +175,12 @@ export function SettingsScreen({ navigation }: Props) {
       </Card>
 
       <Card style={styles.section}>
+        <Text style={styles.title}>Receipts</Text>
+        <Text style={styles.help}>Pick your default group and forward receipt emails, so purchases arrive ready to share.</Text>
+        <AppButton icon="receipt-outline" variant="outline" onPress={() => navigation.navigate('PurchaseInbox')}>Open receipts</AppButton>
+      </Card>
+
+      <Card style={styles.section}>
         <Text style={styles.title}>Help</Text>
         <Text style={styles.help}>Quick answers about invites, splits, tasks, notes, points and more.</Text>
         <AppButton icon="chatbubbles-outline" variant="outline" onPress={() => navigation.navigate('HelpChat')}>Open help chat</AppButton>

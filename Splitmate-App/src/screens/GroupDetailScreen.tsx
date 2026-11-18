@@ -18,7 +18,7 @@ import { typography } from '@/theme/typography';
 import { formatDate } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
 import { confirm, notify, useUndo } from '@/state/UndoToast';
-import type { Expense, ExpenseSearchResult, GroupDetail, RootStackParamList } from '@/types';
+import type { Expense, ExpenseSearchResult, Group, GroupDetail, RootStackParamList } from '@/types';
 import { HistoryFilters } from '@/components/HistoryFilters';
 import { HISTORY_PAGE, HistoryPeriod, HistorySort, filterHistory } from '@/utils/history';
 
@@ -136,6 +136,34 @@ export function GroupDetailScreen({ navigation, route }: Props) {
       currency: detail.group.currency,
       expense
     });
+  }
+
+  async function moveExpense(expense: Expense) {
+    if (expense.splits.some(split => split.is_settled && split.user_id !== expense.paid_by_id)) {
+      notify('Cannot move this expense', 'Part of it has already been settled.');
+      return;
+    }
+    let groups: Group[];
+    try {
+      groups = (await api.groups()).filter(group => group.id !== groupId);
+    } catch (error) {
+      notify('Could not load your groups', error instanceof Error ? error.message : 'Try again.');
+      return;
+    }
+    if (!groups.length) {
+      notify('No other groups', 'Join or create another group to move expenses there.');
+      return;
+    }
+    confirm(`Move ${expense.description} to`, 'It is split the way that group splits by default.', [
+      ...groups.map(group => ({
+        text: group.name,
+        onPress: () => runAction(async () => {
+          await api.moveExpense(expense.id, group.id);
+          notify('Expense moved', `${expense.description} is now in ${group.name}.`);
+        }, 'Could not move expense')
+      })),
+      { text: 'Cancel', style: 'cancel' as const }
+    ]);
   }
 
   function confirmDeleteExpense(expense: Expense) {
@@ -340,6 +368,7 @@ export function GroupDetailScreen({ navigation, route }: Props) {
                     {expense.paid_by_id === detail.current_user_id || isAdmin ? (
                       <>
                         <Pressable hitSlop={8} accessibilityLabel={`Edit ${expense.description}`} onPress={() => editExpense(expense)} style={styles.iconButton}><Icon name="pencil-outline" size={20} color={colors.primaryDark} /></Pressable>
+                        <Pressable hitSlop={8} accessibilityLabel={`Move ${expense.description} to another group`} onPress={() => moveExpense(expense)} style={styles.iconButton}><Icon name="swap-horizontal-outline" size={20} color={colors.primaryDark} /></Pressable>
                         <Pressable hitSlop={8} accessibilityLabel={`Delete ${expense.description}`} onPress={() => confirmDeleteExpense(expense)} style={styles.iconButton}><Icon name="trash-outline" size={20} color={colors.danger} /></Pressable>
                       </>
                     ) : null}
