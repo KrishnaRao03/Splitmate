@@ -45,8 +45,8 @@ CURRENCY_SYMBOLS = {
 }
 
 # Which payment-detail fields a person in each country can fill in. PayPal works everywhere.
+# Interac e-Transfer email was removed on purpose (not used); stored values stay in the database, hidden.
 PAYMENT_FIELDS_BY_COUNTRY = {
-    'CA': ('interac_email', 'paypal_username'),
     'IN': ('upi_id', 'paypal_username'),
 }
 DEFAULT_PAYMENT_FIELDS = ('paypal_username',)

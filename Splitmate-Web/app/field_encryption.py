@@ -1,9 +1,12 @@
-"""Encryption for sensitive database columns (payment handles).
+"""Encryption for sensitive database columns (payment handles and phone numbers).
 
 Values are stored as ``enc:<Fernet token>`` using FIELD_ENCRYPTION_KEY. Rows written
 before encryption was added are plain text; they are still readable and get
 encrypted at start-up by encrypt_existing_payment_handles().
 """
+import hashlib
+import hmac
+
 from cryptography.fernet import Fernet, InvalidToken
 from flask import current_app
 from sqlalchemy import String, inspect, text
@@ -85,4 +88,40 @@ def encrypt_existing_payment_handles(db):
             assignments = ', '.join(f'{name} = :{name}' for name in updates)
             db.session.execute(text(f'UPDATE "user" SET {assignments} WHERE id = :id'), {**updates, 'id': row[0]})
 
+    db.session.commit()
+
+
+def phone_lookup_hash(phone):
+    """Keyed hash of a normalised phone number, so an encrypted number can still be looked up and kept unique."""
+    if not phone:
+        return None
+    key = hashlib.sha256(b'splitmate-phone-lookup:' + current_app.config['FIELD_ENCRYPTION_KEY'].encode()).digest()
+    return hmac.new(key, phone.encode('utf-8'), hashlib.sha256).hexdigest()
+
+
+def encrypt_existing_phones(db):
+    """Widen the phone column (PostgreSQL), encrypt plain numbers and fill their lookup hash. Safe every start-up."""
+    inspector = inspect(db.engine)
+    if not inspector.has_table('user'):
+        return
+    columns = {column['name']: column for column in inspector.get_columns('user')}
+    if 'phone' not in columns or 'phone_hash' not in columns:
+        return
+    if db.engine.dialect.name == 'postgresql':
+        length = getattr(columns['phone']['type'], 'length', None)
+        if length is not None and length < ENCRYPTED_COLUMN_LENGTH:
+            db.session.execute(text(f'ALTER TABLE "user" ALTER COLUMN phone TYPE VARCHAR({ENCRYPTED_COLUMN_LENGTH})'))
+    rows = db.session.execute(text('SELECT id, phone, phone_hash FROM "user" WHERE phone IS NOT NULL')).all()
+    for user_id, phone, phone_hash in rows:
+        plain = decrypt_value(phone)
+        if not plain:
+            continue
+        updates = {}
+        if not is_encrypted(phone):
+            updates['phone'] = encrypt_value(phone)
+        if not phone_hash:
+            updates['phone_hash'] = phone_lookup_hash(plain)
+        if updates:
+            assignments = ', '.join(f'{name} = :{name}' for name in updates)
+            db.session.execute(text(f'UPDATE "user" SET {assignments} WHERE id = :id'), {**updates, 'id': user_id})
     db.session.commit()

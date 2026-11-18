@@ -140,13 +140,13 @@ export type Note = {
 
 /** Response of POST /receipts/scan: the line items read off a receipt photo. */
 /** This month's use of a feature with a free limit; limit and remaining are null on Pro (unlimited). */
-export type FeatureUsage = { used: number; limit: number | null; remaining: number | null };
+export type FeatureUsage = { used: number; limit: number | null; bonus?: number; remaining: number | null };
 
 export type ReceiptScan = {
   usage?: FeatureUsage;
   merchant: string;
   currency: string;
-  items: Array<{ name: string; quantity: number; price: number }>;
+  items: Array<{ name: string; quantity: number; price: number; taxed?: boolean }>;
   tax: number;
   total: number;
 };
@@ -171,6 +171,9 @@ export type Payment = {
 export type PendingInvite = {
   id: number;
   email: string;
+  /** The email, or the mobile number with most digits hidden. */
+  sent_to?: string;
+  by_phone?: boolean;
   created_at: string | null;
   expires_at: string | null;
   invited_by: string;
@@ -354,11 +357,16 @@ export type AuthResponse = {
   currency_code: string;
 };
 
-export type RewardTier = {
+/** Something points can buy. Points have no cash value. */
+export type RewardOption = {
+  id: 'scans_5' | 'compares_5' | 'pro_week' | 'pro_month';
   points: number;
   label: string;
   description: string;
+  affordable: boolean;
 };
+
+export type WayToEarn = { points: number; label: string; limit: string };
 
 export type RewardTransactionRow = {
   id: number;
@@ -378,6 +386,17 @@ export type MembershipPlan = {
   /** 'month' or 'year' for a Pro plan that can be bought; null for Free. */
   checkout_interval: 'month' | 'year' | null;
   is_current: boolean;
+};
+
+/** Someone you share at least one group with. */
+export type Friend = {
+  id: number;
+  name: string;
+  email: string;
+  shared_groups: string[];
+  /** Only meaningful when the list was fetched for a group. */
+  in_group: boolean;
+  invited: boolean;
 };
 
 export type FriendPreview = {
@@ -405,14 +424,12 @@ export type MyInvite = {
 
 export type RewardsSummary = {
   points: number;
-  progress: {
-    balance: number;
-    target: number;
-    remaining: number;
-    percent: number;
-    tier: RewardTier;
-    redeemable: boolean;
-  };
+  rewards: RewardOption[];
+  ways_to_earn: WayToEarn[];
+  /** Pro bought with points runs until this time; null when there is none. */
+  points_pro_until: string | null;
+  bonus_receipt_scans: number;
+  bonus_grocery_compares: number;
   membership_plan: string;
   membership_status: string;
   membership_interval?: string;
@@ -421,7 +438,6 @@ export type RewardsSummary = {
   /** False until the Stripe keys are added on the server. */
   billing_enabled?: boolean;
   usage?: { receipt_scan: FeatureUsage; grocery_compare: FeatureUsage };
-  tiers?: RewardTier[];
   recent_transactions?: RewardTransactionRow[];
   membership_plans?: MembershipPlan[];
   earning_paused?: boolean;
@@ -450,7 +466,7 @@ export type RootStackParamList = {
   AddExpense: {
     groupId: number;
     groupName?: string;
-    /** A receipt photo picked from Home's Scan receipt, scanned as soon as the form opens. */
+    /** A receipt photo picked before the form opens, scanned as soon as it does. */
     scanImage?: { uri: string; name: string; mimeType?: string; file?: File };
     members: GroupMember[];
     currentUserId: number;
@@ -466,11 +482,38 @@ export type RootStackParamList = {
   Profile: undefined;
   GroupSettings: { groupId: number; groupName: string };
   Insights: { groupId: number; groupName: string; members: GroupMember[]; categories: string[] };
+  /** All of your spending breakdowns (by category, group, payer), from Home's "View all". */
+  SpendingInsights: undefined;
   TaskCalendar: { groupId: number; groupName: string };
   Settings: undefined;
   Membership: undefined;
   MembershipWelcome: undefined;
   HelpChat: undefined;
+  Welcome: { userId?: number } | undefined;
+  SplitPicker: undefined;
+  SettleUp: { groupId?: number; groupName?: string } | undefined;
   Invites: undefined;
   PurchaseInbox: undefined;
+};
+
+export type UnsettledItem = {
+  split_id: number;
+  expense_id: number;
+  description: string;
+  date: string | null;
+  total: number;
+  share: number;
+  /** How many people the bill was split between. */
+  people: number;
+};
+
+export type SettlePerson = {
+  user_id: number;
+  name: string;
+  they_owe: number;
+  you_owe: number;
+  net: number;
+  last_settled_at: string | null;
+  they_owe_items: UnsettledItem[];
+  you_owe_items: UnsettledItem[];
 };

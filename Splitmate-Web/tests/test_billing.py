@@ -158,7 +158,7 @@ class BillingTests(unittest.TestCase):
         self.app.config['FREE_GROCERY_COMPARES_PER_MONTH'] = 2
         with patch('app.routes.mobile_api.compare_grocery_list', return_value={'stores': []}):
             first = self.client.post('/api/mobile/grocery/compare', headers=self.headers, json={'items': 'milk'})
-            self.assertEqual(first.get_json()['usage'], {'used': 1, 'limit': 2, 'remaining': 1})
+            self.assertEqual(first.get_json()['usage'], {'used': 1, 'limit': 2, 'bonus': 0, 'remaining': 1})
             self.client.post('/api/mobile/grocery/compare', headers=self.headers, json={'items': 'milk'})
             blocked = self.client.post('/api/mobile/grocery/compare', headers=self.headers, json={'items': 'milk'})
             self.assertEqual(blocked.status_code, 402)

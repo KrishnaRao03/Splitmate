@@ -25,6 +25,7 @@ import { colors, radius, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { confirm, notify } from '@/state/UndoToast';
 import type { RootStackParamList } from '@/types';
+import { openWebsitePage } from '@/utils/webLinks';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
@@ -69,6 +70,29 @@ export function SettingsScreen({ navigation }: Props) {
     notify('Restart Splitmate', 'Close and reopen Splitmate to apply your new theme everywhere.');
   }
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  function askToDelete() {
+    confirm('Delete your account?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: deleteAccount }
+    ]);
+  }
+
+  async function deleteAccount() {
+    setDeleting(true);
+    try {
+      await api.deleteAccount(deletePassword);
+      notify('Account deleted', 'Your Splitmate account and personal details were removed.');
+      await auth.signOut();
+    } catch (error) {
+      notify('Could not delete account', error instanceof Error ? error.message : 'Try again.');
+      setDeleting(false);
+    }
+  }
+
   async function exportMyData() {
     setExporting(true);
     try {
@@ -83,12 +107,12 @@ export function SettingsScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      <Card style={styles.section}>
+      {__DEV__ ? <Card style={styles.section}>
         <Text style={styles.title}>Connection</Text>
         <TextField label="Mobile API URL" value={apiUrl} onChangeText={setApiUrl} autoCapitalize="none" />
         <AppButton icon="save-outline" onPress={() => auth.setApiBaseUrl(apiUrl)}>Save API URL</AppButton>
         <Text style={styles.help}>Example: http://192.168.1.20:5000/api/mobile</Text>
-      </Card>
+      </Card> : null}
 
       <Card style={styles.section}>
         <Text style={styles.title}>Theme</Text>
@@ -160,6 +184,13 @@ export function SettingsScreen({ navigation }: Props) {
         <Text style={styles.title}>Help</Text>
         <Text style={styles.help}>Quick answers about invites, splits, tasks, notes, points and more.</Text>
         <AppButton icon="chatbubbles-outline" variant="outline" onPress={() => navigation.navigate('HelpChat')}>Open help chat</AppButton>
+        <AppButton icon="compass-outline" variant="outline" onPress={() => navigation.navigate('Welcome', { userId: auth.user?.id })}>Show the quick tour again</AppButton>
+      </Card>
+
+      <Card style={styles.section}>
+        <Text style={styles.title}>Privacy and terms</Text>
+        <AppButton icon="shield-checkmark-outline" variant="outline" onPress={() => openWebsitePage('/privacy')}>Privacy policy</AppButton>
+        <AppButton icon="document-text-outline" variant="outline" onPress={() => openWebsitePage('/terms')}>Terms of use</AppButton>
       </Card>
 
       <Card style={styles.section}>
@@ -188,7 +219,24 @@ export function SettingsScreen({ navigation }: Props) {
         </AppButton>
       </Card>
 
-      <Text style={styles.version}>Splitmate {Constants.expoConfig?.version || ''} (Launch Prep)</Text>
+      <Card style={styles.section}>
+        <Text style={styles.title}>Delete account</Text>
+        <Text style={styles.help}>
+          This removes your account and personal details for good. Expenses you shared stay in your groups as "Deleted user" so balances stay right.
+        </Text>
+        {deleteOpen ? (
+          <>
+            <TextField label="Your password" value={deletePassword} onChangeText={setDeletePassword} secureTextEntry />
+            <AppButton icon="trash-outline" variant="danger" loading={deleting} disabled={!deletePassword} onPress={askToDelete}>
+              Delete my account
+            </AppButton>
+          </>
+        ) : (
+          <AppButton icon="trash-outline" variant="outline" onPress={() => setDeleteOpen(true)}>Delete account</AppButton>
+        )}
+      </Card>
+
+      <Text style={styles.version}>Splitmate {Constants.expoConfig?.version || ''}</Text>
     </Screen>
   );
 }

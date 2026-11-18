@@ -5,6 +5,7 @@ import type {
   Dashboard,
   DefaultSplit,
   Expense,
+  Friend,
   FriendPreview,
   ExpenseSearchResult,
   GroceryComparison,
@@ -20,6 +21,7 @@ import type {
   PurchaseInbox,
   ReceiptScan,
   RewardsSummary,
+  SettlePerson,
   Task
 } from '@/types';
 
@@ -233,6 +235,14 @@ export class SplitmateApi {
     });
   }
 
+  /** Writes a Splitmate invite text for a mobile number; the app opens Messages so the user sends it. */
+  textSplitmateInvite(phone: string) {
+    return this.request<{ phone: string; invite_url: string; sms_message: string }>('/invite-splitmate', {
+      method: 'POST',
+      body: JSON.stringify({ phone })
+    });
+  }
+
   dashboard() {
     return this.request<Dashboard>('/dashboard');
   }
@@ -274,7 +284,8 @@ export class SplitmateApi {
           type: receipt.mimeType || 'application/octet-stream'
         } as unknown as Blob);
       }
-      return this.request<T>(path, { method, body: form });
+      // Uploading a photo over a slow connection takes longer than a normal request.
+      return this.request<T>(path, { method, body: form }, 60000);
     }
     return this.request<T>(path, {
       method,
@@ -435,6 +446,30 @@ export class SplitmateApi {
     });
   }
 
+  /** People you share a group with; with a group id, also whether each is in that group or invited to it. */
+  friends(groupId?: number) {
+    return this.request<Friend[]>(groupId ? `/friends?group_id=${groupId}` : '/friends');
+  }
+
+  /** Invites a friend from another group to this one, by the email on their account. */
+  inviteFriendToGroup(groupId: number, friendId: number) {
+    return this.request<{ message: string; email: string; email_sent: boolean }>(`/groups/${groupId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ friend_id: friendId })
+    });
+  }
+
+  /** Creates (or reuses) an invite for a mobile number; the reply carries the text to send from the user's phone. */
+  inviteToGroupByPhone(groupId: number, phone: string) {
+    return this.request<{
+      message: string; already_member?: boolean; phone?: string; sent_to?: string; invite_url?: string;
+      sms_message?: string; qr_rows?: string[];
+    }>(`/groups/${groupId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ phone })
+    });
+  }
+
   renameGroup(groupId: number, name: string) {
     return this.request<Group>(`/groups/${groupId}`, {
       method: 'PATCH',
@@ -574,6 +609,31 @@ export class SplitmateApi {
 
   rewards() {
     return this.request<RewardsSummary>('/rewards');
+  }
+
+  settleSummary(groupId: number) {
+    return this.request<{ group_id: number; people: SettlePerson[] }>(`/groups/${groupId}/settle-summary`);
+  }
+
+  settlePerson(groupId: number, userId: number) {
+    return this.request<{ settled: boolean; amount: number }>(`/groups/${groupId}/settle-person`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId })
+    });
+  }
+
+  deleteAccount(password: string) {
+    return this.request<{ deleted: boolean; message: string }>('/me/delete', {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    });
+  }
+
+  redeemReward(rewardId: string) {
+    return this.request<RewardsSummary & { message: string }>('/rewards/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ reward_id: rewardId })
+    });
   }
 
   /** Stripe's hosted payment page for Splitmate Pro. `returnUrl` is where Stripe sends the person back. */

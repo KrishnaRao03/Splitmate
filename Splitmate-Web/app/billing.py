@@ -32,6 +32,8 @@ FEATURE_LIMITS = {
     'receipt_scan': ('FREE_RECEIPT_SCANS_PER_MONTH', 'receipt scans'),
     'grocery_compare': ('FREE_GROCERY_COMPARES_PER_MONTH', 'grocery price comparisons'),
 }
+# Extra uses bought with points, spent only after the month's free allowance is gone.
+BONUS_FIELDS = {'receipt_scan': 'bonus_receipt_scans', 'grocery_compare': 'bonus_grocery_compares'}
 
 
 def _month():
@@ -39,13 +41,14 @@ def _month():
 
 
 def feature_usage(user, feature):
-    """{'used', 'limit', 'remaining'} for this month; limit and remaining are None for Pro (unlimited)."""
+    """{'used', 'limit', 'bonus', 'remaining'} for this month; limit and remaining are None for Pro (unlimited)."""
     row = FeatureUsage.query.filter_by(user_id=user.id, feature=feature, month=_month()).first()
     used = row.count if row else 0
+    bonus = int(getattr(user, BONUS_FIELDS[feature]) or 0)
     if is_pro(user):
-        return {'used': used, 'limit': None, 'remaining': None}
+        return {'used': used, 'limit': None, 'bonus': bonus, 'remaining': None}
     limit = int(current_app.config[FEATURE_LIMITS[feature][0]])
-    return {'used': used, 'limit': limit, 'remaining': max(limit - used, 0)}
+    return {'used': used, 'limit': limit, 'bonus': bonus, 'remaining': max(limit - used, 0) + bonus}
 
 
 def feature_limit_error(user, feature):
@@ -53,7 +56,7 @@ def feature_limit_error(user, feature):
     usage = feature_usage(user, feature)
     if usage['remaining'] == 0:
         return (f'You have used all {usage["limit"]} free {FEATURE_LIMITS[feature][1]} this month. '
-                'Upgrade to Splitmate Pro for unlimited use, or wait until next month.')
+                'Upgrade to Splitmate Pro, spend points on extra ones, or wait until next month.')
     return None
 
 
@@ -62,6 +65,10 @@ def record_feature_use(user, feature):
     if row is None:
         row = FeatureUsage(user_id=user.id, feature=feature, month=_month(), count=0)
         db.session.add(row)
+    limit = int(current_app.config[FEATURE_LIMITS[feature][0]])
+    bonus = int(getattr(user, BONUS_FIELDS[feature]) or 0)
+    if not is_pro(user) and row.count >= limit and bonus > 0:
+        setattr(user, BONUS_FIELDS[feature], bonus - 1)
     row.count += 1
     db.session.commit()
     return feature_usage(user, feature)
@@ -89,14 +96,19 @@ def price_label(interval):
     return _money(price_cents(interval))
 
 
-def is_pro(user):
+def is_paid_pro(user):
     return user.membership_plan == 'pro' and user.membership_status in PRO_STATUSES
+
+
+def is_pro(user):
+    """Paid Pro, or Pro time bought with points that has not run out."""
+    return is_paid_pro(user) or bool(user.points_pro_until and user.points_pro_until > datetime.utcnow())
 
 
 def membership_plans(user):
     """Free plus one Pro card per billing interval, marked current for the user's own plan."""
     yearly_saving = round(100 - price_cents('year') * 100 / (price_cents('month') * 12))
-    pro = is_pro(user)
+    pro = is_paid_pro(user)
     plans = [{
         'id': 'free', 'name': 'Free', 'price': _money(0), 'interval': 'forever',
         'badge': 'Always free', 'features': FREE_FEATURES + [
@@ -121,6 +133,8 @@ def membership_payload(user):
         'membership_interval': user.membership_interval or '',
         'membership_renews_at': user.membership_renews_at.isoformat() if user.membership_renews_at else None,
         'membership_cancel_at_period_end': bool(user.membership_cancel_at_period_end),
+        'points_pro_until': user.points_pro_until.isoformat()
+        if user.points_pro_until and user.points_pro_until > datetime.utcnow() else None,
         'billing_enabled': billing_enabled(),
         'membership_plans': membership_plans(user),
         'usage': {feature: feature_usage(user, feature) for feature in FEATURE_LIMITS},
@@ -152,7 +166,7 @@ def create_checkout_url(user, interval, success_url, cancel_url):
         return None, 'Payments are not set up yet. Try again later.'
     if interval not in INTERVALS:
         return None, 'Choose monthly or yearly.'
-    if is_pro(user):
+    if is_paid_pro(user):
         return None, 'You already have Splitmate Pro. Use Manage subscription to change it.'
     session = stripe.checkout.Session.create(
         api_key=current_app.config['STRIPE_SECRET_KEY'],
@@ -226,7 +240,7 @@ def handle_webhook(payload, signature):
     obj = (event.get('data') or {}).get('object') or {}
     kind = event.get('type')
 
-    newly_pro = None
+    newly_pro = referral_award = None
     if kind == 'checkout.session.completed' and obj.get('mode') == 'subscription':
         user = _user_for(obj)
         if user and obj.get('customer'):
@@ -235,13 +249,18 @@ def handle_webhook(payload, signature):
         user = _user_for(obj)
         # An older subscription ending must not switch off a newer, still-running one.
         stale = (user is not None and user.stripe_subscription_id not in (None, obj.get('id'))
-                 and is_pro(user) and obj.get('status') not in PRO_STATUSES)
+                 and is_paid_pro(user) and obj.get('status') not in PRO_STATUSES)
         if user and not stale:
-            was_pro = is_pro(user)
+            was_pro = is_paid_pro(user)
             _apply_subscription(user, obj)
-            if is_pro(user) and not was_pro:
+            if is_paid_pro(user) and not was_pro:
                 newly_pro = user
+                from app.rewards import award_referral_pro
+                referral_award = award_referral_pro(user)
     db.session.commit()
+    if referral_award:
+        from app.rewards import tell_inviter
+        tell_inviter(referral_award)
     if newly_pro:
         _send_welcome_to_pro(newly_pro)
     return True, 'ok'

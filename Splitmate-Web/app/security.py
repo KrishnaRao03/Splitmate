@@ -3,7 +3,6 @@ import re
 from decimal import Decimal
 from urllib.parse import quote, urlencode, urlparse
 
-from app.email_validation import normalize_email
 
 MIN_PASSWORD_LENGTH = 8
 MAX_NAME_LENGTH = 100
@@ -70,14 +69,11 @@ def csv_safe(value):
 
 
 def clean_payment_handles(data):
-    """Validates the optional Interac email, PayPal.Me username and UPI ID. Returns (values, error)."""
+    """Validates the optional PayPal.Me username and UPI ID. Returns (values, error).
+
+    The Interac e-Transfer email field was removed, so a submitted interac_email is ignored.
+    """
     values = {}
-    if 'interac_email' in data:
-        raw = (data.get('interac_email') or '').strip()
-        email = normalize_email(raw) if raw else ''
-        if raw and not email:
-            return None, 'Enter a valid Interac e-Transfer email.'
-        values['interac_email'] = email or None
     if 'paypal_username' in data:
         raw = (data.get('paypal_username') or '').strip().removeprefix('@')
         raw = re.sub(r'^(https?://)?(www\.)?paypal\.me/', '', raw, flags=re.IGNORECASE).strip('/')

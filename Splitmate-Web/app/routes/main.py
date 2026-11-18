@@ -7,18 +7,25 @@ import qrcode
 from qrcode.image.svg import SvgPathImage
 
 from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, flash, redirect, send_from_directory, url_for
-from flask_login import login_required, current_user, login_user
+from flask_login import login_required, current_user, login_user, logout_user
+from app.account_deletion import delete_own_account, self_delete_error
+from app.admin_utils import ADMIN_EMAIL_TAKEN, is_admin_email
 from itsdangerous import BadSignature, URLSafeSerializer
 from sqlalchemy import func, or_
 from app import db, limiter
 from app.regions import countries_payload, normalize_country, payment_fields_for
 from app.email_validation import normalize_email
 from app.email_utils import app_url, send_group_invite_email, send_splitmate_invite_email
+from app.field_encryption import phone_lookup_hash
+from app.expense_visibility import can_see_expense, visible_expenses, visible_history
 from app.models import User, Group, GroupInvite, Expense, ExpenseSplit, ExpenseHistory, Note, Payment, RewardTransaction, Task
 from app.routes.auth import send_user_otp, set_pending_verification
-from app.group_utils import group_member_payload, group_pending_invite_payload, set_member_nickname
+from app.group_utils import (
+    group_member_payload, group_pending_invite_payload, invite_accept_problem, join_group_from_invite,
+    set_member_nickname,
+)
 from app import billing
-from app.rewards import REWARD_TIERS, reward_progress
+from app.rewards import record_referral, redeem, rewards_payload
 from app.routes import split as split_routes
 from app.payment_security import apply_payment_handle_changes, send_interac_code, verify_interac_code
 from app.security import clean_payment_handles, display_name_error, password_error
@@ -40,7 +47,7 @@ def receipt_file(filename):
         abort(404)
 
     signed_ok = split_routes.receipt_signature_valid(filename, request.args.get('sig'))
-    member_ok = current_user.is_authenticated and current_user in expense.group.members
+    member_ok = current_user.is_authenticated and can_see_expense(expense, current_user)
     if not (signed_ok or member_ok):
         abort(404)
 
@@ -79,6 +86,37 @@ def invite_to_group(group, inviter, email):
     except Exception as exc:
         current_app.logger.exception('Failed to send group invite email to %s: %s', email, exc)
     return invite, created_new, email_sent
+
+def invite_phone_to_group(group, inviter, phone):
+    """Creates (or reuses) a pending invite for a mobile number. The inviter texts it from their own phone,
+    so nothing is sent from here. Returns (invite, created_new)."""
+    invite = GroupInvite.query.filter(
+        GroupInvite.group_id == group.id,
+        GroupInvite.phone_hash == phone_lookup_hash(phone),
+        GroupInvite.accepted_at.is_(None),
+        GroupInvite.revoked_at.is_(None),
+        GroupInvite.expires_at > datetime.utcnow()
+    ).order_by(GroupInvite.created_at.desc()).first()
+    if invite:
+        return invite, False
+    invite = GroupInvite(
+        group_id=group.id,
+        email='',
+        phone=phone,
+        token=generate_invite_token(),
+        invited_by_id=inviter.id,
+        expires_at=datetime.utcnow() + timedelta(days=current_app.config['GROUP_INVITE_EXPIRY_DAYS'])
+    )
+    db.session.add(invite)
+    db.session.flush()
+    return invite, True
+
+
+def group_invite_text(group, inviter, invite):
+    """The text message the inviter sends. The link opens the app, which accepts the invite after sign-in."""
+    return (f'{inviter.name} invited you to the group "{group.name}" on Splitmate, to split bills together. '
+            f'Join here: {app_url(f"/?invite={invite.token}")}')
+
 
 def safe_redirect_target(default_endpoint='main.home'):
     target = request.form.get('next', '').strip()
@@ -163,47 +201,9 @@ def join_splitmate():
         app_link=app_url('/'),
     )
 
-@main_bp.route('/')
-@login_required
-def home():
-    groups = current_user.groups.all()
-
+def _spending_insights(groups):
+    """Totals by category, payer, group and month over the expenses the current user can see."""
     now = datetime.utcnow()
-    month_start = datetime(now.year, now.month, 1)
-
-    monthly_spending = {}
-    recent_expenses = []
-
-    # Build monthly totals and recent items. ExpenseHistory already holds a copy
-    # of every active expense, so summing Expense too would double count.
-    for group in groups:
-        history_sum = db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
-            ExpenseHistory.group_id == group.id,
-            ExpenseHistory.date >= month_start
-        ).scalar()
-
-        monthly_spending[group.name] = float(history_sum)
-
-        recent = Expense.query.filter_by(group_id=group.id) \
-            .order_by(Expense.date.desc()) \
-            .limit(5).all()
-        recent_expenses.extend(recent)
-
-    recent_expenses.sort(key=lambda x: x.date, reverse=True)
-    recent_expenses = recent_expenses[:10]
-
-    # Totals owed/owes for current user (unchanged)
-    total_owed_to_user = 0
-    total_user_owes = 0
-
-    for expense in Expense.query.filter_by(paid_by_id=current_user.id).all():
-        for split in expense.splits:
-            if split.user_id != current_user.id and not split.is_settled:
-                total_owed_to_user += split.amount_owed
-
-    for split in ExpenseSplit.query.filter_by(user_id=current_user.id, is_settled=False).all():
-        if split.expense.paid_by_id != current_user.id:
-            total_user_owes += split.amount_owed
 
     # Build last 6 months series for charts. ExpenseHistory has a copy of every
     # expense ever added, so it alone is the source of truth for totals.
@@ -221,9 +221,9 @@ def home():
 
     months = month_sequence(6)
     group_ids = [group.id for group in groups]
-    history_items = ExpenseHistory.query.filter(
+    history_items = visible_history(ExpenseHistory.query.filter(
         ExpenseHistory.group_id.in_(group_ids)
-    ).all() if group_ids else []
+    ), current_user).all() if group_ids else []
 
     category_totals = {}
     payer_totals = {}
@@ -292,7 +292,43 @@ def home():
         'average': insight_total / len(history_items) if history_items else 0.0,
         'monthly_totals': list(insight_months.values())
     }
+    return spending_insights
 
+
+@main_bp.route('/')
+@login_required
+def home():
+    groups = current_user.groups.all()
+
+    now = datetime.utcnow()
+    month_start = datetime(now.year, now.month, 1)
+
+    monthly_spending = {}
+
+    # Build monthly totals. ExpenseHistory already holds a copy
+    # of every active expense, so summing Expense too would double count.
+    for group in groups:
+        history_sum = visible_history(db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
+            ExpenseHistory.group_id == group.id,
+            ExpenseHistory.date >= month_start
+        ), current_user).scalar()
+
+        monthly_spending[group.name] = float(history_sum)
+
+    # Totals owed/owes for current user (unchanged)
+    total_owed_to_user = 0
+    total_user_owes = 0
+
+    for expense in Expense.query.filter_by(paid_by_id=current_user.id).all():
+        for split in expense.splits:
+            if split.user_id != current_user.id and not split.is_settled:
+                total_owed_to_user += split.amount_owed
+
+    for split in ExpenseSplit.query.filter_by(user_id=current_user.id, is_settled=False).all():
+        if split.expense.paid_by_id != current_user.id:
+            total_user_owes += split.amount_owed
+
+    spending_insights = _spending_insights(groups)
 
     # JSON-safe group data for Manage modal (prevents "User is not JSON serializable")
     groups_json = [
@@ -311,11 +347,17 @@ def home():
         groups=groups,
         groups_json=groups_json,
         monthly_spending=monthly_spending,
-        recent_expenses=recent_expenses,
         total_owed_to_user=total_owed_to_user,
         total_user_owes=total_user_owes,
         spending_insights=spending_insights
     )
+
+@main_bp.route('/insights')
+@login_required
+def insights():
+    """Every spending breakdown, opened from "View all" on the dashboard."""
+    return render_template('insights.html', spending_insights=_spending_insights(current_user.groups.all()))
+
 
 @main_bp.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -338,8 +380,8 @@ def profile():
                 User.email == email,
                 User.id != current_user.id
             ).first() if email else None
-            if existing_user:
-                errors.append('That email is already used by another account.')
+            if existing_user or (is_admin_email(email) and email != current_user.email):
+                errors.append(ADMIN_EMAIL_TAKEN)
 
             email_changed = bool(email) and email != current_user.email
             # Changing the sign-in email is a takeover risk, so it needs the current password.
@@ -441,6 +483,15 @@ def profile():
             flash('Password updated. Other devices were signed out.', 'success')
             return redirect(url_for('main.profile'))
 
+        if form_type == 'redeem_reward':
+            error = redeem(current_user, request.form.get('reward_id', '').strip())
+            if error:
+                flash(error, 'error')
+            else:
+                db.session.commit()
+                flash('Reward added to your account.', 'success')
+            return redirect(url_for('main.profile') + '#rewards-panel')
+
         flash('Choose a valid profile action.', 'error')
         return redirect(url_for('main.profile'))
 
@@ -453,8 +504,7 @@ def profile():
 
     return render_template(
         'profile.html',
-        reward_progress=reward_progress(current_user.reward_points),
-        reward_tiers=REWARD_TIERS,
+        rewards=rewards_payload(current_user),
         membership=billing.membership_payload(current_user),
         recent_reward_transactions=recent_reward_transactions,
         countries=countries_payload(),
@@ -513,7 +563,7 @@ def export_profile_data():
             'date': iso_datetime(expense.date),
             'group_id': expense.group_id,
             'paid_by_id': expense.paid_by_id,
-        } for expense in Expense.query.filter(Expense.group_id.in_(group_ids)).order_by(Expense.date.desc()).all()] if group_ids else [],
+        } for expense in visible_expenses(Expense.query.filter(Expense.group_id.in_(group_ids)), current_user).order_by(Expense.date.desc()).all()] if group_ids else [],
         'payments': [{
             'id': payment.id,
             'amount': round(payment.amount, 2),
@@ -566,12 +616,37 @@ def export_profile_data():
 
 @main_bp.route('/privacy')
 def privacy_policy():
-    return render_template('legal.html', page_title='Privacy Policy', legal_kind='privacy')
+    return render_template('legal.html', page_title='Privacy Policy', legal_kind='privacy',
+                           support_email=current_app.config.get('SUPPORT_EMAIL'))
 
 
 @main_bp.route('/terms')
 def terms():
-    return render_template('legal.html', page_title='Terms', legal_kind='terms')
+    return render_template('legal.html', page_title='Terms', legal_kind='terms',
+                           support_email=current_app.config.get('SUPPORT_EMAIL'))
+
+
+@main_bp.route('/delete-account', methods=['GET', 'POST'])
+@limiter.limit('10 per hour', methods=['POST'])
+def delete_account():
+    """Public page explaining deletion (the stores link to it); signed-in people can delete here."""
+    if request.method == 'POST':
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login', next=url_for('main.delete_account')))
+        error = self_delete_error(current_user, request.form.get('password', ''))
+        if not error and request.form.get('confirm', '').strip().upper() != 'DELETE':
+            error = 'Type DELETE to confirm.'
+        if error:
+            flash(error, 'error')
+            return redirect(url_for('main.delete_account'))
+        user = current_user._get_current_object()
+        logout_user()
+        delete_own_account(user)
+        db.session.commit()
+        flash('Your account was deleted.', 'success')
+        return redirect(url_for('auth.login'))
+    return render_template('legal.html', page_title='Delete your account', legal_kind='delete',
+                           support_email=current_app.config.get('SUPPORT_EMAIL'))
 
 @main_bp.route('/group/create', methods=['POST'])
 @login_required
@@ -705,6 +780,7 @@ def invite_splitmate():
     join_url = url_for('main.join_splitmate', _external=True)
     # Existing accounts get no email and the same reply, so this can't reveal who uses Splitmate.
     if not User.query.filter_by(email=email).first():
+        record_referral(current_user, email)
         try:
             send_splitmate_invite_email(email, current_user, join_url)
         except Exception as exc:
@@ -737,7 +813,7 @@ def revoke_group_invite(group_id, invite_id):
 
     invite.revoked_at = datetime.utcnow()
     db.session.commit()
-    flash(f'Invite for {invite.email} revoked.', 'success')
+    flash(f'Invite for {invite.sent_to} revoked.', 'success')
     return redirect(redirect_target)
 
 
@@ -765,17 +841,12 @@ def accept_group_invite(token):
             app_invite_url=app_url(f'/?invite={invite.token}'),
         )
 
-    if normalize_email(current_user.email) != invite.email:
-        flash(f'This invite was sent to {invite.email}. Sign in with that email to accept it.', 'error')
+    problem = invite_accept_problem(current_user, invite)
+    if problem:
+        flash(problem[0], 'error')
         return redirect(url_for('main.home'))
 
-    if current_user not in invite.group.members:
-        invite.group.members.append(current_user)
-        db.session.flush()
-        set_member_nickname(invite.group.id, current_user)
-
-    invite.accepted_at = datetime.utcnow()
-    invite.accepted_by_id = current_user.id
+    join_group_from_invite(current_user, invite)
     db.session.commit()
     flash(f'You joined "{invite.group.name}".', 'success')
     return redirect(url_for('main.home'))

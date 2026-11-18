@@ -181,21 +181,13 @@ class HighFixes(SecurityFixTests):
         self.web_login('member@example.com')
         self.assertEqual(self.client.post('/split/stripe/pay').status_code, 404)
 
-        codes = []
-        with patch('app.payment_security.send_interac_verification_code',
-                   side_effect=lambda user, email, otp: codes.append(otp) or True):
-            self.client.patch('/api/mobile/me', headers=self.admin_h, json={
-                'name': 'Admin', 'email': 'admin@example.com', 'current_password': 'password123',
-                'interac_email': 'admin-pay@example.com', 'paypal_username': 'adminpays', 'upi_id': 'admin@okbank',
-            })
+        self.client.patch('/api/mobile/me', headers=self.admin_h, json={
+            'name': 'Admin', 'email': 'admin@example.com', 'current_password': 'password123',
+            'paypal_username': 'adminpays', 'upi_id': 'admin@okbank',
+        })
         options = self.client.get(f'/api/mobile/groups/{self.group_id}', headers=self.member_h).get_json()['payment_options']
         methods = {method['type']: method for method in options[0]['payment_methods']}
-        self.assertNotIn('interac', methods)  # Not shown until its owner confirms the emailed code.
-        self.client.post('/api/mobile/me/interac/verify', headers=self.admin_h, json={'otp': codes[-1]})
-        options = self.client.get(f'/api/mobile/groups/{self.group_id}', headers=self.member_h).get_json()['payment_options']
-        methods = {method['type']: method for method in options[0]['payment_methods']}
-        self.assertEqual(methods['interac']['handle'], 'admin-pay@example.com')
-        self.assertEqual(methods['interac']['masked'], 'a•••y@example.com')
+        self.assertNotIn('interac', methods)  # The Interac e-Transfer email field was removed.
         self.assertEqual(methods['paypal']['url'], 'https://paypal.me/adminpays/30.00CAD')
         # Payment apps follow the receiver's country: UPI is only offered for people in India.
         self.assertNotIn('upi', methods)
@@ -219,14 +211,8 @@ class HighFixes(SecurityFixTests):
         self.assertIsNone(requests[0]['email'])  # Hidden until the payer approves a request.
         self.assertEqual(requests[0]['request_status'], 'none')
 
-        # Their verified Interac email is shown once they approve, and pending payments are not requested twice.
-        codes = []
-        with patch('app.payment_security.send_interac_verification_code',
-                   side_effect=lambda user, email, otp: codes.append(otp) or True):
-            self.client.patch('/api/mobile/me', headers=self.member_h, json={
-                'name': 'Member', 'email': 'member@example.com', 'current_password': 'password123',
-                'interac_email': 'member-pay@example.com'})
-        self.client.post('/api/mobile/me/interac/verify', headers=self.member_h, json={'otp': codes[-1]})
+        # Their account email is shown once they approve (the separate Interac email field was removed),
+        # and pending payments are not requested twice.
         with patch('app.routes.mobile_api.send_money_request_email'):
             created = self.client.post(f'/api/mobile/groups/{self.group_id}/money-requests', headers=self.admin_h,
                                        json={'payer_id': self.member_id}).get_json()
@@ -234,7 +220,7 @@ class HighFixes(SecurityFixTests):
         self.client.post(f'/api/mobile/groups/{self.group_id}/payments', headers=self.member_h,
                          json={'receiver_id': self.admin_id, 'amount': '10'})
         requests = self.client.get(f'/api/mobile/groups/{self.group_id}', headers=self.admin_h).get_json()['money_requests']
-        self.assertEqual(requests[0]['email'], 'member-pay@example.com')
+        self.assertEqual(requests[0]['email'], 'member@example.com')
         self.assertEqual(requests[0]['amount'], 20.0)
 
         # The person who owes has nobody to request from.
@@ -246,7 +232,8 @@ class RateLimitFixes(SecurityFixTests):
     config_class = RateLimitedConfig
 
     def test_6_repeated_logins_are_rate_limited(self):
-        codes = [self.client.post('/api/mobile/auth/login', json={'email': 'admin@example.com', 'password': f'wrong{i}'}).status_code
+        # An address with no account, so the account lockout below doesn't kick in first.
+        codes = [self.client.post('/api/mobile/auth/login', json={'email': 'nobody@example.com', 'password': f'wrong{i}'}).status_code
                  for i in range(11)]
         self.assertEqual(codes[:10], [401] * 10)
         self.assertEqual(codes[10], 429)
@@ -256,6 +243,66 @@ class RateLimitFixes(SecurityFixTests):
         codes = [self.client.post('/api/mobile/auth/forgot-password', json={'email': 'admin@example.com'}).status_code
                  for _ in range(4)]
         self.assertEqual(codes, [200, 200, 200, 429])
+
+
+class AccountLockoutTests(SecurityFixTests):
+    def test_five_wrong_passwords_lock_the_account_everywhere(self):
+        from unittest.mock import patch
+        with patch('app.email_utils.send_account_locked_email') as alert:
+            codes = [self.client.post('/api/mobile/auth/login', json={'email': 'admin@example.com', 'password': f'wrong{i}'}).status_code
+                     for i in range(5)]
+        self.assertEqual(codes, [401, 401, 401, 401, 423])
+        alert.assert_called_once()
+        with self.app.app_context():
+            user = User.query.filter_by(email='admin@example.com').first()
+            self.assertIsNotNone(user.locked_until)
+            password = 'password123'
+        # Even the right password is refused while locked, on the app and the website.
+        locked = self.client.post('/api/mobile/auth/login', json={'email': 'admin@example.com', 'password': password})
+        self.assertEqual(locked.status_code, 423)
+        self.assertIn('locked', locked.get_json()['error'])
+        page = self.client.post('/login', data={'email': 'admin@example.com', 'password': password})
+        self.assertIn(b'locked', page.data)
+
+    def test_lock_expires_and_a_new_password_lifts_it(self):
+        with self.app.app_context():
+            user = User.query.filter_by(email='admin@example.com').first()
+            user.locked_until = datetime.utcnow() - timedelta(seconds=1)
+            user.failed_login_count = 3
+            db.session.commit()
+        ok = self.client.post('/api/mobile/auth/login', json={'email': 'admin@example.com', 'password': 'password123'})
+        self.assertEqual(ok.status_code, 200)
+        with self.app.app_context():
+            user = User.query.filter_by(email='admin@example.com').first()
+            self.assertEqual(user.failed_login_count, 0)
+            user.locked_until = datetime.utcnow() + timedelta(minutes=10)
+            user.set_password('Another-pass-2')
+            self.assertIsNone(user.locked_until)
+
+
+class PhoneEncryptionTests(SecurityFixTests):
+    def test_phone_is_encrypted_at_rest_but_still_findable(self):
+        from sqlalchemy import text
+        from app.routes.mobile_api import find_user_by_contact
+        with self.app.app_context():
+            user = User.query.filter_by(email='admin@example.com').first()
+            user.phone = '+14165550123'
+            db.session.commit()
+            raw = db.session.execute(text('SELECT phone, phone_hash FROM "user" WHERE id = :id'), {'id': user.id}).one()
+            self.assertTrue(raw[0].startswith('enc:'))
+            self.assertNotIn('4165550123', raw[0])
+            self.assertEqual(len(raw[1]), 64)
+            found, _ = find_user_by_contact('416 555 0123')
+            self.assertEqual(found.id, user.id)
+
+
+class SecurityHeaderTests(SecurityFixTests):
+    def test_pages_cannot_be_framed_or_sniffed(self):
+        response = self.client.get('/login')
+        self.assertEqual(response.headers['X-Frame-Options'], 'DENY')
+        self.assertEqual(response.headers['X-Content-Type-Options'], 'nosniff')
+        self.assertIn("frame-ancestors 'none'", response.headers['Content-Security-Policy'])
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
 
 
 class OtpLockoutFixes(SecurityFixTests):

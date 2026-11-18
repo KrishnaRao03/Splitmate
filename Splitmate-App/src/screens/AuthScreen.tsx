@@ -17,6 +17,7 @@ import { deviceCountry } from '@/utils/countries';
 import { emailError as describeEmailError, passwordError as describePasswordError, passwordStrength } from '@/utils/validation';
 import { notify } from '@/state/UndoToast';
 import { hasPendingInvite } from '@/utils/launchLinks';
+import { openWebsitePage } from '@/utils/webLinks';
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot';
 
@@ -176,7 +177,7 @@ export function AuthScreen() {
             <CountryPicker
               value={country}
               onChange={setCountry}
-              hint="Sets your currency and which payment apps you can add (e.g. Interac in Canada, UPI in India)."
+              hint="Sets your currency and which payment apps you can add (e.g. UPI in India; PayPal works everywhere)."
             />
           </>
         ) : null}
@@ -240,6 +241,13 @@ export function AuthScreen() {
         ) : null}
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {mode === 'register' ? (
+          <Text style={styles.help}>
+            By creating an account you agree to the{' '}
+            <Text style={styles.link} onPress={() => openWebsitePage('/terms')}>Terms</Text> and{' '}
+            <Text style={styles.link} onPress={() => openWebsitePage('/privacy')}>Privacy Policy</Text>.
+          </Text>
+        ) : null}
         <AppButton loading={loading} onPress={submit}>
           {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : 'Verify email'}
         </AppButton>
@@ -254,7 +262,7 @@ export function AuthScreen() {
           </AppButton>
         ) : null}
 
-        <Pressable
+        {__DEV__ ? <Pressable
           accessibilityRole="button"
           accessibilityLabel={showConnection ? 'Hide connection settings' : 'Show connection settings'}
           onPress={() => setShowConnection(value => !value)}
@@ -263,8 +271,8 @@ export function AuthScreen() {
           <Icon name="settings-outline" size={16} color={colors.muted} />
           <Text style={styles.advancedToggleText}>Connection settings</Text>
           <Icon name={showConnection ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
-        </Pressable>
-        {showConnection ? (
+        </Pressable> : null}
+        {__DEV__ && showConnection ? (
           <View style={styles.advancedBody}>
             <TextField label="API URL" value={auth.apiBaseUrl} onChangeText={auth.setApiBaseUrl} autoCapitalize="none" />
             <Text style={styles.help}>Use your computer LAN IP when testing on a physical phone.</Text>
@@ -358,6 +366,10 @@ const styles = StyleSheet.create({
   help: {
     color: colors.muted,
     ...typography.caption
+  },
+  link: {
+    color: colors.primary,
+    textDecorationLine: 'underline'
   },
   advancedToggle: {
     flexDirection: 'row',

@@ -12,9 +12,11 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.utils import secure_filename
 
 from app import db
+from app.expense_visibility import history_for_expense, visible_expenses, visible_history
 from app.models import Group, Expense, ExpenseSplit, ExpenseHistory, Payment, User
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows
 from app.security import csv_safe, is_safe_link, payment_methods_for
+from app.rewards import award_settle
 
 split_bp = Blueprint('split', __name__, url_prefix='/split')
 CENT = Decimal('0.01')
@@ -271,6 +273,7 @@ def confirm_payment(payment, user):
         settle_outstanding_splits(group, payment.payer, payment.receiver, amount)
     payment.amount = float(amount)
     payment.status = 'recorded'
+    award_settle(payment)
     return None
 
 def _send_quietly(send, *args):
@@ -288,7 +291,8 @@ def notify_payment_recorded(payment):
 def notify_payment_confirmed(payment):
     """Both sides hear that the money arrived and the debt is settled."""
     from app.email_utils import send_payment_confirmed_email
-    _send_quietly(send_payment_confirmed_email, payment.payer, payment.receiver, payment.group, payment.amount, True)
+    _send_quietly(send_payment_confirmed_email, payment.payer, payment.receiver, payment.group, payment.amount, True,
+                  int(payment.reward_points_awarded or 0))
     _send_quietly(send_payment_confirmed_email, payment.receiver, payment.payer, payment.group, payment.amount, False)
 
 def notify_split_settled(split, amount):
@@ -351,7 +355,7 @@ def payment_options(group, payer, nicknames=None):
 def money_requests(group, receiver, nicknames=None):
     """Who owes `receiver` in this group, and the state of receiver's request to each of them.
 
-    A payer's Interac email is only included once they approved the request in Splitmate.
+    A payer's account email is only included once they approved the request in Splitmate.
     """
     from app.models import MoneyRequest
     from app.payment_security import mask_email
@@ -370,8 +374,7 @@ def money_requests(group, receiver, nicknames=None):
         approved = bool(latest and latest.status == 'approved')
         email = None
         if approved:
-            verified = payer.interac_email and getattr(payer, 'interac_email_verified', False)
-            email = payer.interac_email if verified else payer.email
+            email = payer.email
         requests.append({
             'payer_id': payer.id,
             'payer': nicknames.get(payer.id) or payer.name,
@@ -614,14 +617,7 @@ def add_expense():
     db.session.flush()  # get expense.id
 
     # Immediate immutable history copy
-    history_copy = ExpenseHistory(
-        description=expense.description,
-        amount=expense.amount,
-        category=expense.category,
-        date=expense.date,
-        paid_by_id=expense.paid_by_id,
-        group_id=expense.group_id
-    )
+    history_copy = history_for_expense(expense, [member.id for member, share in split_rows if share > 0])
     db.session.add(history_copy)
 
     for member, share in split_rows:
@@ -735,7 +731,7 @@ def group_summaries(group_id):
     if current_user not in group.members:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    expenses = Expense.query.filter_by(group_id=group_id).order_by(Expense.date.desc()).all()
+    expenses = visible_expenses(Expense.query.filter_by(group_id=group_id), current_user).order_by(Expense.date.desc()).all()
     nicknames = member_nickname_rows(group.id)
     summaries = []
 
@@ -787,7 +783,7 @@ def get_group_expenses(group_id):
     if current_user not in group.members:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    expenses = Expense.query.filter_by(group_id=group_id).order_by(Expense.date.desc()).all()
+    expenses = visible_expenses(Expense.query.filter_by(group_id=group_id), current_user).order_by(Expense.date.desc()).all()
     nicknames = member_nickname_rows(group.id)
     return jsonify([{
         'id': e.id,
@@ -818,7 +814,7 @@ def search_group_expenses(group_id):
     min_amount_raw = (request.args.get('min_amount') or '').strip()
     max_amount_raw = (request.args.get('max_amount') or '').strip()
 
-    history_query = ExpenseHistory.query.filter_by(group_id=group.id)
+    history_query = visible_history(ExpenseHistory.query.filter_by(group_id=group.id), current_user)
 
     if query_text:
         history_query = history_query.filter(ExpenseHistory.description.ilike(f'%{query_text}%'))
@@ -869,7 +865,7 @@ def get_group_analytics(group_id):
     if current_user not in group.members:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    history_items = ExpenseHistory.query.filter_by(group_id=group.id).all()
+    history_items = visible_history(ExpenseHistory.query.filter_by(group_id=group.id), current_user).all()
     now = datetime.utcnow()
     months = []
     for offset in range(5, -1, -1):
@@ -1020,7 +1016,7 @@ def get_group_history(group_id):
     if current_user not in group.members:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    expenses = ExpenseHistory.query.filter_by(group_id=group_id).all()
+    expenses = visible_history(ExpenseHistory.query.filter_by(group_id=group_id), current_user).all()
     payments = Payment.query.filter_by(group_id=group_id).all()
 
     history_items = [{
@@ -1069,7 +1065,7 @@ def export_group_activity_csv(group_id):
     ])
 
     rows = []
-    for item in ExpenseHistory.query.filter_by(group_id=group.id).all():
+    for item in visible_history(ExpenseHistory.query.filter_by(group_id=group.id), current_user).all():
         payer = User.query.get(item.paid_by_id) if item.paid_by_id else None
         rows.append({
             'date': item.date,

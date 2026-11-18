@@ -10,13 +10,18 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 import qrcode
 from sqlalchemy import func, or_
 
+from app.admin_utils import ADMIN_EMAIL_TAKEN, ADMIN_ONLY_MESSAGE, is_admin_email
 from app.group_notifications import notify_group_item_added
 from app import billing, db, limiter
 from app.email_validation import email_error_message, normalize_email
 from app.grocery_compare import (
     compare_grocery_list, compare_grocery_note, note_allows_grocery_comparison, parse_grocery_items_from_text,
 )
-from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows, set_member_nickname
+from app.group_utils import (
+    group_member_payload, group_pending_invite_payload, invite_accept_problem, join_group_from_invite,
+    member_nickname_rows, set_member_nickname,
+)
+from app.expense_visibility import history_for_expense, visible_expenses, visible_history
 from app.models import (
     MoneyRequest,
     PendingRegistration,
@@ -37,8 +42,9 @@ from app.regions import (
     countries_payload, country_name, currency_for_country, normalize_country, normalize_currency,
     payment_fields_for,
 )
-from app.rewards import POINTS_EARNING_PAUSED, REWARD_TIERS, reward_progress
-from app.email_utils import send_money_request_email, send_password_reset_email, send_splitmate_invite_email
+from app.rewards import record_referral, redeem, rewards_payload
+from app.account_deletion import delete_own_account, self_delete_error
+from app.email_utils import app_url, send_money_request_email, send_password_reset_email, send_splitmate_invite_email
 from app.payment_security import (
     apply_payment_handle_changes, payment_status_payload, send_interac_code, verify_interac_code,
 )
@@ -46,10 +52,12 @@ from app.routes.auth import (
     OTP_LOCKED_MESSAGE, complete_pending_registration, generate_password_reset_token, registered_account,
     send_user_otp, start_pending_registration,
 )
-from app.routes.main import SPLITMATE_INVITE_MESSAGE, invite_to_group, profile_qr_payload, user_from_friend_code
+from app.routes.main import SPLITMATE_INVITE_MESSAGE, group_invite_text, invite_phone_to_group, invite_to_group, profile_qr_payload, user_from_friend_code
 from app import purchase_inbox
 from app.receipt_scan import ReceiptScanError, scan_receipt_image
 from app.routes import split as split_routes
+from app.field_encryption import phone_lookup_hash
+from app.login_guard import clear_failed_logins, locked_message, minutes_locked, record_failed_login
 from app.security import clean_payment_handles, csv_safe, display_name_error, is_safe_link, normalize_phone, password_error, payment_methods_for
 from app.task_utils import (
     normalize_task_priority,
@@ -109,7 +117,6 @@ def user_payload(user):
         'membership_plan': 'pro' if billing.is_pro(user) else 'free',
         'membership_status': user.membership_status or 'active',
         'created_at': user.created_at.isoformat() if user.created_at else None,
-        'interac_email': user.interac_email or '',
         'paypal_username': user.paypal_username or '',
         'upi_id': user.upi_id or '',
         'default_group_id': user.default_group_id,
@@ -280,10 +287,10 @@ def note_payload(note, nicknames=None):
     }
 
 
-def summaries_for(group):
+def summaries_for(group, user):
     nicknames = member_nickname_rows(group.id)
     summaries = []
-    expenses = Expense.query.filter_by(group_id=group.id).order_by(Expense.date.desc()).all()
+    expenses = visible_expenses(Expense.query.filter_by(group_id=group.id), user).order_by(Expense.date.desc()).all()
     for expense in expenses:
         payer = nicknames.get(expense.paid_by_id) or expense.added_by.name
         for split in expense.splits:
@@ -307,8 +314,8 @@ def summaries_for(group):
     return summaries
 
 
-def analytics_for(group):
-    history_items = ExpenseHistory.query.filter_by(group_id=group.id).all()
+def analytics_for(group, user):
+    history_items = visible_history(ExpenseHistory.query.filter_by(group_id=group.id), user).all()
     now = datetime.utcnow()
     months = []
     for offset in range(5, -1, -1):
@@ -409,8 +416,17 @@ def login():
         pending = PendingRegistration.query.filter_by(email=email).first() if email else None
         if pending and pending.check_password(password):
             return json_error('Email verification is required before signing in.', 403)
+    if user and minutes_locked(user):
+        return json_error(locked_message(user), 423)
     if not user or not user.check_password(password):
+        if user:
+            record_failed_login(user)
+            if minutes_locked(user):
+                return json_error(locked_message(user), 423)
         return json_error('Invalid email or password.', 401)
+    clear_failed_logins(user)
+    if is_admin_email(user.email):
+        return json_error(ADMIN_ONLY_MESSAGE, 403)
     if getattr(user, 'is_suspended', False):
         return json_error('This account is suspended.', 403)
     if not user.is_email_verified:
@@ -444,7 +460,7 @@ def register():
         return json_error('Passwords do not match.')
     if not country:
         return json_error('Choose your country.')
-    if registered_account(email):
+    if is_admin_email(email) or registered_account(email):
         return json_error('Email already registered.', 409)
 
     # The account is created only after the emailed code is verified.
@@ -554,6 +570,20 @@ def forgot_password():
     })
 
 
+@mobile_api_bp.route('/me/delete', methods=['POST'])
+@mobile_login_required
+@limiter.limit('10 per hour')
+def delete_my_account():
+    """In-app account deletion, which both app stores require."""
+    user = request.mobile_user
+    error = self_delete_error(user, json_body().get('password') or '')
+    if error:
+        return json_error(error, 403 if 'password' in error else 409)
+    delete_own_account(user)
+    db.session.commit()
+    return jsonify({'deleted': True, 'message': 'Your account was deleted.'})
+
+
 @mobile_api_bp.route('/me', methods=['GET', 'PATCH'])
 @mobile_login_required
 def me():
@@ -574,8 +604,8 @@ def me():
         return json_error('Valid email is required.')
 
     existing_user = User.query.filter(User.email == email, User.id != user.id).first()
-    if existing_user:
-        return json_error('That email is already used by another account.', 409)
+    if existing_user or (is_admin_email(email) and email != user.email):
+        return json_error(ADMIN_EMAIL_TAKEN, 409)
 
     email_changed = email != user.email
     country = normalize_country(data.get('country')) if data.get('country') else (user.country or 'CA')
@@ -601,7 +631,7 @@ def me():
         phone = normalize_phone(raw_phone) if raw_phone else None
         if raw_phone and not phone:
             return json_error('Enter a valid phone number, like 416 555 0123.')
-        if phone and User.query.filter(User.phone == phone, User.id != user.id).first():
+        if phone and User.query.filter(User.phone_hash == phone_lookup_hash(phone), User.id != user.id).first():
             return json_error('That phone number is already used by another account.', 409)
         user.phone = phone
 
@@ -733,6 +763,53 @@ def friend_preview():
     })
 
 
+def friends_of(user):
+    """Everyone the user shares at least one group with, by name, with the groups they share."""
+    friends = {}
+    for group in user.groups.all():
+        for member in group.members:
+            if member.id == user.id or getattr(member, 'is_suspended', False):
+                continue
+            entry = friends.setdefault(member.id, {'user': member, 'group_ids': set()})
+            entry['group_ids'].add(group.id)
+    return friends
+
+
+@mobile_api_bp.route('/friends')
+@mobile_login_required
+def my_friends():
+    """People you share a group with. With ?group_id=, says who is already in that group or invited to it,
+    so the admin can invite the rest in one tap."""
+    me = request.mobile_user
+    friends = friends_of(me)
+    group = None
+    group_id = request.args.get('group_id', type=int)
+    if group_id:
+        group, error = require_group_member(group_id)
+        if error:
+            return error
+    member_ids = {member.id for member in group.members} if group else set()
+    invited_emails = {
+        invite.email for invite in GroupInvite.query.filter(
+            GroupInvite.group_id == group.id,
+            GroupInvite.accepted_at.is_(None),
+            GroupInvite.revoked_at.is_(None),
+            GroupInvite.expires_at > datetime.utcnow(),
+        ).all()
+    } if group else set()
+    group_names = {group_row.id: group_row.name for group_row in me.groups.all()}
+    rows = [{
+        'id': friend_id,
+        'name': entry['user'].name,
+        'email': entry['user'].email,
+        'shared_groups': sorted(group_names[gid] for gid in entry['group_ids']),
+        'in_group': friend_id in member_ids,
+        'invited': normalize_email(entry['user'].email) in invited_emails,
+    } for friend_id, entry in friends.items()]
+    rows.sort(key=lambda row: row['name'].lower())
+    return jsonify(rows)
+
+
 def qr_rows(text):
     """QR modules as '0'/'1' strings, so the app can draw the code without an SVG library."""
     qr = qrcode.QRCode(border=0, error_correction=qrcode.constants.ERROR_CORRECT_M)
@@ -754,22 +831,10 @@ def my_invite_payload(invite):
 
 def accept_invite_for(user, invite):
     """Shared accept rules, matching the website's /invite/<token> page."""
-    if not invite or invite.revoked_at:
-        return json_error('That invite link is invalid or was revoked.', 404)
-    if invite.accepted_at:
-        return json_error('That invite was already accepted.', 409)
-    if invite.expires_at <= datetime.utcnow():
-        return json_error('That invite link has expired. Ask the group admin for a new invite.', 410)
-    if normalize_email(user.email) != invite.email:
-        return json_error(f'This invite was sent to {invite.email}. Sign in with that email to accept it.', 403)
-
-    if user not in invite.group.members:
-        invite.group.members.append(user)
-        db.session.flush()
-        set_member_nickname(invite.group.id, user)
-
-    invite.accepted_at = datetime.utcnow()
-    invite.accepted_by_id = user.id
+    problem = invite_accept_problem(user, invite)
+    if problem:
+        return json_error(*problem)
+    join_group_from_invite(user, invite)
     db.session.commit()
     return jsonify({
         'joined': True,
@@ -782,8 +847,11 @@ def accept_invite_for(user, invite):
 @mobile_login_required
 def my_invites():
     user = request.mobile_user
+    sent_to_me = GroupInvite.email == normalize_email(user.email)
+    if user.phone_hash:
+        sent_to_me = db.or_(sent_to_me, GroupInvite.phone_hash == user.phone_hash)
     invites = GroupInvite.query.filter(
-        GroupInvite.email == normalize_email(user.email),
+        sent_to_me,
         GroupInvite.accepted_at.is_(None),
         GroupInvite.revoked_at.is_(None),
         GroupInvite.expires_at > datetime.utcnow(),
@@ -816,7 +884,20 @@ def accept_invite_link():
 @mobile_login_required
 @limiter.limit('10 per hour')
 def invite_splitmate():
-    email = normalize_email(json_body().get('email'))
+    body = json_body()
+    if str(body.get('phone') or '').strip():
+        # Texted from the user's own phone; we only write the message.
+        phone = normalize_phone(body.get('phone'))
+        if not phone:
+            return json_error('Enter a valid mobile number, like 416 555 0123.')
+        join_url = app_url('/')
+        return jsonify({
+            'phone': phone,
+            'invite_url': join_url,
+            'sms_message': (f'{request.mobile_user.name} invited you to Splitmate, the easy way to split bills '
+                            f'with friends. Get it here: {join_url}'),
+        })
+    email = normalize_email(body.get('email'))
     if not email:
         return json_error('Enter a valid email address.')
     if email == normalize_email(request.mobile_user.email):
@@ -825,6 +906,7 @@ def invite_splitmate():
     join_url = url_for('main.join_splitmate', _external=True)
     # Existing accounts get no email and the same reply, so this can't reveal who uses Splitmate.
     if not User.query.filter_by(email=email).first():
+        record_referral(request.mobile_user, email)
         try:
             send_splitmate_invite_email(email, request.mobile_user, join_url)
         except Exception as exc:
@@ -894,9 +976,11 @@ def find_user_by_contact(contact):
     contact = str(contact or '').strip()
     if '@' in contact:
         email = normalize_email(contact)
+        if is_admin_email(email):
+            return None, None
         return (User.query.filter_by(email=email).first() if email else None), email
     phone = normalize_phone(contact)
-    return (User.query.filter_by(phone=phone).first() if phone else None), phone
+    return (User.query.filter_by(phone_hash=phone_lookup_hash(phone)).first() if phone else None), phone
 
 
 @mobile_api_bp.route('/quick-split', methods=['POST'])
@@ -972,14 +1056,7 @@ def quick_split():
     )
     db.session.add(expense)
     db.session.flush()
-    db.session.add(ExpenseHistory(
-        description=expense.description,
-        amount=expense.amount,
-        category=expense.category,
-        date=expense.date,
-        paid_by_id=expense.paid_by_id,
-        group_id=expense.group_id,
-    ))
+    db.session.add(history_for_expense(expense, [member.id for member, share in parsed['split_rows'] if share > 0]))
     for member, share in parsed['split_rows']:
         if share > 0:
             db.session.add(ExpenseSplit(expense_id=expense.id, user_id=member.id, amount_owed=float(share)))
@@ -1020,17 +1097,17 @@ def dashboard():
 
     for group in user_groups:
         # ExpenseHistory already holds a copy of every active expense.
-        history_sum = db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
+        history_sum = visible_history(db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
             ExpenseHistory.group_id == group.id,
             ExpenseHistory.date >= month_start,
-        ).scalar()
+        ), user).scalar()
         monthly_spending.append({
             'group_id': group.id,
             'group': group.name,
             'total': float(history_sum),
         })
         recent_expenses.extend(
-            Expense.query.filter_by(group_id=group.id).order_by(Expense.date.desc()).limit(5).all()
+            visible_expenses(Expense.query.filter_by(group_id=group.id), user).order_by(Expense.date.desc()).limit(5).all()
         )
 
     recent_expenses.sort(key=lambda expense: expense.date or datetime.min, reverse=True)
@@ -1053,9 +1130,9 @@ def dashboard():
     )
 
     group_ids = [group.id for group in user_groups]
-    history_items = ExpenseHistory.query.filter(
+    history_items = visible_history(ExpenseHistory.query.filter(
         ExpenseHistory.group_id.in_(group_ids)
-    ).all() if group_ids else []
+    ), user).all() if group_ids else []
 
     category_totals = {}
     payer_totals = {}
@@ -1107,11 +1184,11 @@ def dashboard():
             start = datetime(year, month, 1)
             end = datetime(year + (1 if month == 12 else 0), 1 if month == 12 else month + 1, 1)
             # ExpenseHistory already holds a copy of every active expense.
-            history_sum = db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
+            history_sum = visible_history(db.session.query(func.coalesce(func.sum(ExpenseHistory.amount), 0.0)).filter(
                 ExpenseHistory.group_id == group.id,
                 ExpenseHistory.date >= start,
                 ExpenseHistory.date < end,
-            ).scalar()
+            ), user).scalar()
             points.append({
                 'month': f'{year}-{month:02d}',
                 'label': datetime(year, month, 1).strftime('%b'),
@@ -1183,7 +1260,7 @@ def group_detail(group_id):
         return error
 
     nicknames = member_nickname_rows(group.id)
-    expenses = Expense.query.filter_by(group_id=group.id).order_by(Expense.date.desc()).limit(20).all()
+    expenses = visible_expenses(Expense.query.filter_by(group_id=group.id), request.mobile_user).order_by(Expense.date.desc()).limit(20).all()
     tasks = Task.query.filter_by(group_id=group.id).order_by(Task.due_date.asc()).all()
     notes = Note.query.filter_by(group_id=group.id).order_by(Note.created_at.desc()).all()
     payments = Payment.query.filter_by(group_id=group.id).order_by(Payment.date.desc()).limit(20).all()
@@ -1196,7 +1273,7 @@ def group_detail(group_id):
         # Built-in categories plus the group's own, as suggestions for the free-text category field.
         'expense_categories': split_routes.group_categories(group),
         'balances': split_routes.group_balances(group, nicknames),
-        'summaries': summaries_for(group),
+        'summaries': summaries_for(group, request.mobile_user),
         'expenses': [expense_payload(expense, nicknames) for expense in expenses],
         'tasks': [task_payload(task, nicknames) for task in tasks],
         'notes': [note_payload(note, nicknames) for note in notes],
@@ -1330,7 +1407,20 @@ def group_invites(group_id):
     if request.method == 'GET':
         return jsonify(group_pending_invite_payload(group))
 
-    email = normalize_email(json_body().get('email'))
+    body = json_body()
+    if str(body.get('phone') or '').strip():
+        return invite_phone_number(group, body.get('phone'))
+    if body.get('friend_id') not in (None, ''):
+        # A friend from another group: invite them by the email on their account.
+        try:
+            friend = friends_of(request.mobile_user).get(int(body.get('friend_id')), {}).get('user')
+        except (TypeError, ValueError):
+            friend = None
+        if not friend:
+            return json_error('You can only invite people you share a group with this way.', 404)
+        body['email'] = friend.email
+
+    email = normalize_email(body.get('email'))
     if not email:
         return json_error('Enter a valid email address.')
 
@@ -1353,6 +1443,39 @@ def group_invites(group_id):
         'created_new': created_new,
         'invite_url': invite_url,
         # The invitee can scan this from the admin's screen instead of waiting for the email.
+        'qr_rows': qr_rows(invite_url),
+        'expires_at': invite.expires_at.isoformat(),
+    }), 201 if created_new else 200
+
+
+def invite_phone_number(group, raw_phone):
+    """A group invite for a mobile number. The app opens the admin's own Messages app with the text ready,
+    so it costs nothing and needs no SMS service."""
+    phone = normalize_phone(raw_phone)
+    if not phone:
+        return json_error('Enter a valid mobile number, like 416 555 0123.')
+    if phone == request.mobile_user.phone:
+        return json_error('That is your own number. Enter the number of the person you want to invite.')
+    existing_user = User.query.filter_by(phone_hash=phone_lookup_hash(phone)).first()
+    if existing_user and existing_user in group.members:
+        return jsonify({
+            'already_member': True,
+            'message': f'{existing_user.name} is already in "{group.name}".',
+        })
+
+    invite, created_new = invite_phone_to_group(group, request.mobile_user, phone)
+    db.session.commit()
+    invite_url = app_url(f'/?invite={invite.token}')
+    return jsonify({
+        'id': invite.id,
+        'message': f'Invite ready for {invite.sent_to}. Send the text to finish.',
+        'phone': phone,
+        'sent_to': invite.sent_to,
+        'by_phone': True,
+        'email_sent': False,
+        'created_new': created_new,
+        'invite_url': invite_url,
+        'sms_message': group_invite_text(group, request.mobile_user, invite),
         'qr_rows': qr_rows(invite_url),
         'expires_at': invite.expires_at.isoformat(),
     }), 201 if created_new else 200
@@ -1585,7 +1708,7 @@ def add_expense(group_id):
         return error
 
     if request.method == 'GET':
-        query = Expense.query.filter_by(group_id=group.id)
+        query = visible_expenses(Expense.query.filter_by(group_id=group.id), request.mobile_user)
         search = (request.args.get('q') or '').strip()
         category = (request.args.get('category') or '').strip()
         payer_id = request.args.get('payer_id', type=int)
@@ -1637,14 +1760,7 @@ def save_new_expense(group, parsed, date=None):
         expense.date = date
     db.session.add(expense)
     db.session.flush()
-    db.session.add(ExpenseHistory(
-        description=expense.description,
-        amount=expense.amount,
-        category=expense.category,
-        date=expense.date,
-        paid_by_id=expense.paid_by_id,
-        group_id=expense.group_id,
-    ))
+    db.session.add(history_for_expense(expense, [member.id for member, share in parsed['split_rows'] if share > 0]))
     add_split_rows(expense, parsed['split_rows'])
     return expense
 
@@ -1935,7 +2051,7 @@ def group_activity(group_id):
     if error:
         return error
 
-    history_query = ExpenseHistory.query.filter_by(group_id=group.id)
+    history_query = visible_history(ExpenseHistory.query.filter_by(group_id=group.id), request.mobile_user)
     search = (request.args.get('q') or '').strip()
     category = (request.args.get('category') or '').strip()
     payer_id = request.args.get('payer_id', type=int)
@@ -1995,7 +2111,7 @@ def group_activity(group_id):
     return jsonify({
         'expense_results': expense_rows,
         'transactions': transactions[:150],
-        'analytics': analytics_for(group),
+        'analytics': analytics_for(group, request.mobile_user),
     })
 
 
@@ -2012,7 +2128,7 @@ def search_group_expenses(group_id):
     min_amount_raw = (request.args.get('min_amount') or '').strip()
     max_amount_raw = (request.args.get('max_amount') or '').strip()
 
-    history_query = ExpenseHistory.query.filter_by(group_id=group.id)
+    history_query = visible_history(ExpenseHistory.query.filter_by(group_id=group.id), request.mobile_user)
 
     if query_text:
         history_query = history_query.filter(ExpenseHistory.description.ilike(f'%{query_text}%'))
@@ -2063,14 +2179,16 @@ def search_group_expenses(group_id):
 @mobile_login_required
 def rewards_summary():
     user = request.mobile_user
+    return jsonify(rewards_summary_payload(user))
+
+
+def rewards_summary_payload(user):
     recent = RewardTransaction.query.filter_by(user_id=user.id).order_by(
         RewardTransaction.created_at.desc()
     ).limit(5).all()
-    return jsonify({
-        'points': int(user.reward_points or 0),
-        'progress': reward_progress(user.reward_points),
+    return {
         **billing.membership_payload(user),
-        'tiers': REWARD_TIERS,
+        **rewards_payload(user),
         'recent_transactions': [{
             'id': transaction.id,
             'points': transaction.points,
@@ -2078,8 +2196,19 @@ def rewards_summary():
             'note': transaction.note or '',
             'created_at': iso_datetime(transaction.created_at),
         } for transaction in recent],
-        'earning_paused': POINTS_EARNING_PAUSED,
-    })
+    }
+
+
+@mobile_api_bp.route('/rewards/redeem', methods=['POST'])
+@mobile_login_required
+@limiter.limit('20 per hour')
+def redeem_reward():
+    user = request.mobile_user
+    error = redeem(user, (json_body().get('reward_id') or '').strip())
+    if error:
+        return json_error(error)
+    db.session.commit()
+    return jsonify({'message': 'Reward added to your account.', **rewards_summary_payload(user)})
 
 
 def billing_return_url(path='', fallback=None):
@@ -2139,6 +2268,85 @@ def settle_split(split_id):
     db.session.commit()
     split_routes.notify_split_settled(split, settled_amount)
     return jsonify({'settled': True})
+
+
+def split_people(expense):
+    """How many people share a bill: everyone with a share, plus the payer when they kept no share row."""
+    user_ids = {split.user_id for split in expense.splits}
+    return len(user_ids | {expense.paid_by_id})
+
+
+def _unsettled_rows(splits):
+    """One line per open share: what it was for, the bill total and how many people it was split between."""
+    rows = []
+    for split in splits:
+        expense = split.expense
+        rows.append({
+            'split_id': split.id,
+            'expense_id': expense.id,
+            'description': expense.description,
+            'date': iso_datetime(expense.date),
+            'total': round(float(expense.amount), 2),
+            'share': round(float(split.amount_owed), 2),
+            'people': split_people(expense),
+        })
+    return rows
+
+
+@mobile_api_bp.route('/groups/<int:group_id>/settle-summary')
+@mobile_login_required
+def settle_summary(group_id):
+    """Per person in the group: what is open between you, each open item, and when you last settled."""
+    group, error = require_group_member(group_id)
+    if error:
+        return error
+    me = request.mobile_user
+    names = {member['id']: member['name'] for member in group_member_payload(group)}
+    people = []
+    for other in group.members:
+        if other.id == me.id:
+            continue
+        they_owe, they_owe_total = split_routes.outstanding_splits_for(group, other, me)
+        i_owe, i_owe_total = split_routes.outstanding_splits_for(group, me, other)
+        last = Payment.query.filter(
+            Payment.group_id == group.id,
+            Payment.status == 'recorded',
+            ((Payment.payer_id == me.id) & (Payment.receiver_id == other.id))
+            | ((Payment.payer_id == other.id) & (Payment.receiver_id == me.id)),
+        ).order_by(Payment.date.desc()).first()
+        people.append({
+            'user_id': other.id,
+            'name': names.get(other.id, other.name),
+            'they_owe': float(they_owe_total),
+            'you_owe': float(i_owe_total),
+            'net': float(they_owe_total - i_owe_total),
+            'last_settled_at': iso_datetime(last.date) if last else None,
+            'they_owe_items': _unsettled_rows(they_owe),
+            'you_owe_items': _unsettled_rows(i_owe),
+        })
+    people.sort(key=lambda row: (row['they_owe'] == 0 and row['you_owe'] == 0, -abs(row['net'])))
+    return jsonify({'group_id': group.id, 'people': people})
+
+
+@mobile_api_bp.route('/groups/<int:group_id>/settle-person', methods=['POST'])
+@mobile_login_required
+def settle_person(group_id):
+    """You were paid back in full by someone: every share they owe you in this group is marked settled at once."""
+    group, error = require_group_member(group_id)
+    if error:
+        return error
+    me = request.mobile_user
+    other = db.session.get(User, json_body().get('user_id') or 0)
+    if other is None or other not in group.members or other.id == me.id:
+        return json_error('Choose someone in this group.')
+    _, total = split_routes.outstanding_splits_for(group, other, me)
+    if total <= 0:
+        return json_error(f'{other.name} does not owe you anything in this group.', 409)
+    split_routes.settle_outstanding_splits(group, other, me, total)
+    payment = split_routes.create_payment_record(group, other, me, total, status='recorded')
+    db.session.commit()
+    split_routes.notify_payment_confirmed(payment)
+    return jsonify({'settled': True, 'amount': float(total), 'payment_id': payment.id})
 
 
 @mobile_api_bp.route('/groups/<int:group_id>/tasks', methods=['POST'])
@@ -2459,7 +2667,7 @@ def export_my_data():
             'date': iso_datetime(expense.date),
             'group_id': expense.group_id,
             'paid_by_id': expense.paid_by_id,
-        } for expense in Expense.query.filter(Expense.group_id.in_(group_ids)).order_by(Expense.date.desc()).all()] if group_ids else [],
+        } for expense in visible_expenses(Expense.query.filter(Expense.group_id.in_(group_ids)), user).order_by(Expense.date.desc()).all()] if group_ids else [],
         'payments': [{
             'id': payment.id,
             'amount': round(payment.amount, 2),
@@ -2532,7 +2740,7 @@ def export_group_activity_csv(group_id):
     ])
 
     rows = []
-    for item in ExpenseHistory.query.filter_by(group_id=group.id).all():
+    for item in visible_history(ExpenseHistory.query.filter_by(group_id=group.id), request.mobile_user).all():
         payer = User.query.get(item.paid_by_id) if item.paid_by_id else None
         rows.append({
             'date': item.date,

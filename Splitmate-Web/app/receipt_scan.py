@@ -26,8 +26,9 @@ RECEIPT_SCHEMA = {
                     'name': {'type': 'string'},
                     'quantity': {'type': 'number'},
                     'price': {'type': 'number'},
+                    'taxed': {'type': 'boolean'},
                 },
-                'required': ['name', 'quantity', 'price'],
+                'required': ['name', 'quantity', 'price', 'taxed'],
                 'additionalProperties': False,
             },
         },
@@ -44,6 +45,7 @@ PROMPT = """Read this receipt and list what was bought.
 - Use clean, readable item names: expand obvious abbreviations, but don't invent items you can't read.
 - Discounts or coupons that apply to a line: subtract them from that line's price. Store-wide discounts: add a line with a negative price.
 - Don't list subtotal, tax, tip, payment, change or loyalty lines as items. Put the total tax in `tax` and the final amount paid in `total` (0 if not shown).
+- `taxed` is true when tax was charged on that line (look for tax codes such as H, G, P, T or * next to the price). If the receipt has tax but shows no codes, mark every line taxed.
 - `merchant` is the store name ('' if unreadable); `currency` is the ISO code if you can tell, else ''.
 - If the image is not a receipt, set `is_receipt` to false and return no items."""
 
@@ -67,7 +69,7 @@ def _money(value):
 
 
 def scan_receipt_image(data, media_type, client=None):
-    """Returns {merchant, currency, items: [{name, quantity, price}], tax, total}."""
+    """Returns {merchant, currency, items: [{name, quantity, price, taxed}], tax, total}."""
     if media_type not in ALLOWED_IMAGE_TYPES:
         raise ReceiptScanError('Upload a JPG, PNG, WEBP or GIF photo of the receipt.')
     if not data:
@@ -80,7 +82,8 @@ def scan_receipt_image(data, media_type, client=None):
                 'Receipt scanning is not set up on the server yet. Add GEMINI_API_KEY to the server .env and restart it.',
                 503,
             )
-        client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+        # Give up after a minute so the app shows an error instead of loading forever.
+        client = genai.Client(api_key=os.environ['GEMINI_API_KEY'], http_options=types.HttpOptions(timeout=60000))
 
     try:
         response = client.models.generate_content(
@@ -88,6 +91,9 @@ def scan_receipt_image(data, media_type, client=None):
             contents=[types.Part.from_bytes(data=data, mime_type=media_type), PROMPT],
             config=types.GenerateContentConfig(
                 max_output_tokens=16000,
+                # Reading a receipt needs almost no step-by-step thinking; Gemini 3.6 Flash defaults to
+                # medium, which made scans slow enough to look stuck. (Older models use another setting.)
+                thinking_config=types.ThinkingConfig(thinking_level='minimal') if RECEIPT_MODEL.startswith('gemini-3') else None,
                 response_mime_type='application/json',
                 response_json_schema=RECEIPT_SCHEMA,
             ),
@@ -100,6 +106,8 @@ def scan_receipt_image(data, media_type, client=None):
         raise ReceiptScanError(f'The receipt could not be read: {exc.message}', 400)
     except errors.APIError:
         raise ReceiptScanError('Receipt scanning is temporarily unavailable. Try again shortly.', 502)
+    except httpx.TimeoutException:
+        raise ReceiptScanError('Reading the receipt took too long. Try again, or a clearer, closer photo.', 504)
     except httpx.TransportError:
         raise ReceiptScanError('The server could not reach the receipt scanner. Check its internet connection.', 502)
 
@@ -128,6 +136,7 @@ def scan_receipt_image(data, media_type, client=None):
             'name': name[:120],
             'quantity': quantity if isinstance(quantity, (int, float)) and quantity > 0 else 1,
             'price': _money(row.get('price')),
+            'taxed': bool(row.get('taxed')),
         })
     if not items:
         raise ReceiptScanError('No items could be read from that receipt. Try a clearer photo.', 422)

@@ -101,7 +101,7 @@ export function SplitScreen({ navigation }: Props) {
   function handlePersonPress(person: PersonBalance) {
     if (person.groups.length === 1) {
       const [group] = person.groups;
-      openGroup(group.group_id, group.group_name);
+      navigation.navigate('SettleUp', { groupId: group.group_id, groupName: group.group_name });
       return;
     }
     setExpandedUserId(current => (current === person.user_id ? null : person.user_id));

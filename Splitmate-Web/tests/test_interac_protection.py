@@ -1,5 +1,4 @@
 import unittest
-from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from app import create_app, db
@@ -77,72 +76,52 @@ class InteracProtectionTests(unittest.TestCase):
         self.assertEqual(mask_email('ab@x.com'), 'a•••@x.com')
 
     def test_changes_need_the_password_and_send_an_alert(self):
-        self.assertEqual(self.save(self.owner_h, 'pay@example.com', password='wrong').status_code, 403)
-        self.assertEqual(self.save(self.owner_h, 'pay@example.com', password='', paypal_username='me').status_code, 403)
+        url = '/api/mobile/me'
+        body = {'name': 'Owner', 'email': 'owner@example.com', 'paypal_username': 'ownerpays'}
+        self.assertEqual(self.client.patch(url, headers=self.owner_h, json={**body, 'current_password': 'wrong'}).status_code, 403)
         self.assertEqual(self.alerts, [])
 
-        response = self.save(self.owner_h, 'pay@example.com', paypal_username='ownerpays')
+        response = self.client.patch(url, headers=self.owner_h, json={**body, 'current_password': 'Strong-pass-1'})
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.get_json()['interac_code_sent'])
         self.assertEqual(len(self.alerts), 1)
         self.assertIn('PayPal.Me username updated', self.alerts[0])
 
         # Saving the same details again changes nothing, so it needs no password and sends no alert.
-        unchanged = self.client.patch('/api/mobile/me', headers=self.owner_h, json={
-            'name': 'Owner', 'email': 'owner@example.com', 'interac_email': 'pay@example.com', 'paypal_username': 'ownerpays'})
-        self.assertEqual(unchanged.status_code, 200)
+        self.assertEqual(self.client.patch(url, headers=self.owner_h, json=body).status_code, 200)
         self.assertEqual(len(self.alerts), 1)
 
-    def test_interac_email_is_hidden_until_its_code_is_entered(self):
-        self.save(self.owner_h, 'pay@example.com')
-        self.assertEqual(self.codes[-1][0], 'pay@example.com')
+    def test_interac_email_field_is_removed(self):
+        # The app no longer offers it, and a submitted value is ignored: no code, no pending address.
+        response = self.save(self.owner_h, 'pay@example.com')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.get_json()['interac_code_sent'])
+        self.assertNotIn('interac_email', response.get_json()['user'])
+        self.assertNotIn('interac_email', response.get_json()['user']['payment_fields'])
+        self.assertEqual(self.codes, [])
+
+        self.client.post('/login', data={'email': 'owner@example.com', 'password': 'Strong-pass-1'})
+        self.client.post('/profile', data={'form_type': 'details', 'name': 'Owner', 'email': 'owner@example.com',
+                                           'interac_email': 'pay@example.com', 'current_password': 'Strong-pass-1'})
+        self.assertEqual(self.codes, [])
+        self.assertNotIn('Interac e-Transfer email', self.client.get('/profile').get_data(as_text=True))
+
+        # An Interac email saved before the removal stays in the database but is never shown to payers.
+        with self.app.app_context():
+            owner = User.query.filter_by(email='owner@example.com').first()
+            self.assertIsNone(owner.pending_interac_email)
+            owner.interac_email, owner.interac_email_verified = 'old@example.com', True
+            db.session.commit()
         self.assertNotIn('interac', self.payer_methods())
 
-        wrong = self.client.post('/api/mobile/me/interac/verify', headers=self.owner_h, json={'otp': '000000'})
-        self.assertEqual(wrong.status_code, 400)
-        ok = self.client.post('/api/mobile/me/interac/verify', headers=self.owner_h, json={'otp': self.codes[-1][1]})
-        self.assertEqual(ok.status_code, 200)
-        self.assertTrue(ok.get_json()['user']['interac_email_verified'])
-        self.assertEqual(self.payer_methods()['interac']['handle'], 'pay@example.com')
-
-        # Switching to a new address keeps the old verified one until the new one is confirmed.
-        self.save(self.owner_h, 'new@example.com')
-        self.assertEqual(self.payer_methods()['interac']['handle'], 'pay@example.com')
-
-    def test_expired_codes_and_too_many_attempts_are_refused(self):
-        self.save(self.owner_h, 'pay@example.com')
-        for _ in range(5):
-            self.client.post('/api/mobile/me/interac/verify', headers=self.owner_h, json={'otp': '000000'})
-        locked = self.client.post('/api/mobile/me/interac/verify', headers=self.owner_h, json={'otp': self.codes[-1][1]})
-        self.assertIn('Too many', locked.get_json()['error'])
-
-        self.client.post('/api/mobile/me/interac/resend', headers=self.owner_h)
-        with self.app.app_context():
-            user = User.query.filter_by(email='owner@example.com').one()
-            user.interac_otp_expires_at = datetime.utcnow() - timedelta(minutes=1)
-            db.session.commit()
-        expired = self.client.post('/api/mobile/me/interac/verify', headers=self.owner_h, json={'otp': self.codes[-1][1]})
-        self.assertIn('expired', expired.get_json()['error'])
-
-    def test_request_email_carries_only_the_requesters_verified_interac_details(self):
-        url = f'/api/mobile/groups/{self.group_id}/money-requests'
+    def test_request_email_carries_no_interac_details(self):
         from app.routes import mobile_api
-        # Unverified Interac email: nothing to pay with is put in the email.
         with self.app.app_context():
             owner = User.query.filter_by(email='owner@example.com').first()
-            owner.interac_email = 'owner.bank@example.com'
+            owner.interac_email, owner.interac_email_verified = 'owner.bank@example.com', True
             db.session.commit()
-        self.client.post(url, headers=self.owner_h, json={'payer_id': self.payer_id})
+        self.client.post(f'/api/mobile/groups/{self.group_id}/money-requests', headers=self.owner_h,
+                         json={'payer_id': self.payer_id})
         self.assertEqual(mobile_api.send_money_request_email.call_args.args[4], [])
-
-        with self.app.app_context():
-            owner = User.query.filter_by(email='owner@example.com').first()
-            owner.interac_email_verified = True
-            MoneyRequest.query.delete()
-            db.session.commit()
-        self.client.post(url, headers=self.owner_h, json={'payer_id': self.payer_id})
-        methods = mobile_api.send_money_request_email.call_args.args[4]
-        self.assertEqual([(m['type'], m['handle']) for m in methods], [('interac', 'owner.bank@example.com')])
 
     def test_requests_need_the_payers_approval_before_their_email_is_shown(self):
         url = f'/api/mobile/groups/{self.group_id}/money-requests'
@@ -178,21 +157,6 @@ class InteracProtectionTests(unittest.TestCase):
         self.assertEqual(owner_view['money_requests'][0]['request_status'], 'declined')
         self.assertIsNone(owner_view['money_requests'][0]['email'])
 
-
-    def test_website_profile_needs_password_and_verifies_the_code(self):
-        self.client.post('/login', data={'email': 'owner@example.com', 'password': 'Strong-pass-1'})
-        form = {'form_type': 'details', 'name': 'Owner', 'email': 'owner@example.com', 'interac_email': 'pay@example.com'}
-        self.client.post('/profile', data=form)
-        with self.app.app_context():
-            owner = User.query.filter_by(email='owner@example.com').first()
-            self.assertIsNone(owner.pending_interac_email)
-        self.client.post('/profile', data={**form, 'current_password': 'Strong-pass-1'})
-        self.assertEqual(self.codes[-1][0], 'pay@example.com')
-        self.client.post('/profile', data={'form_type': 'interac_verify', 'otp': self.codes[-1][1]})
-        with self.app.app_context():
-            owner = User.query.filter_by(email='owner@example.com').first()
-            self.assertEqual(owner.interac_email, 'pay@example.com')
-            self.assertTrue(owner.interac_email_verified)
 
 
 if __name__ == '__main__':

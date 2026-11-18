@@ -2,17 +2,13 @@
 {% block title %}Admin Overview - Splitmate{% endblock %}
 
 {% block content %}
-<div class="page-header page-header-action">
-    <div>
-        <h1>Overview</h1>
-        <p>High-level product health. Open a report from the side navigation for the full tables.</p>
-    </div>
-    <a href="{{ url_for('admin.users') }}" class="btn btn-primary btn-sm">View users report</a>
+<div class="page-header">
+    <h1>Overview</h1>
+    <p>How Splitmate is doing today, and what needs a look.</p>
 </div>
 
 <div class="stats-grid admin-stats-grid">
     <a class="stat-card stat-card-link" href="{{ url_for('admin.users') }}">
-        <div class="stat-icon">U</div>
         <div class="stat-content">
             <span class="stat-label">Users</span>
             <span class="stat-value">{{ stats.total_users }}</span>
@@ -20,27 +16,56 @@
         </div>
     </a>
     <a class="stat-card stat-card-link stat-positive" href="{{ url_for('admin.users', tab='new') }}">
-        <div class="stat-icon">N</div>
         <div class="stat-content">
             <span class="stat-label">New this month</span>
             <span class="stat-value">{{ stats.new_users_this_month }}</span>
             <span class="stat-subvalue">{{ "%+d"|format(stats.new_user_delta) }} vs last month</span>
         </div>
     </a>
+    <a class="stat-card stat-card-link" href="{{ url_for('admin.groups') }}">
+        <div class="stat-content">
+            <span class="stat-label">Groups</span>
+            <span class="stat-value">{{ group_count }}</span>
+            <span class="stat-subvalue">All time</span>
+        </div>
+    </a>
+    <a class="stat-card stat-card-link" href="{{ url_for('admin.activity', status='pending') }}">
+        <div class="stat-content">
+            <span class="stat-label">Pending payments</span>
+            <span class="stat-value">{{ pending_payments }}</span>
+            <span class="stat-subvalue">Waiting to be confirmed</span>
+        </div>
+    </a>
+</div>
+
+<h2 class="admin-section-title">Needs attention</h2>
+<div class="stats-grid admin-stats-grid">
     <a class="stat-card stat-card-link stat-negative" href="{{ url_for('admin.users', tab='no_split') }}">
-        <div class="stat-icon">I</div>
         <div class="stat-content">
             <span class="stat-label">No split this month</span>
             <span class="stat-value">{{ stats.no_split_this_month }}</span>
-            <span class="stat-subvalue">Needs attention</span>
+            <span class="stat-subvalue">Users to nudge</span>
+        </div>
+    </a>
+    <a class="stat-card stat-card-link" href="{{ url_for('admin.users', tab='never_used') }}">
+        <div class="stat-content">
+            <span class="stat-label">Never used core</span>
+            <span class="stat-value">{{ stats.never_used_core_feature }}</span>
+            <span class="stat-subvalue">Signed up, did nothing</span>
         </div>
     </a>
     <a class="stat-card stat-card-link" href="{{ url_for('admin.emails') }}">
-        <div class="stat-icon">M</div>
         <div class="stat-content">
-            <span class="stat-label">Reminder candidates</span>
+            <span class="stat-label">Reminder ready</span>
             <span class="stat-value">{{ stats.reminder_candidates }}</span>
             <span class="stat-subvalue">{{ inactivity_days }}+ idle days</span>
+        </div>
+    </a>
+    <a class="stat-card stat-card-link" href="{{ url_for('admin.users', tab='suspended') }}">
+        <div class="stat-content">
+            <span class="stat-label">Suspended</span>
+            <span class="stat-value">{{ stats.suspended_users }}</span>
+            <span class="stat-subvalue">Accounts on hold</span>
         </div>
     </a>
 </div>
@@ -70,49 +95,26 @@
 
     <div class="card">
         <div class="card-header">
-            <h2>Reports</h2>
-            <span class="badge">Focused views</span>
+            <h2>Reminder emails</h2>
+            {% if emails_enabled %}
+            <span class="badge badge-success">On</span>
+            {% else %}
+            <span class="badge">Off</span>
+            {% endif %}
         </div>
-        <div class="card-body admin-report-list">
-            <a href="{{ url_for('admin.users') }}" class="admin-report-link">
-                <span>
-                    <strong>Users report</strong>
-                    <small>Sortable tables, verification status, usage, and segments</small>
-                </span>
-                <span aria-hidden="true">></span>
-            </a>
-            <a href="{{ url_for('admin.emails') }}" class="admin-report-link">
-                <span>
-                    <strong>Email reminders</strong>
-                    <small>Automation status and reminder-ready users</small>
-                </span>
-                <span aria-hidden="true">></span>
-            </a>
-        </div>
-    </div>
-</div>
-
-<div class="card">
-    <div class="card-header">
-        <h2>Reminder automation</h2>
-        {% if emails_enabled %}
-        <span class="badge badge-success">Enabled</span>
-        {% else %}
-        <span class="badge">Disabled</span>
-        {% endif %}
-    </div>
-    <div class="card-body admin-automation-list">
-        <div class="automation-row">
-            <span>Daily send time</span>
-            <strong>{{ "%02d:00"|format(email_hour_utc) }} UTC</strong>
-        </div>
-        <div class="automation-row">
-            <span>Idle threshold</span>
-            <strong>{{ inactivity_days }} days</strong>
-        </div>
-        <div class="automation-row">
-            <span>Never used core features</span>
-            <strong>{{ stats.never_used_core_feature }}</strong>
+        <div class="card-body admin-automation-list">
+            <div class="automation-row">
+                <span>Daily send time</span>
+                <strong>{{ "%02d:00"|format(email_hour_utc) }} UTC</strong>
+            </div>
+            <div class="automation-row">
+                <span>Idle threshold</span>
+                <strong>{{ inactivity_days }} days</strong>
+            </div>
+            <div class="automation-row">
+                <span>Ready to email</span>
+                <strong>{{ stats.reminder_candidates }}</strong>
+            </div>
         </div>
     </div>
 </div>

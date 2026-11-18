@@ -4,12 +4,15 @@ import secrets
 from flask import Blueprint, current_app, render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, login_required, current_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from app.admin_utils import ADMIN_ONLY_MESSAGE, is_admin_email
+from app.login_guard import clear_failed_logins, locked_message, minutes_locked, record_failed_login
 from app import db, limiter
 from app.email_utils import app_url, send_password_reset_email, send_verification_otp
 from app.email_validation import email_error_message, normalize_email
-from app.models import PendingRegistration, User
+from app.models import GroupInvite, PendingRegistration, Referral, User
 from app.regions import countries_payload, normalize_country
 from app.security import display_name_error, password_error
+from app.rewards import award_referral_join, tell_inviter
 
 auth_bp = Blueprint('auth', __name__)
 OTP_LOCKED_MESSAGE = 'Too many wrong codes. Request a new code and try again.'
@@ -123,10 +126,26 @@ def complete_pending_registration(pending):
         db.session.commit()
         return None
     user = pending.create_user()
+    user.referred_by_id = first_inviter_id(pending.email)
     db.session.add(user)
+    db.session.flush()
+    earned = award_referral_join(user)
     db.session.delete(pending)
     db.session.commit()
+    tell_inviter(earned)
     return user
+
+
+def first_inviter_id(email):
+    """Whoever invited this email first, by Splitmate invite or group invite, gets the referral."""
+    candidates = [row for row in (
+        Referral.query.filter_by(email=email).order_by(Referral.created_at).first(),
+        GroupInvite.query.filter_by(email=email).order_by(GroupInvite.created_at).first(),
+    ) if row]
+    if not candidates:
+        return None
+    first = min(candidates, key=lambda row: row.created_at)
+    return first.inviter_id if isinstance(first, Referral) else first.invited_by_id
 
 
 def set_pending_registration(pending):
@@ -171,7 +190,21 @@ def login():
             flash('Enter the code we emailed you to finish creating your account.', 'info')
             return redirect(url_for('auth.verify_email'))
 
-        if user and user.check_password(password):
+        if user and minutes_locked(user):
+            flash(locked_message(user), 'error')
+            return render_template('login.html')
+
+        if user and not user.check_password(password):
+            record_failed_login(user)
+            if minutes_locked(user):
+                flash(locked_message(user), 'error')
+                return render_template('login.html')
+
+        elif user:
+            clear_failed_logins(user)
+            if is_admin_email(user.email):
+                flash(ADMIN_ONLY_MESSAGE, 'error')
+                return render_template('login.html')
             if getattr(user, 'is_suspended', False):
                 flash('Your Splitmate account is suspended. Contact an administrator.', 'error')
                 return render_template('login.html')
@@ -302,7 +335,7 @@ def register():
             errors.append('Passwords do not match')
         if not country:
             errors.append('Choose your country')
-        if email and registered_account(email):
+        if email and (is_admin_email(email) or registered_account(email)):
             errors.append('Email already registered')
 
         if errors:

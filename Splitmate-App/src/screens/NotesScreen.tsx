@@ -79,9 +79,12 @@ export function NotesScreen() {
     load();
   }, [load]));
 
-  async function runAction(action: () => Promise<unknown>, title: string) {
+  async function runAction(action: () => Promise<unknown>, title: string, done?: [string, string?]) {
     try {
       await action();
+      if (done) {
+        notify(...done);
+      }
       await load();
     } catch (error) {
       notify(title, error instanceof Error ? error.message : 'Try again.');
@@ -107,7 +110,7 @@ export function NotesScreen() {
       setNewTitle('');
       setNewDescription('');
       setAdding(false);
-    }, 'Could not add note');
+    }, 'Could not add note', ['Note added', `${title} is saved to the group.`]);
     setSavingNew(false);
   }
 
@@ -126,7 +129,7 @@ export function NotesScreen() {
     await runAction(async () => {
       await api.updateNote(noteId, title, editDescription.trim());
       setEditingNoteId(null);
-    }, 'Could not update note');
+    }, 'Could not update note', ['Note saved']);
   }
 
   // Same grocery price comparison as the website, for shopping-list notes.
@@ -328,7 +331,7 @@ export function NotesScreen() {
             <>
               <Pressable hitSlop={8} onPress={() => {
                 setNotes(current => current.map(item => (item.id === note.id ? { ...item, is_completed: !item.is_completed } : item)));
-                runAction(() => api.toggleNote(note.id), 'Could not update note');
+                runAction(() => api.toggleNote(note.id), 'Could not update note', [note.is_completed ? 'Marked not done' : 'Marked done', note.title]);
               }} style={styles.rowBetween}>
                 <Text style={[styles.title, note.is_completed && styles.completed]}>{note.title}</Text>
                 <Icon name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />

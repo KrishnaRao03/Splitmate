@@ -19,6 +19,13 @@ function appOrigin() {
   return Platform.OS === 'web' ? (globalThis as unknown as { location?: { origin: string } }).location?.origin : undefined;
 }
 
+/**
+ * Apple and Google require their own in-app purchase for subscriptions bought inside store apps, so
+ * the iPhone and Android builds don't sell Pro with Stripe. Pro bought on the web still works there,
+ * and anyone can get Pro time with points.
+ */
+const CAN_BUY_IN_APP = Platform.OS === 'web';
+
 async function openStripe(url: string) {
   if (Platform.OS === 'web') {
     // Same tab, so the iPhone home-screen app stays in the app instead of jumping to Safari.
@@ -110,7 +117,7 @@ export function MembershipScreen() {
               <Text style={styles.feature}>{feature}</Text>
             </View>
           ))}
-          {plan.checkout_interval && !isPro ? (
+          {plan.checkout_interval && !isPro && CAN_BUY_IN_APP ? (
             <AppButton
               icon="card-outline"
               disabled={!billing}
@@ -122,6 +129,9 @@ export function MembershipScreen() {
           ) : null}
         </Card>
       ))}
+      {!CAN_BUY_IN_APP && !isPro ? (
+        <Text style={styles.footnote}>You can get Pro time with Splitmate points from your Profile.</Text>
+      ) : null}
       <Text style={styles.footnote}>Payments are handled by Stripe. Splitmate never sees your card number. Cancel any time from Manage subscription.</Text>
     </Screen>
   );

@@ -4,7 +4,15 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- Admin-only email: addresses in `ADMIN_EMAILS` open `/admin` only. They can't sign in to the website or app, sign up, or be taken by a profile email change, and Quick split doesn't match them. `/admin/setup` emails the admin address a link to create or reset its password (the link also verifies it). The System page warns when an admin account also belongs to groups. `ADMIN_EMAILS` no longer falls back to `MAIL_USERNAME`.
+- Admin dashboard reorganized: grouped side menu with icons (People, Money, Outreach, Settings), a slide-in menu on phones, an Overview with key numbers and a "Needs attention" row, a collapsible "Add a user" form, and every table turns into stacked cards on phone screens.
+- Invite people by mobile number. `POST /api/mobile/groups/<id>/invites` takes `{"phone": ...}` as well as `{"email": ...}` and returns the invite link plus `sms_message`, which the app opens in the phone's own Messages app (no SMS service). `POST /api/mobile/invite-splitmate` takes `{"phone": ...}` the same way. `group_invite` gets `phone` (encrypted) and `phone_hash` columns, added automatically at start-up. A mobile invite can be accepted by the account with that number, or by an account with no number yet, which then gets it.
+- `GET /api/mobile/friends` lists people you share a group with (`?group_id=` adds `in_group` / `invited`), and `POST /api/mobile/groups/<id>/invites` takes `{"friend_id": ...}` to invite one of them by their account email.
+
 ### Changed
+- Dashboard: Recent activity removed. Spending insights keeps the totals, with a "View all" link on the heading's line that opens a new `/insights` page holding By category, Monthly trend, By group and Paid by.
+- Expenses are shown only to the person who paid and the people in the split, in every list, history, search, chart, dashboard and export, on the website and in the app. Other group members, including the admin, no longer see them. `expense_history` gets `participant_ids` and `expense_id`; at start-up existing rows are matched to their live expense, and rows whose expense was already deleted stay visible to the payer only. Receipts follow the same rule.
 - Grocery comparison uses real prices only: weekly TrimCart data, plus a Gemini + Google Search lookup of the stores' websites for items the weekly data lacks. The automatic fallback to sample prices is gone.
 - New "Compare grocery prices" box on the Notes screen (app and website): type a list, get stores sorted cheapest first (`POST /api/mobile/grocery/compare`).
 - Emails (verification code, password reset, invites, reminders) are branded HTML with a plain-text fallback.

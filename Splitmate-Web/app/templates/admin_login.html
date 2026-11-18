@@ -5,9 +5,8 @@
 <div class="admin-login-wrap">
     <div class="auth-card admin-login-card">
         <div class="auth-header">
-            <div class="auth-logo auth-logo-admin"><img class="logo-mark logo-mark-auth" src="{{ url_for('static', filename='images/splitmate-logo.png') }}?v=20261114b" alt="Splitmate"><span>Admin</span></div>
             <h1>Admin sign in</h1>
-            <p>Use an email listed in ADMIN_EMAILS to access product analytics and reminder controls.</p>
+            <p>Use the admin-only email. It works here, not in the Splitmate app.</p>
         </div>
 
         <form method="POST" class="auth-form">
@@ -27,6 +26,7 @@
         </form>
 
         <div class="auth-footer">
+            <p><a href="{{ url_for('admin.setup') }}">First time, or forgot the password?</a></p>
             <p><a href="{{ url_for('auth.login') }}">Go to Splitmate app login</a></p>
         </div>
     </div>

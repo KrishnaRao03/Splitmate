@@ -8,17 +8,20 @@ from functools import wraps
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for
 from sqlalchemy import func, text
 
+from app.login_guard import clear_failed_logins, locked_message, minutes_locked, record_failed_login
 from app import db, limiter
-from app.admin_utils import core_activity_user_ids, is_app_admin, month_sequence, split_user_ids_since, user_last_usage_at
+from app.admin_utils import core_activity_user_ids, is_admin_email, is_app_admin, month_sequence, split_user_ids_since, user_last_usage_at
+from app.billing import is_paid_pro
 from app.email_utils import send_password_reset_email
 from app.email_validation import normalize_email
 from app.inactivity_reminders import inactive_reminder_candidates, send_inactivity_reminders
 from app.models import (
     AdminAuditLog, Expense, ExpenseHistory, ExpenseSplit, Group, GroupInvite, MobileDevice, Note, Payment,
-    RewardTransaction, Task, User, group_members,
+    Referral, RewardTransaction, Task, User, group_members,
 )
 from app.receipt_scan import scanning_configured
-from app.routes.auth import generate_password_reset_token
+from app.routes.auth import generate_password_reset_token, verify_password_reset_token
+from app.security import password_error
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -83,7 +86,7 @@ def admin_required(view):
 
 @admin_bp.before_request
 def protect_admin_area():
-    if request.endpoint in ('admin.login', 'admin.logout'):
+    if request.endpoint in ('admin.login', 'admin.logout', 'admin.setup', 'admin.setup_password'):
         return None
 
     if not admin_user():
@@ -116,6 +119,14 @@ def login():
         password = request.form.get('password', '')
         admin_emails = current_app.config.get('ADMIN_EMAILS') or set()
         user = User.query.filter_by(email=email).first() if email and email in admin_emails else None
+
+        if user and minutes_locked(user):
+            flash(locked_message(user), 'error')
+            return render_admin_template('admin_login.html', 'login')
+        if user and not user.check_password(password):
+            record_failed_login(user)
+        elif user:
+            clear_failed_logins(user)
 
         if user and user.check_password(password) and is_app_admin(user):
             if getattr(user, 'is_suspended', False):
@@ -150,6 +161,67 @@ def logout():
     session.pop('admin_seen_at', None)
     flash('Signed out of admin.', 'info')
     return redirect(url_for('admin.login'))
+
+
+@admin_bp.route('/setup', methods=['GET', 'POST'])
+@limiter.limit('5 per hour', methods=['POST'])
+def setup():
+    """Set or reset the password of an admin-only account by emailing a link to the admin address.
+
+    Admin addresses can't sign up for the app, so this is how their account is first created.
+    """
+    if request.method == 'POST':
+        email = normalize_email(request.form.get('email'))
+        if email and is_admin_email(email):
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                user = User(email=email, name='Splitmate admin', is_email_verified=False)
+                user.set_password(secrets.token_urlsafe(32))
+                db.session.add(user)
+                db.session.flush()
+            audit('admin.setup_requested', 'user', user.id, admin=None)
+            db.session.commit()
+            setup_url = url_for('admin.setup_password', token=generate_password_reset_token(user), _external=True)
+            try:
+                sent = send_password_reset_email(user, setup_url)
+            except Exception as exc:
+                current_app.logger.exception('Failed to send admin setup email: %s', exc)
+                sent = False
+            if not sent:
+                current_app.logger.warning('Admin setup email could not be sent; check the mail settings.')
+        # Same reply either way, so this page can't be used to find the admin address.
+        flash('If that is an admin email, a link to set the password is on its way.', 'info')
+        return redirect(url_for('admin.login'))
+
+    return render_admin_template('admin_setup.html', 'login', token=None)
+
+
+@admin_bp.route('/setup/<token>', methods=['GET', 'POST'])
+@limiter.limit('10 per hour', methods=['POST'])
+def setup_password(token):
+    user = verify_password_reset_token(token)
+    if not user or not is_admin_email(user.email):
+        flash('That link is invalid or expired. Ask for a new one.', 'error')
+        return redirect(url_for('admin.setup'))
+
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        error = password_error(password)
+        if not error and password != request.form.get('confirm_password', ''):
+            error = 'Passwords do not match.'
+        if error:
+            flash(error, 'error')
+            return render_admin_template('admin_setup.html', 'login', token=token)
+
+        # The link reached this inbox, which proves the address. set_password also retires the link.
+        user.set_password(password)
+        user.is_email_verified = True
+        audit('admin.password_set', 'user', user.id, admin=user)
+        db.session.commit()
+        flash('Admin password saved. Sign in with it now.', 'success')
+        return redirect(url_for('admin.login'))
+
+    return render_admin_template('admin_setup.html', 'login', token=token)
 
 
 def count_users_created_between(users, start, end):
@@ -245,6 +317,8 @@ def user_row(user, now, metrics=None, month_start=None, inactive_cutoff=None,
         'last_inactivity_email_sent_sort': timestamp_value(user.last_inactivity_email_sent_at),
         'is_suspended': getattr(user, 'is_suspended', False),
         'is_email_verified': user.is_email_verified,
+        'is_pro': is_paid_pro(user),
+        'has_stripe_subscription': bool(user.stripe_subscription_id),
         'is_admin': is_app_admin(user),
         'is_deleted': is_deleted_user(user),
         'member_group_count': metrics.get('member_groups', {}).get(user.id, 0),
@@ -364,31 +438,31 @@ def user_report_tabs(snapshot):
     return [
         {
             'id': 'all',
-            'label': 'All Users',
+            'label': 'All users',
             'users': snapshot['users'],
             'empty': 'No users have signed up yet.'
         },
         {
             'id': 'new',
-            'label': 'New This Month',
+            'label': 'New this month',
             'users': snapshot['new_users_this_month'],
             'empty': 'No new users joined this month.'
         },
         {
             'id': 'no_split',
-            'label': 'No Split This Month',
+            'label': 'No split this month',
             'users': snapshot['no_split_this_month'],
             'empty': 'Every user has split activity this month.'
         },
         {
             'id': 'never_used',
-            'label': 'Never Used Core',
+            'label': 'Never used core',
             'users': snapshot['never_used_core_feature'],
             'empty': 'Every user has used at least one core feature.'
         },
         {
             'id': 'inactive',
-            'label': 'Long Inactive',
+            'label': 'Long inactive',
             'users': snapshot['long_inactive_users'],
             'empty': 'No users are past the inactivity threshold.'
         },
@@ -400,7 +474,7 @@ def user_report_tabs(snapshot):
         },
         {
             'id': 'reminder_ready',
-            'label': 'Reminder Ready',
+            'label': 'Reminder ready',
             'users': snapshot['reminder_candidates'],
             'empty': 'No verified inactive users are ready for a reminder.'
         }
@@ -420,7 +494,9 @@ def dashboard():
         growth_data=snapshot['growth_data'],
         inactivity_days=snapshot['inactivity_days'],
         emails_enabled=snapshot['emails_enabled'],
-        email_hour_utc=snapshot['email_hour_utc']
+        email_hour_utc=snapshot['email_hour_utc'],
+        group_count=Group.query.count(),
+        pending_payments=Payment.query.filter_by(status='pending').count(),
     )
 
 
@@ -643,6 +719,29 @@ def user_has_history(user):
     ))
 
 
+@admin_bp.route('/users/<int:user_id>/pro', methods=['POST'])
+@admin_required
+def set_user_pro(user_id):
+    """Give or take away Pro by hand, with no end date. Stripe subscriptions are left to Stripe."""
+    user = db.get_or_404(User, user_id)
+    tab = request.form.get('tab') or 'all'
+    if user.stripe_subscription_id:
+        flash(f'{user.name} pays for Pro through Stripe, so change it there.', 'info')
+        return admin_users_redirect(user.id, tab)
+
+    give = request.form.get('pro') == 'on'
+    before = f'{user.membership_plan}/{user.membership_status}'
+    user.membership_plan = 'pro' if give else 'free'
+    user.membership_status = 'active'
+    user.membership_interval = None
+    user.membership_renews_at = None
+    user.membership_cancel_at_period_end = False
+    audit('user.give_pro' if give else 'user.remove_pro', 'user', user.id, f'{user.email}; was {before}')
+    db.session.commit()
+    flash(f'{user.name} is now {"Pro (no end date)" if give else "on the free plan"}.', 'success')
+    return admin_users_redirect(user.id, tab)
+
+
 @admin_bp.route('/users/<int:user_id>/sign-out', methods=['POST'])
 @admin_required
 def sign_out_user_everywhere(user_id):
@@ -671,19 +770,13 @@ def delete_user(user_id):
         return admin_users_redirect(user.id, tab)
 
     detail = f'{user.name} <{user.email}>'
-    if user_has_history(user):
-        # Shared expenses, splits and payments still point at this user, so keep the row
-        # (other members' balances depend on it) and strip everything personal instead.
-        anonymize_user(user)
+    if remove_account(user) == 'anonymized':
         audit('user.delete_anonymized', 'user', user_id, detail)
         db.session.commit()
         flash(f'Deleted the account {detail}. Their shared expenses stay as "Deleted user" '
               'so group balances are unchanged.', 'success')
         return admin_users_redirect(tab=tab)
 
-    RewardTransaction.query.filter_by(user_id=user.id).delete()
-    MobileDevice.query.filter_by(user_id=user.id).delete()
-    db.session.delete(user)
     audit('user.delete', 'user', user_id, detail)
     db.session.commit()
     flash(f'Deleted the account {detail}.', 'success')
@@ -692,6 +785,22 @@ def delete_user(user_id):
 
 DELETED_USER_NAME = 'Deleted user'
 DELETED_EMAIL_DOMAIN = 'deleted.splitmate.invalid'
+
+
+def remove_account(user):
+    """Delete the account, or strip it to "Deleted user" when shared records need the row. The caller commits."""
+    if user_has_history(user):
+        # Shared expenses, splits and payments still point at this user, so keep the row
+        # (other members' balances depend on it) and strip everything personal instead.
+        anonymize_user(user)
+        return 'anonymized'
+    RewardTransaction.query.filter_by(user_id=user.id).delete()
+    RewardTransaction.query.filter_by(source_user_id=user.id).update({'source_user_id': None})
+    User.query.filter_by(referred_by_id=user.id).update({'referred_by_id': None})
+    Referral.query.filter_by(inviter_id=user.id).delete()
+    MobileDevice.query.filter_by(user_id=user.id).delete()
+    db.session.delete(user)
+    return 'deleted'
 
 
 def anonymize_user(user):
@@ -709,6 +818,7 @@ def anonymize_user(user):
     user.interac_otp_hash = None
     user.paypal_username = None
     user.upi_id = None
+    user.phone = None
     user.stripe_account_id = None
     user.last_inactivity_email_sent_at = None
     db.session.execute(
@@ -830,9 +940,9 @@ def revoke_group_invite(group_id, invite_id):
     invite = GroupInvite.query.filter_by(id=invite_id, group_id=group_id).first_or_404()
     if not invite.revoked_at and not invite.accepted_at:
         invite.revoked_at = datetime.utcnow()
-        audit('group.revoke_invite', 'group', group_id, invite.email)
+        audit('group.revoke_invite', 'group', group_id, invite.sent_to)
         db.session.commit()
-        flash(f'Revoked the invite for {invite.email}.', 'success')
+        flash(f'Revoked the invite for {invite.sent_to}.', 'success')
     return redirect(url_for('admin.group_detail', group_id=group_id))
 
 
@@ -909,6 +1019,9 @@ def system():
         ('Mobile devices', MobileDevice), ('Admin audit entries', AdminAuditLog),
     ]
     admin_emails = ', '.join(sorted(config.get('ADMIN_EMAILS') or []))
+    # An admin address should be its own account, not someone's everyday Splitmate login.
+    admin_accounts = User.query.filter(User.email.in_(config.get('ADMIN_EMAILS') or [])).all() if database_ok else []
+    admin_in_groups = any(user.groups.count() or user.administered_groups.count() for user in admin_accounts)
     return render_admin_template(
         'admin_system.html', 'system',
         database_ok=database_ok,
@@ -922,6 +1035,7 @@ def system():
             ('Rate limiting', 'On' if config.get('RATELIMIT_ENABLED') else 'Off', bool(config.get('RATELIMIT_ENABLED'))),
             ('Secure cookies (HTTPS only)', 'On' if config.get('SESSION_COOKIE_SECURE') else 'Off', True),
             ('Admin accounts', admin_emails or 'None', bool(admin_emails)),
+            ('Admin email kept separate', 'Also used in groups, pick a new admin-only email' if admin_in_groups else 'Admin only', not admin_in_groups),
             ('Admin idle timeout', f'{int(ADMIN_IDLE_TIMEOUT.total_seconds() // 60)} minutes', True),
             ('Mobile login lifetime', f'{config.get("MOBILE_TOKEN_EXPIRY_DAYS")} days', True),
         ],

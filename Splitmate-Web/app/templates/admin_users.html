@@ -64,7 +64,7 @@
                 </td>
                 <td data-sort-value="{{ user.name|lower }}">
                     <span class="table-primary">{{ user.name }}</span>
-                    <span class="table-secondary">{{ user.email }}</span>
+                    <span class="table-secondary">{{ user.email }}{% if user.is_pro %} · Pro{% endif %}</span>
                 </td>
                 <td data-sort-value="{% if user.is_admin %}0-admin{% elif user.is_suspended %}3-suspended{% elif user.is_email_verified %}1-verified{% else %}2-unverified{% endif %}">
                     {{ user_status(user) }}
@@ -141,6 +141,18 @@
                                 <button type="submit" class="btn btn-outline btn-sm">Send password reset</button>
                             </form>
 
+                            <form method="POST" action="{{ url_for('admin.set_user_pro', user_id=user.id) }}" class="admin-action-form">
+                                <input type="hidden" name="tab" value="{{ tab_id }}">
+                                {% if user.has_stripe_subscription %}
+                                <span class="table-secondary">Pro is paid through Stripe; change it there.</span>
+                                {% elif user.is_pro %}
+                                <button type="submit" class="btn btn-outline btn-sm">Remove Pro</button>
+                                {% else %}
+                                <input type="hidden" name="pro" value="on">
+                                <button type="submit" class="btn btn-primary btn-sm">Give Pro</button>
+                                {% endif %}
+                            </form>
+
                             <form method="POST" action="{{ url_for('admin.sign_out_user_everywhere', user_id=user.id) }}" class="admin-action-form">
                                 <input type="hidden" name="tab" value="{{ tab_id }}">
                                 <button type="submit" class="btn btn-outline btn-sm">Sign out everywhere</button>
@@ -191,12 +203,11 @@
 {% block content %}
 <div class="page-header page-header-action">
     <div>
-        <h1>Users report</h1>
-        <p>Detailed user data, split activity, reminders, and account status.</p>
+        <h1>Users</h1>
+        <p>Every account, how much they use Splitmate, and their status.</p>
     </div>
-    <div>
+    <div class="admin-page-actions">
         <a href="{{ url_for('admin.export_users_csv') }}" class="btn btn-outline btn-sm">Export CSV</a>
-        <a href="{{ url_for('admin.emails') }}" class="btn btn-outline btn-sm">Email report</a>
     </div>
 </div>
 
@@ -223,13 +234,13 @@
     </div>
 </div>
 
-<div class="card admin-create-user-card">
-    <div class="card-header">
+<details class="card admin-create-user-card">
+    <summary>
         <div>
-            <h2>Create user</h2>
-            <p>Add a user account and send a password setup email when needed.</p>
+            <h2>Add a user</h2>
+            <p>Create an account and email them a link to set a password.</p>
         </div>
-    </div>
+    </summary>
     <div class="card-body">
         <form method="POST" action="{{ url_for('admin.create_user') }}" class="admin-create-user-form">
             <label>
@@ -251,7 +262,7 @@
             <button type="submit" class="btn btn-primary btn-sm">Create user</button>
         </form>
     </div>
-</div>
+</details>
 
 <div class="card admin-report-card">
     <div class="admin-tabs" role="tablist" aria-label="User report tabs">

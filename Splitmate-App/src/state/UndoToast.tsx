@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     borderRadius: radius.md,
     borderCurve: 'continuous',
-    backgroundColor: '#1f2023'
+    backgroundColor: '#1a2340'
   },
   texts: {
     flex: 1,
@@ -183,11 +183,11 @@ const styles = StyleSheet.create({
   },
   detail: {
     ...typography.caption,
-    color: '#c4c6cb'
+    color: '#b9c0d6'
   },
   undo: {
     ...typography.bodyStrong,
-    color: '#ffc83d'
+    color: '#7fe0b5'
   },
   backdrop: {
     flex: 1,

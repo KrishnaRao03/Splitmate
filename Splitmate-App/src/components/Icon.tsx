@@ -68,7 +68,9 @@ import {
   UserPlusIcon,
   UsersIcon,
   XIcon,
-  XCircleIcon
+  XCircleIcon,
+  CompassIcon,
+  GiftIcon
 } from 'phosphor-react-native';
 import type { IconProps } from 'phosphor-react-native';
 
@@ -89,6 +91,8 @@ const ICONS = {
   'card-outline': CreditCardIcon,
   'cart-outline': ShoppingCartIcon,
   'cash-outline': MoneyIcon,
+  'compass-outline': CompassIcon,
+  'gift-outline': GiftIcon,
   'chatbubbles-outline': ChatsCircleIcon,
   'checkbox-outline': CheckSquareIcon,
   checkmark: CheckIcon,

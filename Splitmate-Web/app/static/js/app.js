@@ -637,7 +637,7 @@ function splitmateSupportReply(message) {
     }
 
     if (/(point|points|reward|gift|redeem|cash|money)/.test(text)) {
-        return 'Earning Splitmate Points is paused for now. Points you already have are kept, and rewards become available when your points reach the listed tier.';
+        return 'You earn 200 points when a friend you invite joins, 500 when they go Pro, and 10 each time you settle up and they confirm (up to 50 a month). Spend them in Profile on extra receipt scans, grocery comparisons or free Pro time. Points have no cash value.';
     }
 
     if (/(premium|membership|member|subscribe|subscription|plus|ads|ad)/.test(text)) {

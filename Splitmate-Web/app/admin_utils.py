@@ -4,6 +4,17 @@ from app import db
 from app.models import Expense, ExpenseSplit, Payment, Task, Note
 
 
+def is_admin_email(email):
+    """Addresses in ADMIN_EMAILS belong to admin-only accounts that can't use the app itself."""
+    from flask import current_app
+
+    return bool(email) and email.strip().lower() in (current_app.config.get('ADMIN_EMAILS') or set())
+
+
+ADMIN_ONLY_MESSAGE = 'This is an admin-only account. Sign in at /admin instead.'
+ADMIN_EMAIL_TAKEN = 'That email is already used by another account.'
+
+
 def is_app_admin(user):
     if not user or not getattr(user, 'is_authenticated', False):
         return False

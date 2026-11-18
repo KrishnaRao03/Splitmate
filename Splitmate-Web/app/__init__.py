@@ -85,6 +85,15 @@ def ensure_user_email_schema():
         db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN interac_otp_expires_at {datetime_column_type()}'))
     if 'interac_otp_attempts' not in columns:
         db.session.execute(text('ALTER TABLE "user" ADD COLUMN interac_otp_attempts INTEGER DEFAULT 0 NOT NULL'))
+    # Account lockout after repeated wrong passwords (app/login_guard.py).
+    if 'failed_login_count' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN failed_login_count INTEGER DEFAULT 0 NOT NULL'))
+    if 'locked_until' not in columns:
+        db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN locked_until {datetime_column_type()}'))
+    # Phone numbers are encrypted; this keyed hash lets us still find an account by its number.
+    if 'phone_hash' not in columns:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN phone_hash VARCHAR(64)'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS ix_user_phone_hash ON "user" (phone_hash)'))
 
     db.session.commit()
 
@@ -182,13 +191,30 @@ def ensure_rewards_schema():
         if 'membership_cancel_at_period_end' not in user_columns:
             db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN membership_cancel_at_period_end {false_boolean_default()}'))
 
+        if 'points_pro_until' not in user_columns:
+            db.session.execute(text(f'ALTER TABLE "user" ADD COLUMN points_pro_until {datetime_column_type()}'))
+
+        if 'bonus_receipt_scans' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN bonus_receipt_scans INTEGER DEFAULT 0 NOT NULL'))
+
+        if 'bonus_grocery_compares' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN bonus_grocery_compares INTEGER DEFAULT 0 NOT NULL'))
+
+        if 'referred_by_id' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN referred_by_id INTEGER REFERENCES "user"(id)'))
+
     if inspector.has_table('payment'):
         payment_columns = {column['name'] for column in inspector.get_columns('payment')}
 
         if 'reward_points_awarded' not in payment_columns:
             db.session.execute(text('ALTER TABLE payment ADD COLUMN reward_points_awarded INTEGER DEFAULT 0 NOT NULL'))
 
-    if not inspector.has_table('reward_transaction'):
+    if inspector.has_table('reward_transaction'):
+        reward_columns = {column['name'] for column in inspector.get_columns('reward_transaction')}
+        if 'source_user_id' not in reward_columns:
+            db.session.execute(text('ALTER TABLE reward_transaction ADD COLUMN source_user_id INTEGER REFERENCES "user"(id)'))
+
+    if not inspector.has_table('reward_transaction') or not inspector.has_table('referral'):
         db.create_all()
 
     db.session.commit()
@@ -263,6 +289,34 @@ def ensure_group_members_schema():
 
     db.session.commit()
 
+def ensure_group_invite_schema():
+    """Group invites can go to a mobile number as well as an email."""
+    inspector = inspect(db.engine)
+    if not inspector.has_table('group_invite'):
+        return
+    columns = {column['name'] for column in inspector.get_columns('group_invite')}
+    if 'phone' not in columns:
+        db.session.execute(text(f'ALTER TABLE group_invite ADD COLUMN phone VARCHAR({field_encryption.ENCRYPTED_COLUMN_LENGTH})'))
+    if 'phone_hash' not in columns:
+        db.session.execute(text('ALTER TABLE group_invite ADD COLUMN phone_hash VARCHAR(64)'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS ix_group_invite_phone_hash ON group_invite (phone_hash)'))
+    db.session.commit()
+
+def ensure_expense_history_visibility_schema():
+    """History rows remember who each expense was shared with, so only they see it."""
+    inspector = inspect(db.engine)
+    if not inspector.has_table('expense_history'):
+        return
+    columns = {column['name'] for column in inspector.get_columns('expense_history')}
+    if 'participant_ids' not in columns:
+        db.session.execute(text('ALTER TABLE expense_history ADD COLUMN participant_ids VARCHAR(1000)'))
+    if 'expense_id' not in columns:
+        db.session.execute(text('ALTER TABLE expense_history ADD COLUMN expense_id INTEGER'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS ix_expense_history_expense_id ON expense_history (expense_id)'))
+    db.session.commit()
+    from app.expense_visibility import fill_history_participants
+    fill_history_participants()
+
 def ensure_region_schema():
     """Country per user and currency per group. Existing rows become Canada / CAD."""
     inspector = inspect(db.engine)
@@ -323,8 +377,11 @@ def create_app(config_class=Config):
     @app.context_processor
     def inject_currency_context():
         from app.admin_utils import is_app_admin
+        from app import rewards
 
         return {
+            'points_rules': {'friend_joins': rewards.REFERRAL_JOIN_POINTS, 'settle_up': rewards.SETTLE_POINTS,
+                             'settle_cap': rewards.SETTLE_POINTS_PER_MONTH},
             'currency_code': configured_currency_code(),
             'available_currencies': available_currencies,
             'currency_symbol': configured_currency_symbol(),
@@ -349,6 +406,21 @@ def create_app(config_class=Config):
     def handle_mobile_cors_preflight():
         if request.method == 'OPTIONS' and request.path.startswith('/api/mobile'):
             return '', 204
+
+    @app.after_request
+    def add_security_headers(response):
+        # No framing (clickjacking), no MIME sniffing, no full URLs leaked to other sites,
+        # and HTTPS only once the site is served over HTTPS.
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+        response.headers.setdefault('Content-Security-Policy', "frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+        response.headers.setdefault('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()')
+        if app.config.get('SESSION_COOKIE_SECURE'):
+            response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+        if request.path.startswith(('/api/mobile/auth', '/admin', '/login', '/profile')):
+            response.headers.setdefault('Cache-Control', 'no-store')
+        return response
 
     @app.after_request
     def add_mobile_cors_headers(response):
@@ -451,10 +523,13 @@ def create_app(config_class=Config):
         ensure_group_default_split_schema()
         ensure_task_schema()
         ensure_group_members_schema()
+        ensure_group_invite_schema()
+        ensure_expense_history_visibility_schema()
         ensure_region_schema()
         ensure_purchase_inbox_schema()
         # Fails fast on a malformed FIELD_ENCRYPTION_KEY, then encrypts any plain-text payment handles.
         field_encryption.fernet()
         field_encryption.encrypt_existing_payment_handles(db)
+        field_encryption.encrypt_existing_phones(db)
 
     return app

@@ -1,0 +1,41 @@
+{% extends "admin_base.html" %}
+{% block title %}Admin password - Splitmate{% endblock %}
+
+{% block content %}
+<div class="admin-login-wrap">
+    <div class="auth-card admin-login-card">
+        <div class="auth-header">
+            <h1>{% if token %}Choose an admin password{% else %}Set up admin password{% endif %}</h1>
+            {% if token %}
+            <p>This password is only for the admin dashboard.</p>
+            {% else %}
+            <p>Enter the admin email. We'll send it a link to set or reset the admin password.</p>
+            {% endif %}
+        </div>
+
+        <form method="POST" class="auth-form">
+            {% if token %}
+            <div class="form-group">
+                <label for="password">New password</label>
+                <input type="password" id="password" name="password" required autocomplete="new-password">
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">Confirm password</label>
+                <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Save password</button>
+            {% else %}
+            <div class="form-group">
+                <label for="email">Admin email</label>
+                <input type="email" id="email" name="email" required maxlength="120" placeholder="admin@example.com" autocomplete="email">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Email me a link</button>
+            {% endif %}
+        </form>
+
+        <div class="auth-footer">
+            <p><a href="{{ url_for('admin.login') }}">Back to admin sign in</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

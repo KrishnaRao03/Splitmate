@@ -7,7 +7,7 @@ import { typography } from '@/theme/typography';
 type BarRow = { label: string; total: number };
 
 /** Colours for charts drawn on a black surface (the Home screen's lower sheet). */
-const DARK = { text: '#ffffff', amount: '#ffc83d', track: '#272727', bar: '#ffc83d' };
+const DARK = { text: '#ffffff', amount: '#7fe0b5', track: '#263055', bar: '#7fe0b5' };
 
 /** Horizontal bars scaled to the largest row, like the website's insight lists. */
 export function BarList({ rows, format, emptyLabel, dark = false }: { rows: BarRow[]; format: (value: number) => string; emptyLabel: string; dark?: boolean }) {

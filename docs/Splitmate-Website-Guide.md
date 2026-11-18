@@ -18,7 +18,7 @@ Splitmate is a shared-living app for roommates, friends, and trips. You create a
 | **Visitor** | Not signed in | See Login, Register, Forgot Password, the Join Splitmate page, a group invite landing page, Privacy Policy and Terms. |
 | **Member** | Any signed-in, verified user | Use every main page: Dashboard, Split, Tasks, Notes, Profile. Inside a group they can add expenses, record payments, add/complete tasks, and add/edit notes. |
 | **Group admin** | The person who created a group | Everything a member can do, plus: invite, add and remove members, revoke invites, set nicknames, set the group's default split, and clear the group's recent expenses. The group admin can't be removed from their own group. |
-| **App admin** | Emails listed in the `ADMIN_EMAILS` setting (defaults to the mail account) | Signs in separately at `/admin` to see reports, create/edit/suspend users, send password resets, and send inactivity reminders. Admin accounts can't be suspended or un-verified, and their email can only change through the setting. |
+| **App admin** | Admin-only emails listed in the `ADMIN_EMAILS` setting (they can't use the app itself; set the password at `/admin/setup`) | Signs in separately at `/admin` to see reports, create/edit/suspend users, send password resets, and send inactivity reminders. Admin accounts can't be suspended or un-verified, and their email can only change through the setting. |
 
 ---
 

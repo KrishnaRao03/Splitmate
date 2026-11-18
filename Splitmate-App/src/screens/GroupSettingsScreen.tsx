@@ -17,12 +17,15 @@ import { colors, spacing } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { formatDate } from '@/utils/dates';
 import { confirm, notify } from '@/state/UndoToast';
-import type { DefaultSplit, GroupDetail, GroupMember, RootStackParamList } from '@/types';
+import type { DefaultSplit, Friend, GroupDetail, GroupMember, RootStackParamList } from '@/types';
+import { INVITE_POINTS_NOTE } from '@/utils/points';
+import { sendTextInvite } from '@/utils/textInvite';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupSettings'>;
 type SplitType = DefaultSplit['type'];
 
-type LastInvite = { email: string; url: string; qrRows: string[] };
+/** `phone` and `text` are set for an invite by mobile number, so it can be texted again. */
+type LastInvite = { sentTo: string; url: string; qrRows: string[]; phone?: string; text?: string };
 
 export function GroupSettingsScreen({ navigation, route }: Props) {
   const { groupId } = route.params;
@@ -30,7 +33,11 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
   const [lastInvite, setLastInvite] = useState<LastInvite | null>(null);
+  // Digits without an @ mean a mobile number.
+  const inviteByText = !inviteEmail.includes('@') && /\d{3}/.test(inviteEmail);
   const [groupName, setGroupName] = useState('');
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [invitingFriend, setInvitingFriend] = useState<number | null>(null);
   const [nicknames, setNicknames] = useState<Record<number, string>>({});
   const [splitType, setSplitType] = useState<SplitType>('equal');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -42,6 +49,8 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
     try {
       const next = await api.groupDetail(groupId);
       setDetail(next);
+      // Friends from your other groups who aren't in this one yet, for one-tap invites.
+      api.friends(groupId).then(list => setFriends(list.filter(friend => !friend.in_group))).catch(() => setFriends([]));
       setGroupName(next.group.name);
       setNicknames(Object.fromEntries(next.group.members.map(member => [member.id, member.nickname])));
       setSplitType(next.default_split.type);
@@ -71,14 +80,53 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
   }
 
   // One invite flow for everyone: new or existing accounts both get an invite they accept to join.
+  // Anything without an @ is treated as a mobile number: the app opens Messages with the invite typed out.
   async function inviteMember() {
     try {
+      if (!inviteEmail.includes('@')) {
+        const result = await api.inviteToGroupByPhone(groupId, inviteEmail.trim());
+        setInviteEmail('');
+        if (result.already_member || !result.phone || !result.sms_message || !result.invite_url) {
+          setLastInvite(null);
+          notify('Already in the group', result.message);
+          return;
+        }
+        setLastInvite({
+          sentTo: result.sent_to || result.phone, url: result.invite_url, qrRows: result.qr_rows || [],
+          phone: result.phone, text: result.sms_message,
+        });
+        await load();
+        await sendTextInvite(result.phone, result.sms_message);
+        notify('Invite ready to text', `Send the text in Messages to ${result.sent_to || result.phone} to finish. It's listed under Pending invites.`);
+        return;
+      }
       const result = await api.inviteToGroup(groupId, inviteEmail);
       setInviteEmail('');
-      setLastInvite(result.invite_url ? { email: result.email, url: result.invite_url, qrRows: result.qr_rows || [] } : null);
+      setLastInvite(result.invite_url ? { sentTo: result.email, url: result.invite_url, qrRows: result.qr_rows || [] } : null);
+      notify(result.email_sent ? 'Invite sent by email' : 'Invite created', result.email_sent
+        ? `We emailed ${result.email}. They join once they accept.`
+        : `The email didn't go out, so share the link or QR code below with ${result.email}.`);
       await load();
     } catch (error) {
       notify('Could not create invite', error instanceof Error ? error.message : 'Try again.');
+    }
+  }
+
+  async function inviteFriend(friend: Friend) {
+    setInvitingFriend(friend.id);
+    try {
+      const result = await api.inviteFriendToGroup(groupId, friend.id);
+      notify(
+        result.email_sent ? 'Invite sent by email' : 'Invite created',
+        result.email_sent
+          ? `We emailed ${friend.name} at ${result.email}. They join ${detail?.group.name ?? 'the group'} once they accept.`
+          : `The email didn't go out, but ${friend.name} can accept it from Group invites in the app.`
+      );
+      await load();
+    } catch (error) {
+      notify('Could not send invite', error instanceof Error ? error.message : 'Try again.');
+    } finally {
+      setInvitingFriend(null);
     }
   }
 
@@ -245,15 +293,54 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
       {isAdmin ? (
         <Card>
           <Text style={styles.sectionTitle}>Invite people</Text>
-          <TextField label="Their email" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-          <AppButton icon="mail-outline" onPress={inviteMember} disabled={!inviteEmail.trim()}>Send invite</AppButton>
-          <Text style={styles.help}>Works for new and existing Splitmate accounts. They join once they accept.</Text>
+          <Text style={styles.help}>Invite by email or mobile number, or pick a friend from your other groups.</Text>
+          {friends.length ? (
+            <View style={styles.friendList}>
+              <Text style={styles.memberName}>Friends from your other groups</Text>
+              {friends.map(friend => (
+                <View key={friend.id} style={styles.inviteRow}>
+                  <View style={styles.memberMain}>
+                    <Text style={styles.memberName}>{friend.name}</Text>
+                    <Text style={styles.help}>{friend.email} · in {friend.shared_groups.join(', ')}</Text>
+                  </View>
+                  {friend.invited ? (
+                    <Text style={styles.help}>Invited</Text>
+                  ) : (
+                    <AppButton
+                      icon="person-add-outline"
+                      variant="outline"
+                      loading={invitingFriend === friend.id}
+                      onPress={() => inviteFriend(friend)}
+                    >
+                      Invite
+                    </AppButton>
+                  )}
+                </View>
+              ))}
+            </View>
+          ) : null}
+          <TextField label="Their email or mobile number" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+          <AppButton
+            icon={inviteByText ? 'phone-portrait-outline' : 'mail-outline'}
+            onPress={inviteMember}
+            disabled={!inviteEmail.trim()}
+          >
+            {inviteByText ? 'Text invite' : 'Send invite'}
+          </AppButton>
+          <Text style={styles.help}>
+            Emails are sent for you. For a mobile number, your Messages app opens with the invite ready to send. Works for new and existing Splitmate accounts, and they join once they accept. {INVITE_POINTS_NOTE}
+          </Text>
           {lastInvite ? (
             <View style={styles.invitePanel}>
-              <Text style={styles.memberName}>Invite for {lastInvite.email}</Text>
+              <Text style={styles.memberName}>Invite for {lastInvite.sentTo}</Text>
               <Text style={styles.help}>Show this QR code, or share the link, so they can join right away.</Text>
               {lastInvite.qrRows.length ? <View style={styles.qrWrap}><QrCode rows={lastInvite.qrRows} size={180} /></View> : null}
               <Text style={styles.help} selectable>{lastInvite.url}</Text>
+              {lastInvite.phone && lastInvite.text ? (
+                <AppButton icon="phone-portrait-outline" variant="outline" onPress={() => sendTextInvite(lastInvite.phone as string, lastInvite.text as string)}>
+                  Text it again
+                </AppButton>
+              ) : null}
               <AppButton icon="share-social-outline" variant="outline" onPress={shareInvite}>Share invite link</AppButton>
             </View>
           ) : null}
@@ -303,12 +390,17 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
           {detail.pending_invites.map(invite => (
             <View key={invite.id} style={styles.inviteRow}>
               <View style={styles.memberMain}>
-                <Text style={styles.memberName}>{invite.email}</Text>
+                <Text style={styles.memberName}>{invite.sent_to || invite.email}</Text>
                 <Text style={styles.help}>Expires {formatDate(invite.expires_at, 'soon')}</Text>
               </View>
               <AppButton icon="close-outline" variant="danger" onPress={async () => {
-                await api.revokeGroupInvite(groupId, invite.id);
-                await load();
+                try {
+                  await api.revokeGroupInvite(groupId, invite.id);
+                  notify('Invite revoked', `The link for ${invite.sent_to || invite.email} no longer works.`);
+                  await load();
+                } catch (error) {
+                  notify('Could not revoke invite', error instanceof Error ? error.message : 'Try again.');
+                }
               }}>Revoke</AppButton>
             </View>
           ))}
@@ -344,8 +436,13 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
         )) : null}
         <AppButton icon="save-outline" loading={saving} onPress={saveDefaultSplit}>Save default</AppButton>
         <AppButton icon="refresh-outline" variant="outline" onPress={async () => {
-          await api.clearDefaultSplit(groupId);
-          await load();
+          try {
+            await api.clearDefaultSplit(groupId);
+            notify('Default reset', 'New expenses will split equally.');
+            await load();
+          } catch (error) {
+            notify('Could not reset default', error instanceof Error ? error.message : 'Try again.');
+          }
         }}>Reset to Equal</AppButton>
       </Card>
       ) : null}
@@ -425,6 +522,10 @@ const styles = StyleSheet.create({
   adminLabel: {
     color: colors.primary,
     ...typography.label
+  },
+  friendList: {
+    gap: spacing.xs,
+    marginBottom: spacing.sm
   },
   inviteRow: {
     flexDirection: 'row',

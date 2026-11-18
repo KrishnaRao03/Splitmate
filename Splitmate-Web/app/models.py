@@ -2,7 +2,9 @@ from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, login_manager
-from app.field_encryption import EncryptedString
+from sqlalchemy.orm import validates
+
+from app.field_encryption import EncryptedString, phone_lookup_hash
 
 # Wrong codes allowed before an emailed OTP stops working and a new one is needed.
 MAX_OTP_ATTEMPTS = 5
@@ -54,8 +56,18 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     is_suspended = db.Column(db.Boolean, default=False, nullable=False)
     # ISO country code from sign-up; sets the user's currency and which payment details they can add.
     country = db.Column(db.String(2), default='CA', nullable=False)
-    # Optional, one account per number (stored as +digits); lets friends find you for Quick split.
-    phone = db.Column(db.String(20), unique=True, index=True)
+    # Optional, one account per number (+digits, encrypted at rest); lets friends find you for Quick split.
+    # phone_hash is a keyed hash of it, used for lookups and kept in step by the validator below.
+    phone = db.Column(EncryptedString, unique=True)
+    phone_hash = db.Column(db.String(64), index=True)
+    # Wrong-password lockout (app/login_guard.py).
+    failed_login_count = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime)
+
+    @validates('phone')
+    def _sync_phone_hash(self, key, value):
+        self.phone_hash = phone_lookup_hash(value) if value else None
+        return value
     is_email_verified = db.Column(db.Boolean, default=False, nullable=False)
     email_otp_hash = db.Column(db.String(256))
     email_otp_expires_at = db.Column(db.DateTime)
@@ -85,6 +97,12 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     membership_interval = db.Column(db.String(10))
     membership_renews_at = db.Column(db.DateTime)
     membership_cancel_at_period_end = db.Column(db.Boolean, default=False, nullable=False)
+    # Bought with points: Pro until this time, and scans that sit on top of the monthly free allowance.
+    points_pro_until = db.Column(db.DateTime)
+    bonus_receipt_scans = db.Column(db.Integer, default=0, nullable=False)
+    bonus_grocery_compares = db.Column(db.Integer, default=0, nullable=False)
+    referred_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    referred_by = db.relationship('User', remote_side=[id], foreign_keys=[referred_by_id])
     # Purchase inbox: card purchases go to this group first, and alerts forwarded to the inbox address
     # carrying inbox_token land in this user's inbox. See app/purchase_inbox.py.
     default_group_id = db.Column(db.Integer)
@@ -100,6 +118,9 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
         self.revoke_sessions()
+        # A new password (including a reset) also lifts any wrong-password lock.
+        self.failed_login_count = 0
+        self.locked_until = None
 
     def revoke_sessions(self):
         self.token_version = (self.token_version or 0) + 1
@@ -177,6 +198,10 @@ class ExpenseHistory(db.Model):
     date = db.Column(db.DateTime, default=datetime.utcnow)
     paid_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'))
+    # Who the expense was shared with when it was added (",3,7,": payer and everyone in the split),
+    # so history only shows it to them. expense_id links back while the live expense exists.
+    participant_ids = db.Column(db.String(1000))
+    expense_id = db.Column(db.Integer, index=True)
 
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -213,12 +238,13 @@ class RewardTransaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     payment_id = db.Column(db.Integer, db.ForeignKey('payment.id'), unique=True)
+    source_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     points = db.Column(db.Integer, nullable=False)
     type = db.Column(db.String(30), default='earn', nullable=False)
     note = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    user = db.relationship('User', backref=db.backref('reward_transactions', lazy='dynamic'))
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('reward_transactions', lazy='dynamic'))
     payment = db.relationship('Payment', backref=db.backref('reward_transaction', uselist=False))
 
 class Note(db.Model):
@@ -252,7 +278,11 @@ class Task(db.Model):
 class GroupInvite(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False, index=True)
+    # An invite goes to an email, or to a mobile number (texted from the inviter's own phone).
+    # Phone invites keep email as '' and store the number encrypted, with a keyed hash for lookups.
     email = db.Column(db.String(120), nullable=False, index=True)
+    phone = db.Column(EncryptedString)
+    phone_hash = db.Column(db.String(64), index=True)
     token = db.Column(db.String(128), unique=True, nullable=False, index=True)
     invited_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     accepted_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -263,6 +293,31 @@ class GroupInvite(db.Model):
 
     invited_by = db.relationship('User', foreign_keys=[invited_by_id], backref='sent_group_invites')
     accepted_by = db.relationship('User', foreign_keys=[accepted_by_id], backref='accepted_group_invites')
+
+    @validates('phone')
+    def _sync_phone_hash(self, key, value):
+        self.phone_hash = phone_lookup_hash(value) if value else None
+        return value
+
+    @property
+    def is_phone_invite(self):
+        return not self.email and bool(self.phone_hash)
+
+    @property
+    def sent_to(self):
+        """Who it went to, for lists: the email, or the mobile number shown as '+1 ••• ••• 0123'."""
+        if self.email:
+            return self.email
+        return masked_phone(self.phone)
+
+
+def masked_phone(phone):
+    """'+14165550123' -> '+1 ••• ••• 0123', so a list never shows someone's whole number."""
+    digits = ''.join(char for char in str(phone or '') if char.isdigit())
+    if len(digits) < 4:
+        return 'a mobile number'
+    country = digits[:-10] if len(digits) > 10 else ''
+    return f"{'+' + country + ' ' if country else ''}••• ••• {digits[-4:]}"
 
 class MobileDevice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -310,6 +365,14 @@ class PendingRegistration(EmailOtpMixin, db.Model):
         """The verified account. The caller deletes this pending row and commits."""
         return User(email=self.email, name=self.name, password_hash=self.password_hash, is_email_verified=True,
                     country=self.country or 'CA')
+
+
+class Referral(db.Model):
+    """Someone invited this email to Splitmate. If it signs up, the inviter earns points."""
+    id = db.Column(db.Integer, primary_key=True)
+    inviter_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True)
+    email = db.Column(db.String(120), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class FeatureUsage(db.Model):

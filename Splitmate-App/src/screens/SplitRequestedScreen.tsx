@@ -26,11 +26,11 @@ export function SplitRequestedScreen({ navigation, route }: Props) {
     <Screen contentStyle={styles.content}>
       <Card style={styles.card}>
         <View style={styles.icon}>
-          <Icon name="mail-outline" size={28} color={colors.onHighlight} />
+          <Icon name="checkmark" size={28} color={colors.onHighlight} />
         </View>
-        <Text style={styles.title}>Money requested</Text>
+        <Text style={styles.title}>Bill split</Text>
         <Text style={styles.body}>
-          You asked for {money(total)} for {expense.description}. It now shows in Splitmate for {owing.length === 1 ? owing[0].user : 'everyone in the split'}.
+          {expense.description} is added. Here's what each person owes you, {money(total)} in total. Nobody is asked to pay until you settle up.
         </Text>
 
         <View style={styles.list}>
@@ -42,17 +42,15 @@ export function SplitRequestedScreen({ navigation, route }: Props) {
               </View>
               <View style={[styles.pill, split.is_settled ? styles.pillDone : styles.pillWaiting]}>
                 <Text style={[styles.pillText, split.is_settled && styles.pillTextDone]}>
-                  {split.is_settled ? 'Settled' : 'Waiting on confirmation'}
+                  {split.is_settled ? 'Settled' : 'Not settled yet'}
                 </Text>
               </View>
             </View>
           ))}
         </View>
 
-        <Text style={styles.hint}>
-          When they pay, you get an email. Confirm it in {groupName} and it's marked settled.
-        </Text>
         <AppButton icon="people-outline" onPress={() => navigation.replace('GroupDetail', { groupId, groupName })}>Open {groupName}</AppButton>
+        <AppButton icon="swap-horizontal-outline" variant="outline" onPress={() => navigation.replace('SettleUp', { groupId, groupName })}>Settle up now</AppButton>
         <AppButton variant="ghost" onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Main' }] })}>Done</AppButton>
       </Card>
     </Screen>
@@ -130,10 +128,5 @@ const styles = StyleSheet.create({
   },
   pillTextDone: {
     color: colors.success
-  },
-  hint: {
-    ...typography.caption,
-    color: colors.muted,
-    textAlign: 'center'
   }
 });

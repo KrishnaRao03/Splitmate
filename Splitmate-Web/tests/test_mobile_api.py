@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from app import create_app, db
+from app.expense_visibility import history_for_expense
 from app.group_utils import set_member_nickname
 from app.models import Expense, ExpenseHistory, ExpenseSplit, Group, GroupInvite, Note, Payment, RewardTransaction, Task, User
 from app.routes.mobile_api import mobile_token_for
@@ -52,13 +53,8 @@ class MobileApiParityTests(unittest.TestCase):
                 user_id=admin.id,
                 amount_owed=30,
             ))
-            db.session.add(ExpenseHistory(
-                description=expense.description,
-                amount=expense.amount,
-                category=expense.category,
-                group_id=group.id,
-                paid_by_id=member.id,
-            ))
+            # Recorded the way the app records it: shared with the payer and the admin.
+            db.session.add(history_for_expense(expense, [admin.id]))
             db.session.add(Task(
                 title='Pay rent',
                 due_date=datetime.utcnow() + timedelta(days=2),
@@ -110,6 +106,37 @@ class MobileApiParityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         with self.app.app_context():
             self.assertTrue(db.session.get(ExpenseSplit, split_id).is_settled)
+
+    def test_settle_summary_lists_open_items_per_person(self):
+        summary = self.client.get(f'/api/mobile/groups/{self.group_id}/settle-summary', headers=self.headers).get_json()
+        [person] = summary['people']
+        self.assertEqual(person['name'], 'Member User')
+        self.assertEqual(person['you_owe'], 30.0)
+        self.assertEqual(person['they_owe'], 0.0)
+        self.assertEqual(person['you_owe_items'][0]['description'], 'Dinner')
+        self.assertEqual(person['you_owe_items'][0]['total'], 60.0)
+        self.assertIsNotNone(person['last_settled_at'])
+
+    def test_settle_with_a_person_clears_everything_they_owe_at_once(self):
+        with self.app.app_context():
+            member = db.session.get(User, self.member_id)
+            member_headers = {'Authorization': f'Bearer {mobile_token_for(member)}'}
+            second = Expense(description='Taxi', amount=20, category='Travel', group_id=self.group_id, paid_by_id=self.member_id)
+            db.session.add(second)
+            db.session.flush()
+            db.session.add(ExpenseSplit(expense_id=second.id, user_id=self.admin_id, amount_owed=10))
+            db.session.commit()
+        # Only the person who is owed can do it.
+        self.assertEqual(self.client.post(f'/api/mobile/groups/{self.group_id}/settle-person', headers=self.headers,
+                                          json={'user_id': self.member_id}).status_code, 409)
+        with patch('app.email_utils.send_email', return_value=True):
+            response = self.client.post(f'/api/mobile/groups/{self.group_id}/settle-person', headers=member_headers,
+                                        json={'user_id': self.admin_id})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['amount'], 40.0)
+        with self.app.app_context():
+            self.assertEqual(ExpenseSplit.query.filter_by(user_id=self.admin_id, is_settled=False).count(), 0)
+            self.assertEqual(Payment.query.filter_by(payer_id=self.admin_id, amount=40.0, status='recorded').count(), 1)
 
     def test_expense_edit_and_delete_permissions_and_rules(self):
         with self.app.app_context():
@@ -641,7 +668,7 @@ class MobileApiParityTests(unittest.TestCase):
             db.session.commit()
 
         rewards = self.client.get('/api/mobile/rewards', headers=self.headers).get_json()
-        self.assertEqual([tier['points'] for tier in rewards['tiers']], [500, 1000, 2500])
+        self.assertEqual([reward['id'] for reward in rewards['rewards']], ['scans_5', 'compares_5', 'pro_week', 'pro_month'])
         self.assertEqual([plan['id'] for plan in rewards['membership_plans']], ['free', 'pro_month', 'pro_year'])
         self.assertEqual(len(rewards['recent_transactions']), 5)
         # Newest first.
@@ -729,6 +756,182 @@ class MobileApiParityTests(unittest.TestCase):
             group = db.session.get(Group, self.group_id)
             self.assertIn(invitee_id, [member.id for member in group.members])
             self.assertEqual(db.session.get(GroupInvite, live_id).accepted_by_id, invitee_id)
+
+    def test_admin_can_invite_by_mobile_number_and_invitee_joins(self):
+        response = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers,
+                                    json={'phone': '(416) 555-0123'})
+        self.assertEqual(response.status_code, 201)
+        data = response.get_json()
+        self.assertTrue(data['by_phone'])
+        self.assertEqual(data['phone'], '+14165550123')
+        self.assertEqual(data['sent_to'], '+1 ••• ••• 0123')
+        self.assertIn('/?invite=', data['invite_url'])
+        self.assertIn(data['invite_url'], data['sms_message'])
+        self.assertIn('Parity Group', data['sms_message'])
+        token = data['invite_url'].split('invite=')[1]
+        # The website's invite page works for it too, without showing the whole number.
+        page = self.client.get(f'/invite/{token}').get_data(as_text=True)
+        self.assertIn('+1 ••• ••• 0123', page)
+        self.assertNotIn('5550123', page)
+
+        # Asking again reuses the same pending invite.
+        again = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers,
+                                 json={'phone': '416 555 0123'})
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.get_json()['id'], data['id'])
+
+        pending = self.client.get(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers).get_json()
+        self.assertEqual([(item['sent_to'], item['by_phone']) for item in pending], [('+1 ••• ••• 0123', True)])
+        with self.app.app_context():
+            stored = db.session.get(GroupInvite, data['id'])
+            self.assertEqual(stored.email, '')
+            self.assertNotIn('5550123', db.session.execute(
+                db.text('SELECT phone FROM group_invite WHERE id = :id'), {'id': data['id']}).scalar())
+
+        with self.app.app_context():
+            other_phone = User(email='other@example.com', name='Other', is_email_verified=True, phone='+16475550000')
+            no_phone = User(email='newbie@example.com', name='Newbie', is_email_verified=True)
+            for user in (other_phone, no_phone):
+                user.set_password('password123')
+            db.session.add_all([other_phone, no_phone])
+            db.session.commit()
+            other_headers = {'Authorization': f'Bearer {mobile_token_for(other_phone)}'}
+            newbie_headers = {'Authorization': f'Bearer {mobile_token_for(no_phone)}'}
+            newbie_id = no_phone.id
+
+        # An account with a different number can't use the link.
+        blocked = self.client.post('/api/mobile/invites/accept-link', headers=other_headers, json={'link': token})
+        self.assertEqual(blocked.status_code, 403)
+
+        # An account with no number joins, and the invited number is saved to it.
+        joined = self.client.post('/api/mobile/invites/accept-link', headers=newbie_headers, json={'link': token})
+        self.assertEqual(joined.status_code, 200)
+        with self.app.app_context():
+            newbie = db.session.get(User, newbie_id)
+            self.assertEqual(newbie.phone, '+14165550123')
+            self.assertIn(newbie, db.session.get(Group, self.group_id).members)
+
+    def test_phone_invite_shows_in_app_for_account_with_that_number(self):
+        with self.app.app_context():
+            friend = User(email='friend@example.com', name='Friend', is_email_verified=True, phone='+14165550199')
+            friend.set_password('password123')
+            db.session.add(friend)
+            db.session.commit()
+            friend_headers = {'Authorization': f'Bearer {mobile_token_for(friend)}'}
+
+        created = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers,
+                                   json={'phone': '4165550199'}).get_json()
+        listed = self.client.get('/api/mobile/invites', headers=friend_headers).get_json()
+        self.assertEqual([item['id'] for item in listed], [created['id']])
+        accepted = self.client.post(f'/api/mobile/invites/{created["id"]}/accept', headers=friend_headers)
+        self.assertEqual(accepted.status_code, 200)
+
+        # Members already in the group are reported instead of invited again.
+        member_again = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers,
+                                        json={'phone': '4165550199'})
+        self.assertTrue(member_again.get_json()['already_member'])
+
+    def test_phone_invite_rejects_bad_numbers_and_splitmate_invite_writes_text(self):
+        bad = self.client.post(f'/api/mobile/groups/{self.group_id}/invites', headers=self.headers, json={'phone': '12'})
+        self.assertEqual(bad.status_code, 400)
+        text = self.client.post('/api/mobile/invite-splitmate', headers=self.headers, json={'phone': '416-555-0177'})
+        self.assertEqual(text.status_code, 200)
+        self.assertEqual(text.get_json()['phone'], '+14165550177')
+        self.assertIn('Admin User invited you to Splitmate', text.get_json()['sms_message'])
+
+    def test_friends_from_one_group_can_be_invited_to_another(self):
+        with self.app.app_context():
+            stranger = User(email='stranger@example.com', name='Stranger', is_email_verified=True)
+            stranger.set_password('password123')
+            db.session.add(stranger)
+            trip = Group(name='Trip', admin_id=self.admin_id)
+            trip.members.append(db.session.get(User, self.admin_id))
+            db.session.add(trip)
+            db.session.commit()
+            trip_id, stranger_id = trip.id, stranger.id
+
+        friends = self.client.get(f'/api/mobile/friends?group_id={trip_id}', headers=self.headers).get_json()
+        self.assertEqual([(row['id'], row['in_group'], row['invited']) for row in friends],
+                         [(self.member_id, False, False)])
+        self.assertEqual(friends[0]['shared_groups'], ['Parity Group'])
+
+        with patch('app.routes.main.send_group_invite_email', return_value=True) as sent:
+            invited = self.client.post(f'/api/mobile/groups/{trip_id}/invites', headers=self.headers,
+                                       json={'friend_id': self.member_id})
+        self.assertEqual(invited.status_code, 201)
+        self.assertEqual(sent.call_args[0][0], 'member@example.com')
+        friends = self.client.get(f'/api/mobile/friends?group_id={trip_id}', headers=self.headers).get_json()
+        self.assertTrue(friends[0]['invited'])
+
+        # Someone you share no group with can't be invited by id.
+        refused = self.client.post(f'/api/mobile/groups/{trip_id}/invites', headers=self.headers,
+                                   json={'friend_id': stranger_id})
+        self.assertEqual(refused.status_code, 404)
+
+    def test_expenses_are_only_shown_to_the_payer_and_people_in_the_split(self):
+        with self.app.app_context():
+            third = User(email='third@example.com', name='Third', is_email_verified=True)
+            third.set_password('password123')
+            group = db.session.get(Group, self.group_id)
+            group.members.append(third)
+            db.session.flush()
+            set_member_nickname(group.id, third)
+            # The member paid for a private taxi shared only with Third; the admin is not in it.
+            private = Expense(description='Private taxi', amount=40, category='Transport', group_id=group.id,
+                              paid_by_id=self.member_id)
+            db.session.add(private)
+            db.session.flush()
+            db.session.add(ExpenseSplit(expense_id=private.id, user_id=third.id, amount_owed=20))
+            db.session.add(ExpenseSplit(expense_id=private.id, user_id=self.member_id, amount_owed=20))
+            db.session.add(history_for_expense(private, [third.id, self.member_id]))
+            db.session.commit()
+            third_headers = {'Authorization': f'Bearer {mobile_token_for(third)}'}
+
+        def descriptions(headers):
+            seen = set()
+            detail = self.client.get(f'/api/mobile/groups/{self.group_id}', headers=headers).get_json()
+            seen |= {item['description'] for item in detail['expenses']}
+            seen |= {item['expense'] for item in detail['summaries']}
+            listed = self.client.get(f'/api/mobile/groups/{self.group_id}/expenses', headers=headers).get_json()
+            seen |= {item['description'] for item in listed}
+            activity = self.client.get(f'/api/mobile/groups/{self.group_id}/activity', headers=headers).get_json()
+            seen |= {item['description'] for item in activity['expense_results']}
+            found = self.client.get(f'/api/mobile/groups/{self.group_id}/expenses/search?q=taxi', headers=headers).get_json()
+            seen |= {item['description'] for item in found}
+            dashboard = self.client.get('/api/mobile/dashboard', headers=headers).get_json()
+            seen |= {item['description'] for item in dashboard['recent_expenses']}
+            csv_text = self.client.get(f'/api/mobile/groups/{self.group_id}/activity.csv', headers=headers).get_data(as_text=True)
+            if 'Private taxi' in csv_text:
+                seen.add('Private taxi (csv)')
+            return seen, dashboard['spending_insights']['total']
+
+        admin_seen, admin_total = descriptions(self.headers)
+        self.assertIn('Dinner', admin_seen)
+        self.assertFalse({'Private taxi', 'Private taxi (csv)'} & admin_seen)
+        self.assertEqual(admin_total, 60)
+
+        third_seen, third_total = descriptions(third_headers)
+        self.assertIn('Private taxi', third_seen)
+        self.assertIn('Private taxi (csv)', third_seen)
+        self.assertNotIn('Dinner', third_seen)
+        self.assertEqual(third_total, 40)
+
+    def test_older_history_rows_are_matched_to_their_expense_once(self):
+        from app.expense_visibility import fill_history_participants
+        with self.app.app_context():
+            old = ExpenseHistory.query.filter_by(description='Dinner').first()
+            old.participant_ids, old.expense_id = None, None
+            gone = ExpenseHistory(description='Deleted lunch', amount=12, group_id=self.group_id, paid_by_id=self.member_id)
+            db.session.add(gone)
+            db.session.commit()
+            fill_history_participants()
+            dinner = db.session.get(Expense, ExpenseHistory.query.filter_by(description='Dinner').first().expense_id)
+            self.assertEqual(dinner.description, 'Dinner')
+            self.assertEqual(ExpenseHistory.query.filter_by(description='Dinner').first().participant_ids,
+                             f',{min(self.admin_id, self.member_id)},{max(self.admin_id, self.member_id)},')
+            # An expense that was deleted before this existed stays visible to its payer only.
+            self.assertEqual(ExpenseHistory.query.filter_by(description='Deleted lunch').first().participant_ids,
+                             f',{self.member_id},')
 
     def test_receipt_scan_validates_upload_and_returns_parsed_items(self):
         import io

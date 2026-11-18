@@ -15,6 +15,8 @@ import { typography } from '@/theme/typography';
 import type { RootStackParamList } from '@/types';
 import { formatMoney, parseAmount } from '@/utils/money';
 import { emailError, phoneError, suggestedEmail } from '@/utils/validation';
+import { POINTS } from '@/utils/points';
+import { sendTextInvite } from '@/utils/textInvite';
 
 function splitContacts(value: string) {
   return value.split(/[,;\n]+/).map(part => part.trim()).filter(Boolean);
@@ -38,6 +40,9 @@ export function QuickSplitScreen({ navigation, route }: Props) {
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
   const [suggestion, setSuggestion] = useState('');
+  // Numbers with no Splitmate account yet, each with a button that opens Messages with an invite typed out.
+  const [phonesToText, setPhonesToText] = useState<string[]>([]);
+  const [texting, setTexting] = useState('');
 
   const amount = parseAmount(amountText);
   const people = contacts.length + 1;
@@ -60,7 +65,7 @@ export function QuickSplitScreen({ navigation, route }: Props) {
     setSuggestion('');
   }
 
-  /** People who aren't on Splitmate yet get an invite email straight away. */
+  /** People who aren't on Splitmate yet get an invite: an email straight away, or a text the user sends. */
   async function inviteMissing(missing: string[]) {
     const emails = missing.filter(item => item.includes('@'));
     const phones = missing.filter(item => !item.includes('@'));
@@ -75,22 +80,36 @@ export function QuickSplitScreen({ navigation, route }: Props) {
     }
     const parts: string[] = [];
     if (invited.length) {
-      parts.push(`${invited.join(', ')} ${invited.length === 1 ? 'is' : 'are'} not on Splitmate yet, so we emailed ${invited.length === 1 ? 'them' : 'each of them'} an invite. Split again once they've joined, or remove them to split with the others now.`);
+      parts.push(`${invited.join(', ')} ${invited.length === 1 ? 'is' : 'are'} not on Splitmate yet, so we emailed ${invited.length === 1 ? 'them' : 'each of them'} an invite. Split again once they've joined, or remove them to split with the others now. You earn ${POINTS.friendJoins} points for each friend who joins.`);
     }
     const failed = emails.filter(email => !invited.includes(email));
     if (failed.length) {
       parts.push(`We couldn't send an invite to ${failed.join(', ')}. Try again in a little while.`);
     }
     if (phones.length) {
-      parts.push(`No account has the number ${phones.join(', ')}. Add them by email instead and we'll invite them.`);
+      parts.push(`${phones.join(', ')} ${phones.length === 1 ? 'is' : 'are'} not on Splitmate yet. Text ${phones.length === 1 ? 'them' : 'each of them'} an invite below, then split again once they've joined (with this number on their profile), or remove them to split with the others now.`);
     }
+    setPhonesToText(phones);
     setNotice(parts.join(' '));
+  }
+
+  async function textInvite(phone: string) {
+    setTexting(phone);
+    try {
+      const result = await api.textSplitmateInvite(phone);
+      await sendTextInvite(result.phone, result.sms_message);
+    } catch (textError) {
+      setError(textError instanceof Error ? textError.message : 'Could not write the invite. Try again.');
+    } finally {
+      setTexting('');
+    }
   }
 
   async function split() {
     const all = [...contacts, ...splitContacts(contact).filter(part => !contacts.includes(part))];
     setNotice('');
     setSuggestion('');
+    setPhonesToText([]);
     const bad = all.find(part => contactError(part));
     if (bad) {
       setError(contactError(bad));
@@ -188,6 +207,11 @@ export function QuickSplitScreen({ navigation, route }: Props) {
           </AppButton>
         ) : null}
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+        {phonesToText.map(phone => (
+          <AppButton key={phone} icon="phone-portrait-outline" variant="outline" loading={texting === phone} onPress={() => textInvite(phone)}>
+            {`Text ${phone} an invite`}
+          </AppButton>
+        ))}
 
         <AppButton icon="flash-outline" loading={saving} onPress={split}>Split it</AppButton>
       </Card>
