@@ -27,6 +27,7 @@ export function ChoiceChips<T extends string | number>({ label, options, value, 
           return (
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ selected }}
               key={String(option.value)}
               onPress={() => onChange(option.value)}
               style={[styles.chip, selected && styles.selected]}
