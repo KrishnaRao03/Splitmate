@@ -291,6 +291,9 @@
                         <label for="profileEmail">Email</label>
                         <input type="email" id="profileEmail" name="email" required
                                maxlength="120" value="{{ current_user.email }}" autocomplete="email">
+                        {% if current_user.pending_email %}
+                        <p class="text-subtle">Waiting for the code sent to {{ current_user.pending_email }}. You keep signing in with {{ current_user.email }} until you <a href="{{ url_for('auth.verify_email') }}">enter it</a>.</p>
+                        {% endif %}
                     </div>
 
                     <div class="form-group">
@@ -336,22 +339,6 @@
 
                     <button type="submit" class="btn btn-primary">Save details</button>
                 </form>
-                {% if current_user.pending_interac_email and 'interac_email' in payment_fields %}
-                <h3>Confirm your new Interac email</h3>
-                <p class="text-subtle">Enter the code we sent to {{ current_user.pending_interac_email }}. Others keep seeing your old Interac email until you do.</p>
-                <form method="POST" class="profile-form">
-                    <input type="hidden" name="form_type" value="interac_verify">
-                    <div class="form-group">
-                        <label for="interacOtp">6-digit code</label>
-                        <input type="text" id="interacOtp" name="otp" inputmode="numeric" maxlength="6" required autocomplete="one-time-code">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Confirm Interac email</button>
-                </form>
-                <form method="POST" class="profile-form">
-                    <input type="hidden" name="form_type" value="interac_resend">
-                    <button type="submit" class="btn btn-outline">Resend code</button>
-                </form>
-                {% endif %}
             </div>
         </section>
 

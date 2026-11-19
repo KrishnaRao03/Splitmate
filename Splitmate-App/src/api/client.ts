@@ -177,24 +177,25 @@ export class SplitmateApi {
   /** `currentPassword` is required by the server only when the email changes. */
   updateProfile(details: { name: string; email: string; currentPassword?: string; phone?: string; country?: string } & PaymentHandles) {
     const { currentPassword, ...rest } = details;
-    return this.request<AuthResponse & { verification_required: boolean; otp_sent: boolean; interac_code_sent?: boolean }>('/me', {
+    return this.request<AuthResponse & { verification_required: boolean; otp_sent: boolean }>('/me', {
       method: 'PATCH',
       body: JSON.stringify({ ...rest, current_password: currentPassword })
     });
   }
 
-  verifyInterac(otp: string) {
-    return this.request<{ user: AuthResponse['user'] }>('/me/interac/verify', {
+  /** Confirms the new email saved in Profile; returns a fresh token because the sign-in email changed. */
+  verifyNewEmail(otp: string) {
+    return this.request<AuthResponse>('/me/email/verify', {
       method: 'POST',
       body: JSON.stringify({ otp })
     });
   }
 
-  resendInteracCode() {
-    return this.request<{ sent: boolean }>('/me/interac/resend', { method: 'POST' });
+  resendNewEmailCode() {
+    return this.request<{ sent: boolean }>('/me/email/resend', { method: 'POST' });
   }
 
-  /** Asks someone who owes you to approve sharing their Interac email; they get an email about it. */
+  /** Asks someone who owes you to approve sharing their email; they get an email about it. */
   requestMoney(groupId: number, payerId: number) {
     return this.request<{ id: number; status: string }>(`/groups/${groupId}/money-requests`, {
       method: 'POST',
@@ -354,8 +355,12 @@ export class SplitmateApi {
     });
   }
 
-  toggleTask(taskId: number) {
-    return this.request<{ is_completed: boolean }>(`/tasks/${taskId}/toggle`, { method: 'POST' });
+  /** Sends the wanted state, so a double tap or a retry can't flip it back. */
+  toggleTask(taskId: number, isCompleted: boolean) {
+    return this.request<{ is_completed: boolean }>(`/tasks/${taskId}/toggle`, {
+      method: 'POST',
+      body: JSON.stringify({ is_completed: isCompleted })
+    });
   }
 
   deleteTask(taskId: number) {
@@ -369,8 +374,12 @@ export class SplitmateApi {
     });
   }
 
-  toggleNote(noteId: number) {
-    return this.request<{ is_completed: boolean }>(`/notes/${noteId}/toggle`, { method: 'POST' });
+  /** Sends the wanted state, so a double tap or a retry can't flip it back. */
+  toggleNote(noteId: number, isCompleted: boolean) {
+    return this.request<{ is_completed: boolean }>(`/notes/${noteId}/toggle`, {
+      method: 'POST',
+      body: JSON.stringify({ is_completed: isCompleted })
+    });
   }
 
   deleteNote(noteId: number) {

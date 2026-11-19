@@ -1,7 +1,9 @@
 import atexit
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 
 from app.inactivity_reminders import send_inactivity_reminders
 
@@ -35,6 +37,14 @@ def start_inactivity_scheduler(app):
         run_job,
         CronTrigger(hour=app.config['INACTIVITY_EMAIL_HOUR_UTC'], minute=0),
         id='inactive_user_email_reminders',
+        replace_existing=True
+    )
+    # The free server sleeps when idle, so the daily run is often missed. Also run soon after each start;
+    # the per-user cooldown in send_inactivity_reminders stops anyone getting the email twice.
+    scheduler.add_job(
+        run_job,
+        DateTrigger(run_date=datetime.now(timezone.utc) + timedelta(minutes=2)),
+        id='inactive_user_email_catch_up',
         replace_existing=True
     )
     scheduler.start()

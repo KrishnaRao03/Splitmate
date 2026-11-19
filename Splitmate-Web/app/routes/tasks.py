@@ -10,6 +10,7 @@ from app.task_utils import (
     normalize_task_recurrence,
     task_is_overdue,
     toggle_task_completion,
+    wanted_completion,
 )
 
 tasks_bp = Blueprint('tasks', __name__, url_prefix='/tasks')
@@ -90,7 +91,7 @@ def complete_task(task_id):
     if current_user not in task.group.members:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    next_task = toggle_task_completion(task, db.session)
+    next_task = toggle_task_completion(task, db.session, wanted_completion(request.get_json(silent=True), task.is_completed))
     db.session.commit()
 
     return jsonify({

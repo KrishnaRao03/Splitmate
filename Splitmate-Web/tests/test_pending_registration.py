@@ -110,8 +110,10 @@ class PendingRegistrationTests(unittest.TestCase):
             db.session.commit()
         response = self.client.post('/api/mobile/auth/register', json=SIGNUP)
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(self.counts(), (0, 1))
+        # Typing the email into Register deletes nothing; the old account only goes once the code proves ownership.
+        self.assertEqual(self.counts(), (1, 1))
         self.client.post('/api/mobile/auth/verify-email', json={'email': 'new@example.com', 'otp': self.sent_codes[-1]})
+        self.assertEqual(self.counts(), (1, 0))
         with self.app.app_context():
             user = User.query.filter_by(email='new@example.com').one()
             self.assertTrue(user.is_email_verified)

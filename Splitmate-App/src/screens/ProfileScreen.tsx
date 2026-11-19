@@ -30,17 +30,15 @@ type OpenSection = 'details' | 'password' | 'rewards' | 'qr' | 'invite';
 export function ProfileScreen({ navigation }: Props) {
   const auth = useAuth();
   const [name, setName] = useState(auth.user?.name || '');
-  const [email, setEmail] = useState(auth.user?.email || '');
+  const [email, setEmail] = useState(auth.user?.pending_email || auth.user?.email || '');
   const [emailPassword, setEmailPassword] = useState('');
-  const [interacEmail, setInteracEmail] = useState(auth.user?.interac_email || '');
   const [paypalUsername, setPaypalUsername] = useState(auth.user?.paypal_username || '');
   const [upiId, setUpiId] = useState(auth.user?.upi_id || '');
   const [country, setCountry] = useState(auth.user?.country || 'CA');
   const [phone, setPhone] = useState(auth.user?.phone || '');
   const [otp, setOtp] = useState('');
-  const [interacOtp, setInteracOtp] = useState('');
-  const [interacMessage, setInteracMessage] = useState<string | null>(null);
-  const [verificationRequired, setVerificationRequired] = useState(false);
+  // A new email waits for its code; the old one stays the sign-in email until then.
+  const pendingEmail = auth.user?.pending_email || '';
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -107,16 +105,13 @@ export function ProfileScreen({ navigation }: Props) {
     }
   }
 
-  const emailChanged = email.trim().toLowerCase() !== (auth.user?.email || '').toLowerCase();
+  const emailChanged = email.trim().toLowerCase() !== (pendingEmail || auth.user?.email || '').toLowerCase();
   const countryChanged = country !== (auth.user?.country || 'CA');
   // Only the payment apps that work in the chosen country are offered (PayPal works everywhere).
   const paymentFields = paymentFieldsFor(country);
-  const typedInterac = interacEmail.trim().toLowerCase();
   const paymentChanged =
-    (paymentFields.includes('interac_email') && typedInterac !== (auth.user?.interac_email || '').toLowerCase() && typedInterac !== (auth.user?.pending_interac_email || '').toLowerCase())
-    || paypalUsername.trim() !== (auth.user?.paypal_username || '')
+    paypalUsername.trim() !== (auth.user?.paypal_username || '')
     || upiId.trim() !== (auth.user?.upi_id || '');
-  const pendingInterac = auth.user?.pending_interac_email || '';
 
   async function saveDetails() {
     setSavingDetails(true);
@@ -126,27 +121,21 @@ export function ProfileScreen({ navigation }: Props) {
         email,
         currentPassword: emailChanged || paymentChanged || countryChanged ? emailPassword : undefined,
         country,
-        interac_email: paymentFields.includes('interac_email') ? interacEmail.trim() : undefined,
         paypal_username: paypalUsername.trim(),
         upi_id: paymentFields.includes('upi_id') ? upiId.trim() : undefined,
         phone: phone.trim()
       });
       setEmailPassword('');
-      setVerificationRequired(result.verificationRequired);
-      if (result.interacCodeSent) {
-        setInteracMessage('We emailed a 6-digit code to your new Interac email. Enter it below to start using it.');
-      }
       notify(
         'Profile updated',
         result.verificationRequired
           ? result.otpSent
-            ? 'Enter the OTP sent to your new email.'
-            : 'Your email changed, but the OTP email could not be sent. Use Resend OTP.'
+            ? 'Enter the code sent to your new email. You keep signing in with your old email until then.'
+            : 'We could not send the code to your new email. Use Resend code.'
           : 'Your account details are up to date.'
       );
     } catch (error) {
       notify('Could not update profile', error instanceof Error ? error.message : 'Try again.');
-      setInteracMessage(error instanceof Error ? error.message : 'Could not update profile.');
     } finally {
       setSavingDetails(false);
     }
@@ -154,32 +143,20 @@ export function ProfileScreen({ navigation }: Props) {
 
   async function verifyEmail() {
     try {
-      await auth.verifyEmail(email, otp);
+      await auth.verifyNewEmail(otp);
       setOtp('');
-      setVerificationRequired(false);
-      notify('Email verified', 'Your new email is ready to use.');
+      notify('Email verified', 'Sign in with your new email from now on.');
     } catch (error) {
       notify('Could not verify email', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
-  async function verifyInterac() {
+  async function resendEmailCode() {
     try {
-      await api.verifyInterac(interacOtp.trim());
-      await auth.reloadUser();
-      setInteracOtp('');
-      setInteracMessage('Interac email confirmed. Members who owe you can now see it.');
+      const sent = await auth.resendNewEmailCode();
+      notify(sent ? 'Code sent' : 'Could not send the code', sent ? `Check ${pendingEmail}.` : 'Try again in a minute.');
     } catch (error) {
-      setInteracMessage(error instanceof Error ? error.message : 'Could not check the code. Try again.');
-    }
-  }
-
-  async function resendInteracCode() {
-    try {
-      const result = await api.resendInteracCode();
-      setInteracMessage(result.sent ? 'A new code is on its way.' : 'The code email could not be sent. Try again in a minute.');
-    } catch (error) {
-      setInteracMessage(error instanceof Error ? error.message : 'Could not resend the code.');
+      notify('Could not send the code', error instanceof Error ? error.message : 'Try again.');
     }
   }
 
@@ -279,25 +256,6 @@ export function ProfileScreen({ navigation }: Props) {
             <CountryPicker value={country} onChange={setCountry} hint="Sets your currency and which payment apps you can add. Changing it needs your password." />
             <Text style={styles.subSectionTitle}>How people can pay you</Text>
             <Text style={styles.help}>Shown to members who owe you. Splitmate never handles the money. Changes need your password and we email you about them.</Text>
-            {paymentFields.includes('interac_email') ? (
-            <>
-            <TextField label="Interac e-Transfer email" value={interacEmail} onChangeText={setInteracEmail} keyboardType="email-address" autoCapitalize="none" />
-            {auth.user?.interac_email ? (
-              <Text style={styles.status}>
-                {auth.user.interac_email_verified ? `Verified: ${auth.user.interac_email}` : `Not verified yet: ${auth.user.interac_email} (hidden from others)`}
-              </Text>
-            ) : null}
-            {pendingInterac ? (
-              <View style={styles.panel}>
-                <Text style={styles.help}>Waiting for the code sent to {pendingInterac}. Others keep seeing your old Interac email until you enter it.</Text>
-                <TextField label="Interac code" value={interacOtp} onChangeText={setInteracOtp} keyboardType="number-pad" maxLength={6} />
-                <AppButton icon="checkmark-outline" onPress={verifyInterac}>Confirm Interac email</AppButton>
-                <AppButton icon="refresh-outline" variant="outline" onPress={resendInteracCode}>Resend code</AppButton>
-              </View>
-            ) : null}
-            {interacMessage ? <Text style={styles.help}>{interacMessage}</Text> : null}
-            </>
-            ) : null}
             <TextField label="PayPal.Me username" value={paypalUsername} onChangeText={setPaypalUsername} autoCapitalize="none" />
             {paymentFields.includes('upi_id') ? (
               <TextField label="UPI ID" value={upiId} onChangeText={setUpiId} autoCapitalize="none" placeholder="name@bank" />
@@ -308,12 +266,13 @@ export function ProfileScreen({ navigation }: Props) {
             <AppButton icon="save-outline" loading={savingDetails} onPress={saveDetails}>Save details</AppButton>
           </View>
         ) : null}
-        {verificationRequired ? (
+        {pendingEmail ? (
           <View style={styles.panel}>
             <Text style={styles.subSectionTitle}>Verify new email</Text>
-            <TextField label="6-digit OTP" value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={6} />
+            <Text style={styles.help}>Enter the code sent to {pendingEmail}. You keep signing in with {auth.user?.email} until you do.</Text>
+            <TextField label="6-digit code" value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={6} />
             <AppButton icon="checkmark-outline" onPress={verifyEmail}>Verify email</AppButton>
-            <AppButton icon="refresh-outline" variant="outline" onPress={() => auth.resendOtp(email)}>Resend OTP</AppButton>
+            <AppButton icon="refresh-outline" variant="outline" onPress={resendEmailCode}>Resend code</AppButton>
           </View>
         ) : null}
         <View style={styles.divider} />

@@ -7,7 +7,7 @@ is capped too; a friend going Pro is a real Stripe payment.
 from datetime import datetime, timedelta
 
 from app import db
-from app.models import Referral, RewardTransaction
+from app.models import Referral, RewardTransaction, lock_row
 
 POINTS_EARNING_PAUSED = False
 
@@ -120,6 +120,8 @@ def redeem(user, reward_id):
     reward = REWARDS_BY_ID.get(reward_id)
     if reward is None:
         return 'Choose a reward.'
+    # Locked until commit, so two taps at once can't spend the same points twice.
+    lock_row(user)
     if int(user.reward_points or 0) < reward['points']:
         return f'You need {reward["points"]} points for {reward["label"]}.'
     if reward_id == 'scans_5':

@@ -61,7 +61,9 @@ def send_user_otp(user):
     expires_at = datetime.utcnow() + timedelta(minutes=current_app.config['OTP_EXPIRY_MINUTES'])
     user.set_email_otp(otp, expires_at)
     try:
-        sent = send_verification_otp(user, otp)
+        # A changed email gets the code at the new address; the account keeps the old one until it's entered.
+        new_email = getattr(user, 'pending_email', None)
+        sent = send_verification_otp(user, otp, new_email) if new_email else send_verification_otp(user, otp)
     except Exception:
         user.clear_email_otp()
         db.session.commit()
@@ -82,16 +84,28 @@ PENDING_REGISTRATION_TTL = timedelta(days=7)
 def registered_account(email):
     """The account that blocks signing up with this email, if any.
 
-    Accounts created before sign-ups waited for verification may be unverified; one that never
-    joined a group is removed here so the person can sign up again (it never held any data).
+    Accounts created before sign-ups waited for verification may be unverified. One that never joined
+    a group doesn't block a new sign-up; it is only removed once the new sign-up proves it owns the
+    email (see complete_pending_registration), so typing someone's email into Register deletes nothing.
     """
     user = User.query.filter_by(email=email).first() if email else None
-    if user and not user.is_email_verified and user.groups.count() == 0 \
-            and user.administered_groups.count() == 0 and user.expenses.count() == 0:
-        db.session.delete(user)
-        db.session.commit()
+    if user and abandoned_unverified_account(user):
         return None
     return user
+
+
+def account_for_email(email):
+    """The User for this email, unless it's an abandoned unverified one that a newer sign-up is replacing."""
+    user = User.query.filter_by(email=email).first() if email else None
+    if user and abandoned_unverified_account(user) and PendingRegistration.query.filter_by(email=email).first():
+        return None
+    return user
+
+
+def abandoned_unverified_account(user):
+    """An unverified account that never held any data, so a proven owner of its email can replace it."""
+    return (not user.is_email_verified and user.groups.count() == 0 and user.administered_groups.count() == 0
+            and user.expenses.count() == 0 and not user.stripe_subscription_id and not (user.reward_points or 0))
 
 
 def start_pending_registration(email, name, password, country='CA'):
@@ -121,7 +135,12 @@ def start_pending_registration(email, name, password, country='CA'):
 
 def complete_pending_registration(pending):
     """Create the verified User for a sign-up whose code matched. Returns None if the email was taken meanwhile."""
-    if User.query.filter_by(email=pending.email).first():
+    existing = User.query.filter_by(email=pending.email).first()
+    if existing and abandoned_unverified_account(existing):
+        # The code just proved this person owns the email, so the empty unverified account gives way.
+        db.session.delete(existing)
+        db.session.flush()
+    elif existing:
         db.session.delete(pending)
         db.session.commit()
         return None
@@ -134,6 +153,22 @@ def complete_pending_registration(pending):
     db.session.commit()
     tell_inviter(earned)
     return user
+
+
+def finish_email_verification(user):
+    """The code matched: a waiting new email replaces the old one, or the account email becomes verified.
+
+    Returns an error message if the new email was taken by another account in the meantime.
+    """
+    if user.pending_email:
+        new_email = user.pending_email
+        user.pending_email = None
+        if is_admin_email(new_email) or User.query.filter(User.email == new_email, User.id != user.id).first():
+            return 'That email is now used by another account, so your email was not changed.'
+        user.email = new_email
+    user.is_email_verified = True
+    user.clear_email_otp()
+    return None
 
 
 def first_inviter_id(email):
@@ -181,7 +216,7 @@ def login():
         email = normalize_email(request.form.get('email'))
         password = request.form.get('password', '')
 
-        user = User.query.filter_by(email=email).first() if email else None
+        user = account_for_email(email)
 
         pending = PendingRegistration.query.filter_by(email=email).first() if email and not user else None
         if pending and pending.check_password(password):
@@ -369,11 +404,12 @@ def verify_email():
     verifying_authenticated_user = False
 
     if current_user.is_authenticated:
-        if not user_id and not current_user.is_email_verified:
+        needs_code = not current_user.is_email_verified or bool(current_user.pending_email)
+        if not user_id and needs_code:
             set_pending_verification(current_user)
             user_id = current_user.id
 
-        if not user_id or int(user_id) != current_user.id or current_user.is_email_verified:
+        if not user_id or int(user_id) != current_user.id or not needs_code:
             return redirect(url_for('main.home'))
 
         user = current_user
@@ -396,18 +432,20 @@ def verify_email():
 
         if user.email_otp_expires_at and user.email_otp_expires_at < datetime.utcnow():
             flash('That OTP has expired. Please request a new code.', 'error')
-            return render_template('verify_email.html', email=user.email)
+            return render_template('verify_email.html', email=user.pending_email or user.email)
 
         if user.otp_attempts_exhausted():
             flash(OTP_LOCKED_MESSAGE, 'error')
-            return render_template('verify_email.html', email=user.email)
+            return render_template('verify_email.html', email=user.pending_email or user.email)
 
         if user.check_email_otp(otp):
-            user.is_email_verified = True
-            user.clear_email_otp()
+            error = finish_email_verification(user)
             db.session.commit()
             session.pop('pending_verification_user_id', None)
             session.pop('pending_verification_email', None)
+            if error:
+                flash(error, 'error')
+                return redirect(url_for('main.profile'))
             if not current_user.is_authenticated:
                 login_user(user, remember=True)
                 mark_user_logged_in(user)
@@ -421,7 +459,7 @@ def verify_email():
         db.session.commit()
         flash(OTP_LOCKED_MESSAGE if user.otp_attempts_exhausted() else 'Invalid OTP. Please try again.', 'error')
 
-    return render_template('verify_email.html', email=user.email)
+    return render_template('verify_email.html', email=user.pending_email or user.email)
 
 def verify_pending_registration(pending_id):
     pending = db.session.get(PendingRegistration, pending_id)
@@ -492,7 +530,7 @@ def resend_otp():
         return resend_pending_registration_otp(pending_id)
 
     user_id = session.get('pending_verification_user_id')
-    if current_user.is_authenticated and not user_id and not current_user.is_email_verified:
+    if current_user.is_authenticated and not user_id and (not current_user.is_email_verified or current_user.pending_email):
         set_pending_verification(current_user)
         user_id = current_user.id
 

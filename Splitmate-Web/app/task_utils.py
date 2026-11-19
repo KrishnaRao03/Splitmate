@@ -44,14 +44,13 @@ def next_recurring_datetime(value, recurrence):
     return None
 
 
-def create_next_recurring_task(task):
+def find_next_recurring_task(task):
+    """The open next repeat of a recurring task, if one exists."""
     recurrence = normalize_task_recurrence(task.recurrence)
     next_due_date = next_recurring_datetime(task.due_date, recurrence)
     if recurrence == 'none' or not next_due_date:
         return None
-
-    next_reminder_time = next_recurring_datetime(task.reminder_time, recurrence) if task.reminder_time else None
-    existing = Task.query.filter_by(
+    return Task.query.filter_by(
         group_id=task.group_id,
         title=task.title,
         due_date=next_due_date,
@@ -59,6 +58,16 @@ def create_next_recurring_task(task):
         recurrence=recurrence,
         is_completed=False,
     ).first()
+
+
+def create_next_recurring_task(task):
+    recurrence = normalize_task_recurrence(task.recurrence)
+    next_due_date = next_recurring_datetime(task.due_date, recurrence)
+    if recurrence == 'none' or not next_due_date:
+        return None
+
+    next_reminder_time = next_recurring_datetime(task.reminder_time, recurrence) if task.reminder_time else None
+    existing = find_next_recurring_task(task)
     if existing:
         return existing
 
@@ -75,9 +84,25 @@ def create_next_recurring_task(task):
     )
 
 
-def toggle_task_completion(task, db_session):
+def wanted_completion(data, current):
+    """The done state the client asked for, or the opposite of the current one if it didn't say.
+    Sending the wanted state means a double tap or a retry lands where the person meant."""
+    value = (data or {}).get('is_completed')
+    return (not current) if value is None else bool(value)
+
+
+def toggle_task_completion(task, db_session, completed=None):
+    """Marks the task done or not done (`completed`, or the opposite of now). Returns the next
+    repeat of a recurring task, made when it's marked done."""
+    completed = (not task.is_completed) if completed is None else completed
+    if completed == bool(task.is_completed):
+        return None
     if task.is_completed:
         task.is_completed = False
+        # Undoing "done" also takes back the next repeat it made, unless that one was already ticked off.
+        spawned = find_next_recurring_task(task)
+        if spawned is not None and spawned.id:
+            db_session.delete(spawned)
         return None
 
     task.is_completed = True

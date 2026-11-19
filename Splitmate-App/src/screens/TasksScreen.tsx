@@ -67,7 +67,7 @@ export function TasksScreen() {
     // so is_completed/is_overdue stay correct if the server disagrees.
     setTasks(current => current.map(item => (item.id === task.id ? { ...item, is_completed: !item.is_completed } : item)));
     try {
-      await api.toggleTask(task.id);
+      await api.toggleTask(task.id, !task.is_completed);
       notify(task.is_completed ? 'Task reopened' : 'Task done', task.title);
       await load();
     } catch (error) {

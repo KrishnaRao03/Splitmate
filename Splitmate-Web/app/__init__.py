@@ -200,6 +200,9 @@ def ensure_rewards_schema():
         if 'bonus_grocery_compares' not in user_columns:
             db.session.execute(text('ALTER TABLE "user" ADD COLUMN bonus_grocery_compares INTEGER DEFAULT 0 NOT NULL'))
 
+        if 'pending_email' not in user_columns:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN pending_email VARCHAR(120)'))
+
         if 'referred_by_id' not in user_columns:
             db.session.execute(text('ALTER TABLE "user" ADD COLUMN referred_by_id INTEGER REFERENCES "user"(id)'))
 
@@ -229,6 +232,12 @@ def ensure_expense_schema():
 
         if 'category' not in columns:
             db.session.execute(text("ALTER TABLE expense ADD COLUMN category VARCHAR(40) DEFAULT 'General' NOT NULL"))
+
+    if inspector.has_table('expense_split'):
+        split_columns = {column['name'] for column in inspector.get_columns('expense_split')}
+
+        if 'share_amount' not in split_columns:
+            db.session.execute(text('ALTER TABLE expense_split ADD COLUMN share_amount FLOAT'))
 
     if inspector.has_table('expense_history'):
         history_columns = {column['name'] for column in inspector.get_columns('expense_history')}

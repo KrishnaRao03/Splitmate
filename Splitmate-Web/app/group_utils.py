@@ -1,7 +1,7 @@
 from app import db
 from datetime import datetime
 
-from app.models import GroupInvite, group_members
+from app.models import GroupInvite, group_members, lock_row
 
 
 def clean_nickname(value, fallback):
@@ -88,7 +88,8 @@ def invite_accept_problem(user, invite):
     if invite.expires_at <= datetime.utcnow():
         return 'That invite link has expired. Ask the group admin for a new invite.', 410
     if not invite.is_phone_invite:
-        if normalize_email(user.email) != invite.email:
+        # Only a proven email counts: an unverified one could be anyone's address typed into a profile.
+        if normalize_email(user.email) != invite.email or not user.is_email_verified:
             return f'This invite was sent to {invite.email}. Sign in with that email to accept it.', 403
         return None
     if user.phone_hash == invite.phone_hash:
@@ -103,7 +104,14 @@ def invite_accept_problem(user, invite):
 
 
 def join_group_from_invite(user, invite):
-    """Adds the user to the invite's group and marks it accepted. Check invite_accept_problem first; caller commits."""
+    """Adds the user to the invite's group and marks it accepted. Check invite_accept_problem first; caller commits.
+
+    Returns False if another request accepted or revoked the invite in the meantime.
+    """
+    # Locked until commit, then checked again, so two accepts at once can't both get in.
+    lock_row(invite)
+    if invite.accepted_at or invite.revoked_at:
+        return False
     if invite.is_phone_invite and not user.phone:
         user.phone = invite.phone  # They got the text, so this is their number.
     if user not in invite.group.members:
@@ -112,3 +120,4 @@ def join_group_from_invite(user, invite):
         set_member_nickname(invite.group.id, user)
     invite.accepted_at = datetime.utcnow()
     invite.accepted_by_id = user.id
+    return True

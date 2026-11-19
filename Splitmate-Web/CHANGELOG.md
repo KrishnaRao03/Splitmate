@@ -4,6 +4,20 @@ All notable changes to the backend and website. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Fixed
+- Changing your email no longer swaps it straight away. The new address waits in `pending_email` (new column, added at start-up) until its emailed code is entered; until then you keep signing in with the old one. New app endpoints `POST /api/mobile/me/email/verify` (returns a fresh token) and `/api/mobile/me/email/resend`. Group invites and Quick split only match verified emails.
+- Typing an email into Register no longer deletes an old unverified account with that email. It is replaced only once the new sign-up's code is entered, and never if it has a subscription or points.
+- Editing an expense after a part payment is refused, like after a full one. `expense_split` gets `share_amount` (the share as added) so part payments can be told apart.
+- Settling up (whole person, one share, or deleting the expense) cancels payments still waiting for confirmation (new `cancelled` status) and marks money requests `settled`, so an old approval doesn't carry over to new debts and a late confirm can't record $0. Settling one share twice is refused, and it now records a confirmed payment.
+- After a declined money request, the same person can be asked again after a day.
+- Confirming or declining a payment, answering a money request, accepting an invite, spending points, counting wrong passwords and using a free scan or comparison now lock the row first, so two requests at once can't both get through. A failed scan or comparison gives the use back.
+- Stripe: webhooks re-read the subscription from Stripe so a late event can't turn Pro back on; an ended subscription is forgotten so the admin panel can give or remove Pro again; checkout is refused while a just-paid subscription waits for its webhook.
+- Un-ticking a recurring task removes the next repeat it created. Task and note toggles accept `{"is_completed": true|false}`, so a double tap can't flip them back.
+- The inactive-user reminder also runs a couple of minutes after the server starts, since the free server is often asleep at the daily time.
+
+### Removed
+- The leftover Interac email confirmation (`/api/mobile/me/interac/verify`, `/resend` and the website form).
+
 ### Added
 - Admin-only email: addresses in `ADMIN_EMAILS` open `/admin` only. They can't sign in to the website or app, sign up, or be taken by a profile email change, and Quick split doesn't match them. `/admin/setup` emails the admin address a link to create or reset its password (the link also verifies it). The System page warns when an admin account also belongs to groups. `ADMIN_EMAILS` no longer falls back to `MAIL_USERNAME`.
 - Admin dashboard reorganized: grouped side menu with icons (People, Money, Outreach, Settings), a slide-in menu on phones, an Overview with key numbers and a "Needs attention" row, a collapsible "Add a user" form, and every table turns into stacked cards on phone screens.

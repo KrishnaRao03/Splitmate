@@ -1,5 +1,5 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import * as DocumentPicker from 'expo-document-picker';
@@ -88,6 +88,11 @@ export function AddExpenseScreen({ navigation, route }: Props) {
   const [scanUsage, setScanUsage] = useState('');
   const [scanLimit, setScanLimit] = useState('');
   const [scanning, setScanning] = useState(false);
+  // A scan can take a while; its result is dropped if the screen closed in the meantime.
+  const mounted = useRef(true);
+  useEffect(() => () => {
+    mounted.current = false;
+  }, []);
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
   const [receiptTax, setReceiptTax] = useState(0);
   const [merchant, setMerchant] = useState<string | null>(null);
@@ -166,6 +171,9 @@ export function AddExpenseScreen({ navigation, route }: Props) {
     try {
       setScanLimit('');
       const scan = await api.scanReceipt(image);
+      if (!mounted.current) {
+        return;
+      }
       setScanUsage(scan.usage?.limit != null ? `${scan.usage.remaining} of ${scan.usage.limit} free scans left this month.` : '');
       // If the scanner couldn't tell which lines were taxed, treat them all as taxed.
       const anyTaxed = scan.items.some(item => item.taxed);
@@ -180,13 +188,18 @@ export function AddExpenseScreen({ navigation, route }: Props) {
       setMerchant(scan.merchant || null);
       applyItems(items, scan.merchant || null);
     } catch (error) {
+      if (!mounted.current) {
+        return;
+      }
       if (isLimitReached(error)) {
         setScanLimit((error as Error).message);
         return;
       }
       notify('Could not scan receipt', error instanceof Error ? error.message : 'Try again.');
     } finally {
-      setScanning(false);
+      if (mounted.current) {
+        setScanning(false);
+      }
     }
   }
 
@@ -447,7 +460,8 @@ export function AddExpenseScreen({ navigation, route }: Props) {
         ) : null}
       </Card>
 
-      <AppButton icon={editing ? 'save-outline' : 'add-outline'} loading={saving} onPress={save}>
+      {/* Saving waits for a running scan, so its items can't land after the expense was sent. */}
+      <AppButton icon={editing ? 'save-outline' : 'add-outline'} loading={saving} disabled={scanning} onPress={save}>
         {`${editing ? 'Save changes' : 'Add expense'}${parsedAmount ? ` · ${money(parsedAmount)}` : ''}`}
       </AppButton>
     </Screen>

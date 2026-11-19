@@ -331,7 +331,7 @@ export function NotesScreen() {
             <>
               <Pressable hitSlop={8} onPress={() => {
                 setNotes(current => current.map(item => (item.id === note.id ? { ...item, is_completed: !item.is_completed } : item)));
-                runAction(() => api.toggleNote(note.id), 'Could not update note', [note.is_completed ? 'Marked not done' : 'Marked done', note.title]);
+                runAction(() => api.toggleNote(note.id, !note.is_completed), 'Could not update note', [note.is_completed ? 'Marked not done' : 'Marked done', note.title]);
               }} style={styles.rowBetween}>
                 <Text style={[styles.title, note.is_completed && styles.completed]}>{note.title}</Text>
                 <Icon name={note.is_completed ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={colors.primary} />
