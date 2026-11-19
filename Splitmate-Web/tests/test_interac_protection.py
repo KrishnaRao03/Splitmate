@@ -23,12 +23,10 @@ class InteracProtectionTests(unittest.TestCase):
         self.scheduler_patch.start()
         self.codes = []
         self.alerts = []
-        self.code_patch = patch('app.payment_security.send_interac_verification_code',
-                                side_effect=lambda user, email, otp: self.codes.append((email, otp)) or True)
         self.alert_patch = patch('app.payment_security.send_payment_details_changed_email',
                                  side_effect=lambda user, changes: self.alerts.append(changes) or True)
         self.request_mail_patch = patch('app.routes.mobile_api.send_money_request_email')
-        for item in (self.code_patch, self.alert_patch, self.request_mail_patch):
+        for item in (self.alert_patch, self.request_mail_patch):
             item.start()
         self.app = create_app(InteracConfig)
         self.client = self.app.test_client()
@@ -58,7 +56,7 @@ class InteracProtectionTests(unittest.TestCase):
         with self.app.app_context():
             db.session.remove()
             db.drop_all()
-        for item in (self.code_patch, self.alert_patch, self.request_mail_patch, self.scheduler_patch):
+        for item in (self.alert_patch, self.request_mail_patch, self.scheduler_patch):
             item.stop()
 
     def save(self, headers, email, password='Strong-pass-1', **extra):

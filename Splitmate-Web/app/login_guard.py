@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from flask import current_app
 
 from app import db
+from app.models import lock_row
 
 MAX_FAILED_ATTEMPTS = 5
 LOCK_MINUTES = 15
@@ -29,6 +30,7 @@ def locked_message(user):
 
 def record_failed_login(user):
     """Counts a wrong password; the fifth in a row locks the account and emails its owner."""
+    lock_row(user)  # Parallel guesses each count, none get lost.
     user.failed_login_count = (user.failed_login_count or 0) + 1
     if user.failed_login_count >= MAX_FAILED_ATTEMPTS:
         user.failed_login_count = 0

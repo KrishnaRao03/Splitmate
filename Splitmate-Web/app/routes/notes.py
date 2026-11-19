@@ -6,6 +6,7 @@ from app.grocery_compare import (
     compare_grocery_list, compare_grocery_note, note_allows_grocery_comparison, parse_grocery_items_from_text,
 )
 from app.models import Group, Note
+from app.task_utils import wanted_completion
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows
 
 notes_bp = Blueprint('notes', __name__, url_prefix='/notes')
@@ -87,7 +88,7 @@ def toggle_note(note_id):
     if current_user not in group.members:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    note.is_completed = not note.is_completed
+    note.is_completed = wanted_completion(request.get_json(silent=True), bool(note.is_completed))
     db.session.commit()
 
     return jsonify({'success': True, 'is_completed': note.is_completed})
@@ -157,11 +158,15 @@ def compare_grocery_prices():
     requested_items = parse_grocery_items_from_text(str(data.get('items') or '')[:1000])
     if not requested_items:
         return jsonify({'error': 'Type at least one item, separated by commas or new lines.'}), 400
-    limit_error = billing.feature_limit_error(current_user, 'grocery_compare')
+    limit_error, claim = billing.claim_feature_use(current_user, 'grocery_compare')
     if limit_error:
         return jsonify({'error': limit_error, 'limit_reached': True}), 402
-    comparison = compare_grocery_list(requested_items, location=data.get('location'))
-    return jsonify({**comparison, 'usage': billing.record_feature_use(current_user, 'grocery_compare')})
+    try:
+        comparison = compare_grocery_list(requested_items, location=data.get('location'))
+    except Exception:
+        billing.refund_feature_use(current_user, claim)
+        raise
+    return jsonify({**comparison, 'usage': billing.feature_usage(current_user, 'grocery_compare')})
 
 @notes_bp.route('/api/<int:note_id>/grocery-comparison')
 @login_required
@@ -175,14 +180,19 @@ def compare_note_groceries(note_id):
             'error': 'Price comparison is only shown for grocery, shopping, or list notes.'
         }), 400
 
-    limit_error = billing.feature_limit_error(current_user, 'grocery_compare')
+    limit_error, claim = billing.claim_feature_use(current_user, 'grocery_compare')
     if limit_error:
         return jsonify({'error': limit_error, 'limit_reached': True}), 402
-    comparison = compare_grocery_note(note, location=request.args.get('location'))
+    try:
+        comparison = compare_grocery_note(note, location=request.args.get('location'))
+    except Exception:
+        billing.refund_feature_use(current_user, claim)
+        raise
     if not comparison['requested_items']:
+        billing.refund_feature_use(current_user, claim)
         return jsonify({
             **comparison,
             'error': 'No grocery items found in this note. Add one item per line or separate items with commas.'
         }), 400
 
-    return jsonify({**comparison, 'usage': billing.record_feature_use(current_user, 'grocery_compare')})
+    return jsonify({**comparison, 'usage': billing.feature_usage(current_user, 'grocery_compare')})

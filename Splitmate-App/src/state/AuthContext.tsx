@@ -18,9 +18,12 @@ type AuthState = {
   verifyEmail: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<boolean>;
   requestPasswordReset: (email: string) => Promise<void>;
-  updateProfile: (details: { name: string; email: string; currentPassword?: string; phone?: string; country?: string } & PaymentHandles) => Promise<{ verificationRequired: boolean; otpSent: boolean; interacCodeSent: boolean }>;
+  updateProfile: (details: { name: string; email: string; currentPassword?: string; phone?: string; country?: string } & PaymentHandles) => Promise<{ verificationRequired: boolean; otpSent: boolean }>;
+  /** Confirms the new email saved in Profile; until then the old one stays the sign-in email. */
+  verifyNewEmail: (otp: string) => Promise<void>;
+  resendNewEmailCode: () => Promise<boolean>;
   updatePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
-  /** Re-reads the signed-in user, e.g. after the Interac email is confirmed. */
+  /** Re-reads the signed-in user. */
   reloadUser: () => Promise<void>;
   signOut: () => Promise<void>;
   signOutEverywhere: () => Promise<void>;
@@ -136,6 +139,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => api.setUnauthorizedHandler(null);
   }, [clearSession]);
 
+  // Started offline: the saved sign-in is kept but there's no profile yet. Keep asking until the
+  // server answers, so screens don't stay in "signed in with no user" (a 401 signs out as usual).
+  useEffect(() => {
+    if (isLoading || !token || user) {
+      return;
+    }
+    let cancelled = false;
+    let delay = 5000;
+    let timer: ReturnType<typeof setTimeout>;
+    const retry = () => {
+      api.me()
+        .then(profile => {
+          if (!cancelled) {
+            setUser(profile.user);
+            setCurrencyCode(profile.currency_code || 'CAD');
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            delay = Math.min(delay * 2, 60000);
+            timer = setTimeout(retry, delay);
+          }
+        });
+    };
+    timer = setTimeout(retry, delay);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isLoading, token, user]);
+
   const value = useMemo<AuthState>(() => ({
     apiBaseUrl,
     currencyCode,
@@ -175,9 +209,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await applySession(response.token, response.user, response.currency_code);
       return {
         verificationRequired: response.verification_required,
-        otpSent: response.otp_sent,
-        interacCodeSent: Boolean(response.interac_code_sent)
+        otpSent: response.otp_sent
       };
+    },
+    verifyNewEmail: async (otp: string) => {
+      // The token carries the email, so the server sends a fresh one for the new address.
+      const response = await api.verifyNewEmail(otp.trim());
+      await applySession(response.token, response.user, response.currency_code);
+    },
+    resendNewEmailCode: async () => {
+      const response = await api.resendNewEmailCode();
+      return response.sent;
     },
     updatePassword: async (currentPassword: string, newPassword: string, confirmPassword: string) => {
       // The server revokes every old token on a password change and returns a new one for this device.

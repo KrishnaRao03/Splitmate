@@ -9,6 +9,14 @@ from app.field_encryption import EncryptedString, phone_lookup_hash
 # Wrong codes allowed before an emailed OTP stops working and a new one is needed.
 MAX_OTP_ATTEMPTS = 5
 
+def lock_row(row):
+    """Holds this row until the next commit (PostgreSQL; SQLite has no row locks) and re-reads it, so two
+    requests at once can't both act on the same state. Unsaved changes are flushed first, not lost."""
+    db.session.flush()
+    db.session.refresh(row, with_for_update=True)
+    return row
+
+
 # Association table for group members
 group_members = db.Table('group_members',
                          db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
@@ -73,6 +81,8 @@ class User(EmailOtpMixin, UserMixin, db.Model):
     email_otp_expires_at = db.Column(db.DateTime)
     email_otp_sent_at = db.Column(db.DateTime)
     email_otp_attempts = db.Column(db.Integer, default=0, nullable=False)
+    # A new sign-in email waiting for its code. `email` keeps the old, proven address until then.
+    pending_email = db.Column(db.String(120))
     # Bumped on password change/reset and "log out everywhere"; old tokens and links stop working.
     token_version = db.Column(db.Integer, default=0, nullable=False)
     # Where other members can send this user money (the app only links out; it never holds funds).
@@ -182,8 +192,19 @@ class ExpenseSplit(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     amount_owed = db.Column(db.Float, nullable=False)
     is_settled = db.Column(db.Boolean, default=False)
+    # The share as it was added. amount_owed shrinks as payments come in, so this shows a part payment.
+    # Empty on shares added before it existed.
+    share_amount = db.Column(db.Float)
 
     user = db.relationship('User', backref='owed_splits')
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault('share_amount', kwargs.get('amount_owed'))
+        super().__init__(**kwargs)
+
+    @property
+    def is_partly_paid(self):
+        return self.share_amount is not None and self.amount_owed < self.share_amount - 0.005
 
 class ExpenseHistory(db.Model):
     """Immutable copy of each expense for transaction history and analytics."""
@@ -208,20 +229,22 @@ class Payment(db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
     method = db.Column(db.String(30), default='manual', nullable=False)
     stripe_checkout_session_id = db.Column(db.String(255), unique=True, index=True)
-    status = db.Column(db.String(30), default='recorded', nullable=False)
+    # pending -> recorded (receiver confirmed) | declined | cancelled (debt settled another way).
+    status = db.Column(db.String(30), default='pending', nullable=False)
     reward_points_awarded = db.Column(db.Integer, default=0, nullable=False)
 
     payer = db.relationship('User', foreign_keys=[payer_id], backref='payments_sent')
     receiver = db.relationship('User', foreign_keys=[receiver_id], backref='payments_received')
 
 class MoneyRequest(db.Model):
-    """An in-app request to be paid back. The payer approves it before the requester sees their Interac email."""
+    """An in-app request to be paid back. The payer approves it before the requester sees their email."""
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False, index=True)
     requester_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     payer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    status = db.Column(db.String(20), default='pending', nullable=False)  # pending, approved, declined
+    # pending -> approved | declined; pending or approved -> settled once nothing is owed any more.
+    status = db.Column(db.String(20), default='pending', nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     decided_at = db.Column(db.DateTime)
 

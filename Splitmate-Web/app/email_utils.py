@@ -195,10 +195,11 @@ def render_email(preheader, heading, paragraphs, code=None, button=None, footnot
 </html>"""
 
 
-def send_verification_otp(user, otp):
+def send_verification_otp(user, otp, to=None):
+    """`to` is a new email waiting to be confirmed; otherwise the code goes to the account email."""
     expiry = current_app.config['OTP_EXPIRY_MINUTES']
     return send_email(
-        user.email,
+        to or user.email,
         f'{otp} is your Splitmate code',
         f'Hi {user.name},\n\n'
         f'Your Splitmate verification code is {otp}.\n'
@@ -332,26 +333,6 @@ def send_splitmate_invite_email(recipient, inviter, join_url):
             ],
             button=('Get Splitmate', link),
             footnote='It is free. On your phone, open the link and add Splitmate to your home screen.',
-        ),
-    )
-
-
-def send_interac_verification_code(user, interac_email, otp):
-    expiry = current_app.config['OTP_EXPIRY_MINUTES']
-    return send_email(
-        interac_email,
-        f'{otp} is your Splitmate Interac code',
-        f'Hi {user.name},\n\n'
-        f'Enter {otp} in Splitmate to confirm {interac_email} as your Interac e-Transfer email.\n'
-        f'This code expires in {expiry} minutes.\n\n'
-        'If you did not ask for this, ignore this email; nothing changes.\n',
-        render_email(
-            f'Your code is {otp}. It expires in {expiry} minutes.',
-            'Confirm your Interac email',
-            [f'Enter this code in Splitmate to confirm {interac_email} as the email your friends send Interac '
-             'e-Transfers to. Until you do, nobody sees it.'],
-            code=otp,
-            footnote=f'The code expires in {expiry} minutes. If you did not ask for this, ignore this email; nothing changes.',
         ),
     )
 

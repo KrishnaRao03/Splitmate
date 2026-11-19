@@ -39,6 +39,13 @@ class BillingTests(unittest.TestCase):
     def setUp(self):
         self.scheduler_patch = patch('app.scheduler.start_inactivity_scheduler', return_value=None)
         self.scheduler_patch.start()
+        # Stripe is never called for real: by default the webhook falls back to the event's own copy.
+        self.stripe_now = {}
+        self.retrieve_patch = patch('stripe.Subscription.retrieve', side_effect=self.fake_retrieve)
+        self.retrieve_patch.start()
+        self.running_subs = []
+        self.list_patch = patch('stripe.Subscription.list', side_effect=lambda **kwargs: {'data': self.running_subs})
+        self.list_patch.start()
         self.app = create_app(BillingConfig)
         self.client = self.app.test_client()
         with self.app.app_context():
@@ -54,6 +61,13 @@ class BillingTests(unittest.TestCase):
             db.session.remove()
             db.drop_all()
         self.scheduler_patch.stop()
+        self.retrieve_patch.stop()
+        self.list_patch.stop()
+
+    def fake_retrieve(self, sub_id, **kwargs):
+        if sub_id not in self.stripe_now:
+            raise stripe.APIConnectionError('offline in tests')
+        return self.stripe_now[sub_id]
 
     def send(self, kind, obj):
         payload = json.dumps({'type': kind, 'data': {'object': obj}})
@@ -121,6 +135,33 @@ class BillingTests(unittest.TestCase):
 
         self.send('customer.subscription.deleted', self.subscription(status='canceled'))
         self.assertEqual(self.rewards()['membership_plan'], 'free')
+
+    def test_a_late_update_after_cancelling_does_not_turn_pro_back_on(self):
+        self.send('customer.subscription.created', self.subscription())
+        self.send('customer.subscription.deleted', self.subscription(status='canceled'))
+        # Stripe now says canceled, so an older "active" update arriving late changes nothing.
+        self.stripe_now['sub_1'] = self.subscription(status='canceled')
+        self.send('customer.subscription.updated', self.subscription())
+        self.assertEqual(self.rewards()['membership_plan'], 'free')
+
+    def test_admin_can_manage_pro_again_after_a_subscription_ends(self):
+        self.send('customer.subscription.created', self.subscription())
+        self.send('customer.subscription.deleted', self.subscription(status='canceled'))
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(User, self.user_id).stripe_subscription_id)
+
+    def test_no_second_checkout_while_a_paid_subscription_waits_for_its_webhook(self):
+        with self.app.app_context():
+            user = db.session.get(User, self.user_id)
+            user.stripe_customer_id = 'cus_1'
+            db.session.commit()
+        self.running_subs = [{'id': 'sub_new', 'status': 'active'}]
+        with patch('stripe.checkout.Session.create') as create:
+            response = self.client.post('/api/mobile/membership/checkout', headers=self.headers,
+                                        json={'interval': 'month', 'return_url': 'https://splitmate-app.onrender.com'})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('can take a minute', response.get_json()['error'])
+        create.assert_not_called()
 
     def test_turning_pro_on_sends_one_welcome_email(self):
         with patch('app.email_utils.send_membership_confirmation_email') as welcome:

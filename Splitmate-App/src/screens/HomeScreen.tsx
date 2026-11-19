@@ -38,6 +38,8 @@ export function HomeScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const hasLoaded = useRef(false);
+  // True once the server answered, so launch links aren't acted on from a cached copy with a stale sign-in.
+  const [serverLoaded, setServerLoaded] = useState(false);
   const money = (value: number) => formatMoney(value, currencyCode);
   const cacheKey = `splitmate.cache.dashboard.${user?.id ?? 'guest'}`;
 
@@ -54,6 +56,7 @@ export function HomeScreen({ navigation }: Props) {
       setGroups(dashboardData.groups);
       setReminders(reminderData);
       hasLoaded.current = true;
+      setServerLoaded(true);
       // Invites are a nice-to-have on Home; an older server without the route shouldn't break it.
       api.myInvites().then(setInvites).catch(() => setInvites([]));
       api.peopleBalances().then(setPeople).catch(() => setPeople([]));
@@ -94,9 +97,9 @@ export function HomeScreen({ navigation }: Props) {
   }, [navigation, user]);
 
   // Links the app was opened with (Stripe checkout return, group invite email), acted on once
-  // Home has data so a sign-in restore that remounts the screens can't swallow them.
+  // the server has answered, so a sign-in restore or an offline start can't swallow them.
   useEffect(() => {
-    if (!dashboard) {
+    if (!serverLoaded) {
       return;
     }
     const membership = takeLaunchLink('membership');
@@ -118,7 +121,7 @@ export function HomeScreen({ navigation }: Props) {
         })
         .catch(error => notify('Could not join the group', error instanceof Error ? error.message : 'Open Group invites to try again.'));
     }
-  }, [dashboard, navigation]);
+  }, [serverLoaded, navigation]);
 
   // Stale-while-revalidate: show the last dashboard straight away, then the fresh one replaces it.
   useEffect(() => {

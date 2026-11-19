@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.expense_visibility import history_for_expense, visible_expenses, visible_history
-from app.models import Group, Expense, ExpenseSplit, ExpenseHistory, Payment, User
+from app.models import Group, Expense, ExpenseSplit, ExpenseHistory, MoneyRequest, Payment, User, lock_row
 from app.group_utils import group_member_payload, group_pending_invite_payload, member_nickname_rows
 from app.security import csv_safe, is_safe_link, payment_methods_for
 from app.rewards import award_settle
@@ -30,6 +30,7 @@ PAYMENT_STATUS_LABELS = {
     'recorded': 'Confirmed',
     'paid': 'Paid',
     'declined': 'Declined',
+    'cancelled': 'Cancelled (already settled)',
 }
 EXPENSE_CATEGORIES = [
     'General',
@@ -263,18 +264,50 @@ def confirm_payment(payment, user):
     """The receiver confirms the money arrived; only then are the payer's splits settled."""
     if payment.receiver_id != user.id:
         return 'Only the person who was paid can confirm this payment.'
+    lock_row(payment)
     if payment.status != 'pending':
         return 'This payment is not waiting for confirmation.'
 
     group = db.session.get(Group, payment.group_id)
     _, total_owed = outstanding_splits_for(group, payment.payer, payment.receiver)
+    if total_owed <= 0:
+        # Settled some other way meanwhile: keep what the payer said they sent, and close it instead.
+        payment.status = 'cancelled'
+        db.session.commit()
+        return 'Nothing is owed any more, so this payment was closed without changing balances.'
     amount = min(money_decimal(payment.amount), total_owed)
-    if amount > 0:
-        settle_outstanding_splits(group, payment.payer, payment.receiver, amount)
+    settle_outstanding_splits(group, payment.payer, payment.receiver, amount)
     payment.amount = float(amount)
     payment.status = 'recorded'
     award_settle(payment)
+    close_finished_debt(group, payment.payer, payment.receiver)
     return None
+
+def close_finished_debt(group, payer, receiver):
+    """Once payer owes receiver nothing in this group, nothing about that debt is left waiting.
+
+    Payments still waiting for confirmation are cancelled and money requests are marked settled,
+    so a later confirm can't turn into a $0 payment and an old approval can't carry over to new debts.
+    The caller commits.
+    """
+    _, owed = outstanding_splits_for(group, payer, receiver)
+    if owed > 0:
+        return
+    for payment in Payment.query.filter_by(group_id=group.id, payer_id=payer.id, receiver_id=receiver.id,
+                                           status='pending').all():
+        payment.status = 'cancelled'
+    for money_request in MoneyRequest.query.filter(
+            MoneyRequest.group_id == group.id, MoneyRequest.requester_id == receiver.id,
+            MoneyRequest.payer_id == payer.id, MoneyRequest.status.in_(('pending', 'approved'))).all():
+        money_request.status = 'settled'
+        money_request.decided_at = money_request.decided_at or datetime.utcnow()
+
+def close_finished_debts_for(expense):
+    """After an expense's shares change or go away, close whatever no longer has anything owed."""
+    group = expense.group
+    payer = db.session.get(User, expense.paid_by_id)
+    for user_id in {split.user_id for split in expense.splits} - {expense.paid_by_id}:
+        close_finished_debt(group, db.session.get(User, user_id), payer)
 
 def _send_quietly(send, *args):
     """Payment emails are a courtesy: a failed send never undoes the payment."""
@@ -306,6 +339,7 @@ def decline_payment(payment, user):
     """Either side can withdraw a pending payment (the receiver didn't get it, or the payer made a mistake)."""
     if user.id not in (payment.receiver_id, payment.payer_id):
         return 'Only the payer or the receiver can decline this payment.'
+    lock_row(payment)
     if payment.status != 'pending':
         return 'This payment is not waiting for confirmation.'
     payment.status = 'declined'
@@ -380,7 +414,8 @@ def money_requests(group, receiver, nicknames=None):
             'payer': nicknames.get(payer.id) or payer.name,
             'amount': float(requestable),
             'request_id': latest.id if latest else None,
-            'request_status': latest.status if latest else 'none',
+            # A settled request belongs to a debt that's gone, so this one starts fresh.
+            'request_status': latest.status if latest and latest.status != 'settled' else 'none',
             'email': email,
             'masked_email': mask_email(email) if email else None,
         })
@@ -395,6 +430,8 @@ def requests_for_payer(group, payer, nicknames=None):
     nicknames = nicknames if nicknames is not None else member_nickname_rows(group.id)
     pending = MoneyRequest.query.filter_by(group_id=group.id, payer_id=payer.id, status='pending') \
         .order_by(MoneyRequest.created_at.desc()).all()
+    # Requests from before settling closed them automatically: skip any whose debt is already paid.
+    pending = [item for item in pending if outstanding_splits_for(group, payer, item.requester)[1] > 0]
     return [{
         'id': item.id,
         'requester_id': item.requester_id,
@@ -431,8 +468,27 @@ def settle_outstanding_splits(group, payer, receiver, amount):
         if remaining <= 0:
             break
 
+def settle_single_split(split):
+    """The person owed marks one share paid. Returns (amount settled, error). The caller commits.
+
+    Recorded as a confirmed payment, the same as settling a whole person, so history shows it either way.
+    """
+    lock_row(split)
+    if split.is_settled:
+        return None, 'That share is already settled.'
+    expense = split.expense
+    payer = db.session.get(User, split.user_id)
+    receiver = db.session.get(User, expense.paid_by_id)
+    settled_amount = split.amount_owed
+    split.is_settled = True
+    split.amount_owed = 0.0
+    if split.user_id != expense.paid_by_id and settled_amount > 0:
+        create_payment_record(expense.group, payer, receiver, settled_amount, status='recorded')
+    close_finished_debt(expense.group, payer, receiver)
+    return settled_amount, None
+
 def create_payment_record(group, payer, receiver, amount, method='manual',
-                          stripe_checkout_session_id=None, status='recorded'):
+                          stripe_checkout_session_id=None, *, status):
     payment_amount = money_decimal(amount)
 
     payment = Payment(
@@ -716,9 +772,10 @@ def settle_split(split_id):
         flash('Only the person who paid for this expense can mark it settled.', 'error')
         return redirect(url_for('split.index'))
 
-    settled_amount = split.amount_owed
-    split.is_settled = True
-    split.amount_owed = 0.0
+    settled_amount, error = settle_single_split(split)
+    if error:
+        flash(error, 'info')
+        return redirect(url_for('split.index'))
     db.session.commit()
     notify_split_settled(split, settled_amount)
     flash('Marked as settled.', 'success')

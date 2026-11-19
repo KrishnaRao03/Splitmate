@@ -725,12 +725,13 @@ def set_user_pro(user_id):
     """Give or take away Pro by hand, with no end date. Stripe subscriptions are left to Stripe."""
     user = db.get_or_404(User, user_id)
     tab = request.form.get('tab') or 'all'
-    if user.stripe_subscription_id:
+    if user.stripe_subscription_id and is_paid_pro(user):
         flash(f'{user.name} pays for Pro through Stripe, so change it there.', 'info')
         return admin_users_redirect(user.id, tab)
 
     give = request.form.get('pro') == 'on'
     before = f'{user.membership_plan}/{user.membership_status}'
+    user.stripe_subscription_id = None  # Any Stripe subscription here has ended (checked above).
     user.membership_plan = 'pro' if give else 'free'
     user.membership_status = 'active'
     user.membership_interval = None

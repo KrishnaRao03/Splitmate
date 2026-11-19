@@ -27,7 +27,7 @@ from app.group_utils import (
 from app import billing
 from app.rewards import record_referral, redeem, rewards_payload
 from app.routes import split as split_routes
-from app.payment_security import apply_payment_handle_changes, send_interac_code, verify_interac_code
+from app.payment_security import apply_payment_handle_changes
 from app.security import clean_payment_handles, display_name_error, password_error
 
 main_bp = Blueprint('main', __name__)
@@ -405,21 +405,19 @@ def profile():
                 return redirect(url_for('main.profile'))
 
             # Payment details need the password too, and the owner is emailed about any change.
-            payment_result, payment_error = apply_payment_handle_changes(
+            _, payment_error = apply_payment_handle_changes(
                 current_user, handles, request.form.get('current_password', '')
             )
             if payment_error:
                 db.session.rollback()
                 flash(payment_error, 'error')
                 return redirect(url_for('main.profile'))
-            if payment_result['interac_code_sent']:
-                flash('We emailed a 6-digit code to your new Interac email. Enter it below to start using it.', 'info')
             current_user.name = name
             current_user.country = country
 
             if email_changed:
-                current_user.email = email
-                current_user.is_email_verified = False
+                # The old email stays the sign-in email until the code sent to the new one is entered.
+                current_user.pending_email = email
                 current_user.clear_email_otp()
                 set_pending_verification(current_user)
 
@@ -436,24 +434,10 @@ def profile():
                 flash('Profile updated, but the verification email could not be sent. Use Resend OTP to try again.', 'info')
                 return redirect(url_for('auth.verify_email'))
 
+            # Saving the current email again cancels a change that was never confirmed.
+            current_user.pending_email = None
             db.session.commit()
             flash('Profile details updated.', 'success')
-            return redirect(url_for('main.profile'))
-
-        if form_type == 'interac_verify':
-            error = verify_interac_code(current_user, request.form.get('otp'))
-            db.session.commit()
-            flash(error or 'Interac email confirmed. Members who owe you can now see it.', 'error' if error else 'success')
-            return redirect(url_for('main.profile'))
-
-        if form_type == 'interac_resend':
-            if not current_user.pending_interac_email:
-                flash('There is no Interac email waiting for a code.', 'error')
-            elif send_interac_code(current_user):
-                flash('A new code is on its way.', 'success')
-            else:
-                flash('The code email could not be sent. Try again in a minute.', 'error')
-            db.session.commit()
             return redirect(url_for('main.profile'))
 
         if form_type == 'password':
@@ -846,7 +830,10 @@ def accept_group_invite(token):
         flash(problem[0], 'error')
         return redirect(url_for('main.home'))
 
-    join_group_from_invite(current_user, invite)
+    if not join_group_from_invite(current_user, invite):
+        db.session.rollback()
+        flash('That invite was already used.', 'info')
+        return redirect(url_for('main.home'))
     db.session.commit()
     flash(f'You joined "{invite.group.name}".', 'success')
     return redirect(url_for('main.home'))

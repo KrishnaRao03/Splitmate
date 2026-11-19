@@ -1,6 +1,5 @@
 /** Where other members can send this user money. Splitmate only links out; it never holds funds. */
 export type PaymentHandles = {
-  interac_email?: string;
   paypal_username?: string;
   upi_id?: string;
 };
@@ -17,10 +16,8 @@ export type User = PaymentHandles & {
   currency?: string;
   payment_fields?: string[];
   is_email_verified: boolean;
-  /** Others see the Interac email only once its code has been entered. */
-  interac_email_verified?: boolean;
-  /** A new Interac email waiting for its code; the old one stays in use until then. */
-  pending_interac_email?: string;
+  /** A new sign-in email waiting for its code; `email` stays in use until it's entered. */
+  pending_email?: string;
   created_at?: string | null;
 };
 

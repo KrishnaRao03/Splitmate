@@ -45,7 +45,14 @@ export function AuthScreen() {
   const loginTabActive = mode === 'login' || mode === 'forgot';
   const registerTabActive = mode === 'register' || mode === 'verify';
 
+  // Tab taps wait while a request runs for the current tab; its answer decides where we go next.
   function switchMode(nextMode: Mode) {
+    if (!loading) {
+      applyMode(nextMode);
+    }
+  }
+
+  function applyMode(nextMode: Mode) {
     setError('');
     setNotice('');
     if (nextMode !== 'verify') {
@@ -133,7 +140,7 @@ export function AuthScreen() {
       } else if (mode === 'forgot') {
         await auth.requestPasswordReset(email);
         setPassword('');
-        switchMode('login');
+        applyMode('login');
         notify('Check your email', 'If an account exists for that email, password reset instructions were sent.');
       } else {
         await auth.verifyEmail(email, otp);

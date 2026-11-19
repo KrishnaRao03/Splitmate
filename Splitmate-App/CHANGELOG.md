@@ -4,6 +4,17 @@ All notable changes to the mobile app. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Fixed
+- Profile: a new email shows "Verify new email" with the address it's waiting on, and you keep signing in with the old one until the code is entered. Resend sends the code to the new address.
+- Ticking tasks and notes sends the wanted state, so a double tap can't flip them back.
+- Group invite and Stripe return links wait until the server has answered, so an offline start can't use them up.
+- Starting offline keeps retrying the profile instead of staying signed in with no profile.
+- Add expense: Save waits for a running receipt scan, and a scan that finishes after you leave is ignored.
+- Sign in: the Login/Register tabs can't be switched while a request is running.
+
+### Removed
+- The hidden Interac email confirmation in Profile.
+
 ### Added
 - Group settings: type an email or a mobile number. For a number, "Text invite" opens Messages with the invite and link ready to send, and "Text it again" re-opens it. Pending invites show the number with most digits hidden.
 - Quick split: friends whose number isn't on Splitmate get a "Text an invite" button instead of being asked for an email.

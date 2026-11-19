@@ -36,6 +36,7 @@ from app.models import (
     RewardTransaction,
     Task,
     User,
+    lock_row,
 )
 from app.regions import (
     countries_payload, country_name, currency_for_country, normalize_country, normalize_currency,
@@ -45,10 +46,10 @@ from app.rewards import record_referral, redeem, rewards_payload
 from app.account_deletion import delete_own_account, self_delete_error
 from app.email_utils import app_url, send_money_request_email, send_password_reset_email, send_splitmate_invite_email
 from app.payment_security import (
-    apply_payment_handle_changes, payment_status_payload, send_interac_code, verify_interac_code,
+    apply_payment_handle_changes, payment_status_payload,
 )
 from app.routes.auth import (
-    OTP_LOCKED_MESSAGE, complete_pending_registration, generate_password_reset_token, registered_account,
+    OTP_LOCKED_MESSAGE, complete_pending_registration, finish_email_verification, generate_password_reset_token, account_for_email, registered_account,
     send_user_otp, start_pending_registration,
 )
 from app.routes.main import SPLITMATE_INVITE_MESSAGE, group_invite_text, invite_phone_to_group, invite_to_group, profile_qr_payload, user_from_friend_code
@@ -62,6 +63,7 @@ from app.task_utils import (
     normalize_task_recurrence,
     task_is_overdue,
     toggle_task_completion,
+    wanted_completion,
 )
 
 
@@ -111,6 +113,7 @@ def user_payload(user):
         # The payment-detail fields that make sense in this user's country (PayPal works everywhere).
         'payment_fields': list(payment_fields_for(user.country)),
         'is_email_verified': bool(user.is_email_verified),
+        'pending_email': user.pending_email or '',
         'reward_points': int(user.reward_points or 0),
         'membership_plan': 'pro' if billing.is_pro(user) else 'free',
         'membership_status': user.membership_status or 'active',
@@ -407,7 +410,7 @@ def login():
     data = json_body()
     email = normalize_email(data.get('email'))
     password = data.get('password') or ''
-    user = User.query.filter_by(email=email).first() if email else None
+    user = account_for_email(email)
 
     if not user:
         pending = PendingRegistration.query.filter_by(email=email).first() if email else None
@@ -475,7 +478,7 @@ def verify_email():
     data = json_body()
     email = normalize_email(data.get('email'))
     otp = (data.get('otp') or '').strip()
-    user = User.query.filter_by(email=email).first() if email else None
+    user = account_for_email(email)
 
     if not user:
         pending = PendingRegistration.query.filter_by(email=email).first() if email else None
@@ -520,7 +523,7 @@ def verify_email():
 @limiter.limit('3 per 10 minutes', key_func=json_email_key)
 def resend_otp():
     email = normalize_email(json_body().get('email'))
-    user = User.query.filter_by(email=email).first() if email else None
+    user = account_for_email(email)
     if not user and email:
         # A sign-up that hasn't been verified yet lives in PendingRegistration until its code is entered.
         user = PendingRegistration.query.filter_by(email=email).first()
@@ -617,7 +620,7 @@ def me():
     handles, handle_error = clean_payment_handles(data)
     if handle_error:
         return json_error(handle_error)
-    # Payment details need the current password and trigger an alert; a new Interac email waits for its code.
+    # Payment details need the current password and trigger an alert.
     handle_result, handle_change_error = apply_payment_handle_changes(user, handles, data.get('current_password'))
     if handle_change_error:
         db.session.rollback()
@@ -636,8 +639,8 @@ def me():
     otp_sent = False
     user.country = country
     if email_changed:
-        user.email = email
-        user.is_email_verified = False
+        # The old email stays the sign-in email until the code sent to the new one is entered.
+        user.pending_email = email
         user.clear_email_otp()
         try:
             otp_sent = send_user_otp(user)
@@ -645,6 +648,8 @@ def me():
             current_app.logger.exception('Failed to send profile verification OTP: %s', exc)
             db.session.commit()
     else:
+        # Saving the current email again cancels a change that was never confirmed.
+        user.pending_email = None
         db.session.commit()
 
     payload = auth_payload(user)
@@ -656,28 +661,45 @@ def me():
     return jsonify(payload)
 
 
-@mobile_api_bp.route('/me/interac/verify', methods=['POST'])
+@mobile_api_bp.route('/me/email/verify', methods=['POST'])
 @mobile_login_required
-@limiter.limit('10 per 10 minutes')
-def verify_interac():
+@limiter.limit('10 per minute')
+def verify_new_email():
+    """Confirms the new email saved in Profile. The sign-in email only changes once this code matches."""
     user = request.mobile_user
-    error = verify_interac_code(user, json_body().get('otp'))
+    if not user.pending_email and user.is_email_verified:
+        return json_error('There is no new email waiting for a code.', 409)
+    if user.email_otp_expires_at and user.email_otp_expires_at < datetime.utcnow():
+        return json_error('That OTP has expired. Please request a new code.')
+    if user.otp_attempts_exhausted():
+        return json_error(OTP_LOCKED_MESSAGE, 429)
+    if not user.check_email_otp((json_body().get('otp') or '').strip()):
+        db.session.commit()
+        return json_error(OTP_LOCKED_MESSAGE if user.otp_attempts_exhausted() else 'Invalid OTP.')
+    error = finish_email_verification(user)
     db.session.commit()
     if error:
-        return json_error(error)
-    return jsonify({'user': user_payload(user)})
+        return json_error(error, 409)
+    # The token carries the email, so the device gets a fresh one for the new address.
+    return jsonify(auth_payload(user))
 
 
-@mobile_api_bp.route('/me/interac/resend', methods=['POST'])
+@mobile_api_bp.route('/me/email/resend', methods=['POST'])
 @mobile_login_required
 @limiter.limit('3 per 10 minutes')
-def resend_interac_code():
+def resend_new_email_code():
     user = request.mobile_user
-    if not user.pending_interac_email:
-        return json_error('There is no Interac email waiting for a code.')
-    sent = send_interac_code(user)
-    db.session.commit()
-    return jsonify({'sent': sent})
+    if not user.pending_email and user.is_email_verified:
+        return json_error('There is no new email waiting for a code.', 409)
+    if user.email_otp_sent_at and user.email_otp_sent_at + timedelta(
+            seconds=current_app.config['OTP_RESEND_COOLDOWN_SECONDS']) > datetime.utcnow():
+        return json_error('Please wait before requesting another OTP.', 429)
+    try:
+        sent = send_user_otp(user)
+    except Exception as exc:
+        current_app.logger.exception('Failed to resend new email OTP: %s', exc)
+        sent = False
+    return jsonify({'sent': bool(sent)})
 
 
 @mobile_api_bp.route('/me/password', methods=['POST'])
@@ -723,14 +745,17 @@ def scan_receipt():
     if media_type == 'image/jpg':
         media_type = 'image/jpeg'
     user = request.mobile_user
-    limit_error = billing.feature_limit_error(user, 'receipt_scan')
+    limit_error, claim = billing.claim_feature_use(user, 'receipt_scan')
     if limit_error:
         return limit_reached(limit_error, user, 'receipt_scan')
     try:
         result = scan_receipt_image(upload.read(), media_type)
-    except ReceiptScanError as exc:
-        return json_error(exc.message, exc.status)
-    return jsonify({**result, 'usage': billing.record_feature_use(user, 'receipt_scan')})
+    except Exception as exc:
+        billing.refund_feature_use(user, claim)  # A failed scan doesn't use up the allowance.
+        if isinstance(exc, ReceiptScanError):
+            return json_error(exc.message, exc.status)
+        raise
+    return jsonify({**result, 'usage': billing.feature_usage(user, 'receipt_scan')})
 
 
 @mobile_api_bp.route('/me/qr')
@@ -831,7 +856,9 @@ def accept_invite_for(user, invite):
     problem = invite_accept_problem(user, invite)
     if problem:
         return json_error(*problem)
-    join_group_from_invite(user, invite)
+    if not join_group_from_invite(user, invite):
+        db.session.rollback()
+        return json_error('That invite was already used.', 409)
     db.session.commit()
     return jsonify({
         'joined': True,
@@ -844,7 +871,8 @@ def accept_invite_for(user, invite):
 @mobile_login_required
 def my_invites():
     user = request.mobile_user
-    sent_to_me = GroupInvite.email == normalize_email(user.email)
+    # An unverified email doesn't prove whose invites these are.
+    sent_to_me = GroupInvite.email == normalize_email(user.email) if user.is_email_verified else db.false()
     if user.phone_hash:
         sent_to_me = db.or_(sent_to_me, GroupInvite.phone_hash == user.phone_hash)
     invites = GroupInvite.query.filter(
@@ -916,11 +944,15 @@ def invite_splitmate():
     })
 
 
+# After a decline, wait this long before asking the same person again.
+MONEY_REQUEST_RETRY_AFTER = timedelta(days=1)
+
+
 @mobile_api_bp.route('/groups/<int:group_id>/money-requests', methods=['POST'])
 @mobile_login_required
 @limiter.limit('20 per hour')
 def create_money_request(group_id):
-    """Ask a member who owes you to pay. They approve it in Splitmate before you see their Interac email."""
+    """Ask a member who owes you to pay. They approve it in Splitmate before you see their email."""
     group, error = require_group_member(group_id)
     if error:
         return error
@@ -933,6 +965,10 @@ def create_money_request(group_id):
         return json_error('That person does not owe you anything in this group.')
     if owed['request_status'] == 'pending':
         return json_error('You already asked them. Wait for them to approve it.', 409)
+    latest = db.session.get(MoneyRequest, owed['request_id']) if owed['request_id'] else None
+    if owed['request_status'] == 'declined' and latest.decided_at and \
+            latest.decided_at > datetime.utcnow() - MONEY_REQUEST_RETRY_AFTER:
+        return json_error('They declined your last request. You can ask again tomorrow.', 429)
 
     money_request = MoneyRequest(group_id=group.id, requester_id=request.mobile_user.id, payer_id=payer_id,
                                  amount=owed['amount'])
@@ -951,12 +987,13 @@ def create_money_request(group_id):
 @mobile_api_bp.route('/money-requests/<int:request_id>/<action>', methods=['POST'])
 @mobile_login_required
 def decide_money_request(request_id, action):
-    """Only the person asked to pay can approve (share their Interac email) or decline."""
+    """Only the person asked to pay can approve (share their email) or decline."""
     if action not in {'approve', 'decline'}:
         return json_error('Unknown action.', 404)
     money_request = db.session.get(MoneyRequest, request_id)
     if not money_request or money_request.payer_id != request.mobile_user.id:
         return json_error('Request not found.', 404)
+    lock_row(money_request)
     if money_request.status != 'pending':
         return json_error('This request was already answered.', 409)
     money_request.status = 'approved' if action == 'approve' else 'declined'
@@ -975,7 +1012,8 @@ def find_user_by_contact(contact):
         email = normalize_email(contact)
         if is_admin_email(email):
             return None, None
-        return (User.query.filter_by(email=email).first() if email else None), email
+        # An unverified email isn't proven to be theirs, so it gets an invite like any new address.
+        return (User.query.filter_by(email=email, is_email_verified=True).first() if email else None), email
     phone = normalize_phone(contact)
     return (User.query.filter_by(phone_hash=phone_lookup_hash(phone)).first() if phone else None), phone
 
@@ -1777,13 +1815,19 @@ def change_expense(expense_id):
     # ExpenseHistory is an immutable audit log (see models.py), so it is left
     # untouched: history and analytics keep showing the expense as originally added.
     if request.method == 'DELETE':
+        # Whatever was owed only because of this expense is no longer waiting on anyone.
+        group, payer = expense.group, db.session.get(User, expense.paid_by_id)
+        debtor_ids = {split.user_id for split in expense.splits} - {expense.paid_by_id}
         db.session.delete(expense)
+        db.session.flush()
+        for user_id in debtor_ids:
+            split_routes.close_finished_debt(group, db.session.get(User, user_id), payer)
         db.session.commit()
         return jsonify({'deleted': True})
 
-    # Editing re-creates the splits, which would undo any settlement already made.
-    if any(split.is_settled and split.user_id != expense.paid_by_id for split in expense.splits):
-        return json_error('This expense already has settled payments, so it cannot be edited. Delete it and add a corrected one instead.', 409)
+    # Editing re-creates the splits, which would undo any payment already made, in full or in part.
+    if any(split.user_id != expense.paid_by_id and split_has_payment(expense, split) for split in expense.splits):
+        return json_error('This expense already has payments against it, so it cannot be edited. Delete it and add a corrected one instead.', 409)
 
     try:
         data = json_or_form_body()
@@ -1799,12 +1843,17 @@ def change_expense(expense_id):
     expense.receipt_url = parsed['receipt_url']
     expense.paid_by_id = parsed['paid_by'].id
 
+    old_debtors = {split.user_id for split in expense.splits}
     for split in list(expense.splits):
         db.session.delete(split)
     db.session.flush()
     for member, share in parsed['split_rows']:
         if share > 0:
             db.session.add(ExpenseSplit(expense_id=expense.id, user_id=member.id, amount_owed=float(share)))
+    db.session.flush()
+    payer = db.session.get(User, expense.paid_by_id)
+    for user_id in (old_debtors | {split.user_id for split in expense.splits}) - {expense.paid_by_id}:
+        split_routes.close_finished_debt(expense.group, db.session.get(User, user_id), payer)
     db.session.commit()
     return jsonify(expense_payload(expense))
 
@@ -2083,12 +2132,23 @@ def settle_split(split_id):
     if split.expense.paid_by_id != request.mobile_user.id:
         return json_error('Only the person who paid for this expense can mark it settled.', 403)
 
-    settled_amount = split.amount_owed
-    split.is_settled = True
-    split.amount_owed = 0.0
+    settled_amount, settle_error = split_routes.settle_single_split(split)
+    if settle_error:
+        return json_error(settle_error, 409)
     db.session.commit()
     split_routes.notify_split_settled(split, settled_amount)
     return jsonify({'settled': True})
+
+
+def split_has_payment(expense, split):
+    """True once any of this share was paid. Older shares don't know their starting amount, so for them
+    a confirmed payment between the two people in this group counts, to be safe."""
+    if split.is_settled or split.is_partly_paid:
+        return True
+    if split.share_amount is not None:
+        return False
+    return Payment.query.filter_by(group_id=expense.group_id, payer_id=split.user_id,
+                                   receiver_id=expense.paid_by_id, status='recorded').first() is not None
 
 
 def split_people(expense):
@@ -2165,6 +2225,7 @@ def settle_person(group_id):
         return json_error(f'{other.name} does not owe you anything in this group.', 409)
     split_routes.settle_outstanding_splits(group, other, me, total)
     payment = split_routes.create_payment_record(group, other, me, total, status='recorded')
+    split_routes.close_finished_debt(group, other, me)
     db.session.commit()
     split_routes.notify_payment_confirmed(payment)
     return jsonify({'settled': True, 'amount': float(total), 'payment_id': payment.id})
@@ -2215,7 +2276,7 @@ def toggle_task(task_id):
     task = Task.query.get_or_404(task_id)
     if request.mobile_user not in task.group.members:
         return json_error('Unauthorized task access.', 403)
-    next_task = toggle_task_completion(task, db.session)
+    next_task = toggle_task_completion(task, db.session, wanted_completion(json_body(), task.is_completed))
     db.session.commit()
     return jsonify({
         'is_completed': bool(task.is_completed),
@@ -2266,7 +2327,7 @@ def toggle_note(note_id):
     note = Note.query.get_or_404(note_id)
     if request.mobile_user not in note.group.members:
         return json_error('Unauthorized note access.', 403)
-    note.is_completed = not note.is_completed
+    note.is_completed = wanted_completion(json_body(), bool(note.is_completed))
     db.session.commit()
     return jsonify({'is_completed': bool(note.is_completed)})
 
@@ -2295,11 +2356,15 @@ def compare_grocery_prices():
     if not requested_items:
         return json_error('Type at least one item, separated by commas or new lines.')
     user = request.mobile_user
-    limit_error = billing.feature_limit_error(user, 'grocery_compare')
+    limit_error, claim = billing.claim_feature_use(user, 'grocery_compare')
     if limit_error:
         return limit_reached(limit_error, user, 'grocery_compare')
-    comparison = compare_grocery_list(requested_items, location=data.get('location'))
-    return jsonify({**comparison, 'usage': billing.record_feature_use(user, 'grocery_compare')})
+    try:
+        comparison = compare_grocery_list(requested_items, location=data.get('location'))
+    except Exception:
+        billing.refund_feature_use(user, claim)
+        raise
+    return jsonify({**comparison, 'usage': billing.feature_usage(user, 'grocery_compare')})
 
 
 @mobile_api_bp.route('/notes/<int:note_id>/grocery-comparison')
@@ -2313,14 +2378,19 @@ def compare_note_groceries(note_id):
         return json_error('Price comparison is only available for grocery, shopping, or list notes.')
 
     user = request.mobile_user
-    limit_error = billing.feature_limit_error(user, 'grocery_compare')
+    limit_error, claim = billing.claim_feature_use(user, 'grocery_compare')
     if limit_error:
         return limit_reached(limit_error, user, 'grocery_compare')
-    comparison = compare_grocery_note(note, location=request.args.get('location'))
+    try:
+        comparison = compare_grocery_note(note, location=request.args.get('location'))
+    except Exception:
+        billing.refund_feature_use(user, claim)
+        raise
     if not comparison['requested_items']:
+        billing.refund_feature_use(user, claim)
         return json_error('No grocery items found in this note. Add one item per line or separate items with commas.')
 
-    return jsonify({**comparison, 'usage': billing.record_feature_use(user, 'grocery_compare')})
+    return jsonify({**comparison, 'usage': billing.feature_usage(user, 'grocery_compare')})
 
 
 @mobile_api_bp.route('/notes/<int:note_id>', methods=['PATCH', 'DELETE'])
