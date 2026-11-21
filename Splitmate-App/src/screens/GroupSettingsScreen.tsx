@@ -420,7 +420,7 @@ export function GroupSettingsScreen({ navigation, route }: Props) {
           ]}
         />
         {splitType === 'selected' ? detail.group.members.map(member => (
-          <Pressable key={member.id} onPress={() => toggleMember(member)} style={styles.selectRow}>
+          <Pressable key={member.id} onPress={() => toggleMember(member)} style={styles.selectRow} accessibilityRole="checkbox" accessibilityState={{ checked: selectedIds.has(member.id) }}>
             <Icon name={selectedIds.has(member.id) ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
             <Text style={styles.memberName}>{member.name}</Text>
           </Pressable>
