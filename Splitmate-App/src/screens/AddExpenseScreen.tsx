@@ -342,6 +342,8 @@ export function AddExpenseScreen({ navigation, route }: Props) {
                 accessibilityLabel={item.keep ? `Remove ${item.name} from split` : `Add ${item.name} to split`}
                 onPress={() => updateItem(item.key, { keep: !item.keep })}
                 hitSlop={8}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: item.keep }}
               >
                 <Icon name={item.keep ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
               </Pressable>
