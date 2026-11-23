@@ -434,7 +434,7 @@ export function AddExpenseScreen({ navigation, route }: Props) {
 
       {/* Step 3: optional extras, folded away so the main flow stays short */}
       <Card style={styles.section}>
-        <Pressable style={styles.moreRow} onPress={() => setShowMore(open => !open)} accessibilityRole="button">
+        <Pressable style={styles.moreRow} onPress={() => setShowMore(open => !open)} accessibilityRole="button" accessibilityState={{ expanded: showMore }}>
           <View style={styles.moreText}>
             <Text style={styles.step}>More options</Text>
             <Text style={styles.helper}>{category.trim() || 'General'}{receipt || receiptUrl ? ' - receipt attached' : ''}</Text>

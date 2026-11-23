@@ -208,7 +208,7 @@ function GroupSettleUp({ groupId }: { groupId: number }) {
         const items = [...person.they_owe_items.map(item => ({ ...item, theyOwe: true })), ...person.you_owe_items.map(item => ({ ...item, theyOwe: false }))];
         return (
           <Card key={person.user_id} style={styles.person}>
-            <Pressable accessibilityRole="button" onPress={() => setOpenPerson(expanded ? null : person.user_id)} style={styles.personTop}>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setOpenPerson(expanded ? null : person.user_id)} style={styles.personTop}>
               <View style={styles.avatar}><Text style={styles.avatarText}>{initials(person.name)}</Text></View>
               <View style={styles.grow}>
                 <Text style={styles.name}>{person.name}</Text>
