@@ -30,6 +30,7 @@ export function TextField({ label, error, right, borderColor, footer, style, onF
         ]}
       >
         <TextInput
+          accessibilityLabel={label}
           placeholderTextColor={colors.placeholder}
           style={[styles.input, Platform.OS === 'web' && WEB_NO_OUTLINE, style]}
           onFocus={(event) => {
