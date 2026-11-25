@@ -161,6 +161,7 @@ export function SettingsScreen({ navigation }: Props) {
             <Text style={styles.help}>Remind me on this phone when a task's reminder time arrives.</Text>
           </View>
           <Switch
+            accessibilityLabel="Task notifications"
             value={remindersOn}
             onValueChange={toggleReminders}
             disabled={permission === 'not supported'}
