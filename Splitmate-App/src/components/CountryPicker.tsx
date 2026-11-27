@@ -48,7 +48,7 @@ export function CountryPicker({ label = 'Country', value, onChange, hint }: Prop
           <Pressable style={styles.sheet} onPress={() => undefined}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Choose your country</Text>
-              <Pressable accessibilityLabel="Close" onPress={() => setOpen(false)} hitSlop={8}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setOpen(false)} hitSlop={8}>
                 <Icon name="close" size={22} color={colors.secondary} />
               </Pressable>
             </View>
@@ -61,6 +61,7 @@ export function CountryPicker({ label = 'Country', value, onChange, hint }: Prop
               renderItem={({ item }) => (
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityState={{ selected: item.code === value }}
                   onPress={() => {
                     onChange(item.code);
                     setSearch('');
