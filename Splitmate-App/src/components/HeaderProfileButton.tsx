@@ -14,7 +14,7 @@ import type { RootStackParamList } from '@/types';
 export function HeaderProfileButton() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   return (
-    <Pressable accessibilityLabel="Profile" style={styles.button} onPress={() => navigation.navigate('Profile')}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Profile" style={styles.button} onPress={() => navigation.navigate('Profile')}>
       <Icon name="person-outline" size={22} color={colors.primaryDark} />
     </Pressable>
   );
